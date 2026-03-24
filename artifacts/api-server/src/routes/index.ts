@@ -6,6 +6,7 @@ import restaurantRouter from "./restaurant";
 import coursesRouter from "./courses";
 import mealsRouter from "./meals";
 import todosRouter from "./todos";
+import gradesRouter from "./grades";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(restaurantRouter);
 router.use(coursesRouter);
 router.use(mealsRouter);
 router.use(todosRouter);
+router.use(gradesRouter);
 
 export default router;

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle } from "lucide-react";
+import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import {
   useGetSchedules,
@@ -108,72 +108,128 @@ async function fetchCourses(dept: string, year: string, search: string): Promise
   return res.json();
 }
 
+// ────────────────────── Grade Types & Constants ──────────────────────
+interface GradeEntry {
+  id: number;
+  year: number;
+  semester: string;
+  subjectName: string;
+  credits: number;
+  grade: string;
+}
+
+const GRADE_POINTS: Record<string, number> = {
+  "A+": 4.5, "A0": 4.0, "B+": 3.5, "B0": 3.0,
+  "C+": 2.5, "C0": 2.0, "D+": 1.5, "D0": 1.0, "F": 0.0,
+};
+const GRADE_OPTIONS = Object.keys(GRADE_POINTS);
+const SEMESTER_OPTIONS = ["1학기", "2학기", "여름계절", "겨울계절"];
+const CURRENT_YEAR = new Date().getFullYear();
+
+function calcGPA(grades: GradeEntry[]) {
+  const counted = grades.filter(g => g.grade !== "F" || GRADE_POINTS[g.grade] !== undefined);
+  const totalCredits = counted.reduce((s, g) => s + g.credits, 0);
+  const totalPoints = counted.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
+  const earnedCredits = grades.filter(g => g.grade !== "F").reduce((s, g) => s + g.credits, 0);
+  const gpa = totalCredits > 0 ? totalPoints / totalCredits : 0;
+  return { gpa, totalCredits, earnedCredits };
+}
+
+async function fetchGrades(): Promise<GradeEntry[]> {
+  const res = await fetch(`${BASE}/api/grades`);
+  if (!res.ok) throw new Error("Failed");
+  return res.json();
+}
+async function createGrade(data: Omit<GradeEntry, "id">): Promise<GradeEntry> {
+  const res = await fetch(`${BASE}/api/grades`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed");
+  return res.json();
+}
+async function deleteGrade(id: number): Promise<void> {
+  await fetch(`${BASE}/api/grades/${id}`, { method: "DELETE" });
+}
+
 export function SchedulePage() {
   const { data: schedules = [], isLoading } = useGetSchedules();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBrowseOpen, setIsBrowseOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"timetable" | "grades">("timetable");
 
   return (
     <Layout>
-      <div className="p-6 pt-12 pb-6 flex items-center justify-between">
+      {/* Header */}
+      <div className="px-6 pt-12 pb-4 flex items-center justify-between">
         <div>
-          <p className="text-muted-foreground font-medium mb-1">
-            {format(new Date(), "MM월 dd일")}
-          </p>
-          <h1 className="text-3xl text-foreground">이번 주 <span className="text-primary">시간표</span></h1>
+          <p className="text-muted-foreground font-medium mb-1">{format(new Date(), "MM월 dd일")}</p>
+          <h1 className="text-3xl text-foreground">
+            {activeTab === "timetable" ? <>이번 주 <span className="text-primary">시간표</span></> : <>학기별 <span className="text-primary">성적 관리</span></>}
+          </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsBrowseOpen(true)}
-            className="flex items-center gap-1.5 bg-secondary text-secondary-foreground rounded-full px-4 py-2.5 text-sm font-semibold hover:bg-secondary/80 active:scale-95 transition-all shadow-sm"
-          >
-            <BookOpen className="w-4 h-4" />
-            수강편람
+        {activeTab === "timetable" && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsBrowseOpen(true)}
+              className="flex items-center gap-1.5 bg-secondary text-secondary-foreground rounded-full px-4 py-2.5 text-sm font-semibold hover:bg-secondary/80 active:scale-95 transition-all shadow-sm">
+              <BookOpen className="w-4 h-4" />수강편람
+            </button>
+            <button onClick={() => setIsAddOpen(true)}
+              className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
+              <Plus className="w-6 h-6" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="px-4 mb-4">
+        <div className="flex bg-secondary/60 rounded-2xl p-1 gap-1">
+          <button onClick={() => setActiveTab("timetable")}
+            className={cn("flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all", activeTab === "timetable" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            <BookOpen className="w-4 h-4" />시간표
           </button>
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
-          >
-            <Plus className="w-6 h-6" />
+          <button onClick={() => setActiveTab("grades")}
+            className={cn("flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all", activeTab === "grades" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            <GraduationCap className="w-4 h-4" />성적 관리
           </button>
         </div>
       </div>
 
-      <div className="px-4 pb-10">
-        <div className="bg-white rounded-3xl p-4 shadow-sm border border-border/50 relative overflow-x-auto">
-          {isLoading ? (
-            <div className="h-[600px] flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <div className="min-w-[400px]">
-              <div className="flex mb-2">
-                <div className="w-12" />
-                {DAYS.map((day) => (
-                  <div key={day} className="flex-1 text-center font-bold text-muted-foreground text-sm py-2">
-                    {day}
-                  </div>
-                ))}
+      {/* Timetable Tab */}
+      {activeTab === "timetable" && (
+        <div className="px-4 pb-10">
+          <div className="bg-white rounded-3xl p-4 shadow-sm border border-border/50 relative overflow-x-auto">
+            {isLoading ? (
+              <div className="h-[600px] flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
-              <div className="relative">
-                {HOURS.map((hour) => (
-                  <div key={hour} className="flex border-t border-border/40 h-[60px]">
-                    <div className="w-12 text-xs text-muted-foreground font-medium relative -top-2.5 pr-2 text-right">
-                      {hour}
+            ) : (
+              <div className="min-w-[400px]">
+                <div className="flex mb-2">
+                  <div className="w-12" />
+                  {DAYS.map((day) => (
+                    <div key={day} className="flex-1 text-center font-bold text-muted-foreground text-sm py-2">{day}</div>
+                  ))}
+                </div>
+                <div className="relative">
+                  {HOURS.map((hour) => (
+                    <div key={hour} className="flex border-t border-border/40 h-[60px]">
+                      <div className="w-12 text-xs text-muted-foreground font-medium relative -top-2.5 pr-2 text-right">{hour}</div>
+                      {DAYS.map((_, i) => (<div key={i} className="flex-1 border-l border-border/40" />))}
                     </div>
-                    {DAYS.map((_, i) => (
-                      <div key={i} className="flex-1 border-l border-border/40" />
-                    ))}
-                  </div>
-                ))}
-                {schedules.map((schedule) => (
-                  <ScheduleBlock key={schedule.id} schedule={schedule} />
-                ))}
+                  ))}
+                  {schedules.map((schedule) => (<ScheduleBlock key={schedule.id} schedule={schedule} />))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Grades Tab */}
+      {activeTab === "grades" && <GradeSection />}
 
       {isAddOpen && <AddScheduleDialog onClose={() => setIsAddOpen(false)} />}
       {isBrowseOpen && <CourseBrowserDialog onClose={() => setIsBrowseOpen(false)} />}
@@ -723,6 +779,266 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
             className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60"
           >
             {createMutation.isPending ? "추가 중..." : "시간표 추가"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────── Grade Management Components ──────────────────────
+const GRADE_COLORS: Record<string, string> = {
+  "A+": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "A0": "bg-green-100 text-green-700 border-green-200",
+  "B+": "bg-blue-100 text-blue-700 border-blue-200",
+  "B0": "bg-sky-100 text-sky-700 border-sky-200",
+  "C+": "bg-yellow-100 text-yellow-700 border-yellow-200",
+  "C0": "bg-orange-100 text-orange-700 border-orange-200",
+  "D+": "bg-red-100 text-red-600 border-red-200",
+  "D0": "bg-rose-100 text-rose-600 border-rose-200",
+  "F":  "bg-gray-100 text-gray-500 border-gray-200",
+};
+
+function GradeSection() {
+  const [grades, setGrades] = useState<GradeEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(new Set());
+
+  const loadGrades = useCallback(async () => {
+    try {
+      const data = await fetchGrades();
+      setGrades(data);
+      const semesters = Array.from(new Set(data.map(g => `${g.year}-${g.semester}`)));
+      setExpandedSemesters(new Set(semesters.slice(-2)));
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadGrades(); }, [loadGrades]);
+
+  const handleDelete = async (id: number) => {
+    await deleteGrade(id);
+    setGrades(prev => prev.filter(g => g.id !== id));
+  };
+
+  const handleAdd = (entry: GradeEntry) => {
+    setGrades(prev => [...prev, entry]);
+    const key = `${entry.year}-${entry.semester}`;
+    setExpandedSemesters(prev => new Set([...prev, key]));
+  };
+
+  const toggleSemester = (key: string) => {
+    setExpandedSemesters(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const { gpa: overallGPA, totalCredits, earnedCredits } = calcGPA(grades);
+
+  const semesterGroups = grades.reduce<Record<string, GradeEntry[]>>((acc, g) => {
+    const key = `${g.year}-${g.semester}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(g);
+    return acc;
+  }, {});
+  const sortedKeys = Object.keys(semesterGroups).sort((a, b) => {
+    const [ay, as_] = a.split("-");
+    const [by, bs] = b.split("-");
+    const semOrder = ["1학기", "여름계절", "2학기", "겨울계절"];
+    return Number(ay) !== Number(by) ? Number(ay) - Number(by) : semOrder.indexOf(as_) - semOrder.indexOf(bs);
+  });
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 pb-10 overflow-y-auto">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="bg-primary/10 rounded-2xl p-4 text-center">
+          <Award className="w-5 h-5 text-primary mx-auto mb-1" />
+          <p className="text-2xl font-black text-primary">{grades.length > 0 ? overallGPA.toFixed(2) : "-"}</p>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">전체 평점</p>
+        </div>
+        <div className="bg-blue-50 rounded-2xl p-4 text-center">
+          <GraduationCap className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+          <p className="text-2xl font-black text-blue-600">{earnedCredits}</p>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">이수학점</p>
+        </div>
+        <div className="bg-violet-50 rounded-2xl p-4 text-center">
+          <TrendingUp className="w-5 h-5 text-violet-600 mx-auto mb-1" />
+          <p className="text-2xl font-black text-violet-600">{totalCredits}</p>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">총 신청학점</p>
+        </div>
+      </div>
+
+      {/* Add Button */}
+      <button
+        onClick={() => setIsAddOpen(true)}
+        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold py-3.5 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all mb-5"
+      >
+        <Plus className="w-5 h-5" />성적 추가
+      </button>
+
+      {/* Semester Groups */}
+      {sortedKeys.length === 0 ? (
+        <div className="bg-card rounded-3xl p-10 text-center border border-border/50 shadow-sm">
+          <GraduationCap className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-muted-foreground font-medium">아직 성적이 없어요</p>
+          <p className="text-sm text-muted-foreground/60 mt-1">+ 성적 추가 버튼으로 입력하세요</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sortedKeys.map(key => {
+            const [yr, sem] = key.split(/-(.+)/);
+            const semGrades = semesterGroups[key];
+            const { gpa: semGPA, earnedCredits: semEarned } = calcGPA(semGrades);
+            const isOpen = expandedSemesters.has(key);
+            return (
+              <div key={key} className="bg-card rounded-3xl border border-border/50 shadow-sm overflow-hidden">
+                <button
+                  onClick={() => toggleSemester(key)}
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <GraduationCap className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold text-foreground">{yr}년 {sem}</p>
+                      <p className="text-xs text-muted-foreground">{semGrades.length}과목 · {semEarned}학점 · 평점 {semGPA.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  {isOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+                </button>
+                {isOpen && (
+                  <div className="border-t border-border/50">
+                    {semGrades.map(g => (
+                      <div key={g.id} className="flex items-center justify-between px-5 py-3 border-b border-border/30 last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-foreground truncate">{g.subjectName}</p>
+                          <p className="text-xs text-muted-foreground">{g.credits}학점</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={cn("px-3 py-1 rounded-full text-sm font-bold border", GRADE_COLORS[g.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>
+                            {g.grade}
+                          </span>
+                          <span className="text-sm text-muted-foreground w-8 text-right">{(GRADE_POINTS[g.grade] ?? 0).toFixed(1)}</span>
+                          <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {isAddOpen && <AddGradeDialog onClose={() => setIsAddOpen(false)} onAdd={handleAdd} />}
+    </div>
+  );
+}
+
+function AddGradeDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (g: GradeEntry) => void }) {
+  const [form, setForm] = useState({
+    year: CURRENT_YEAR.toString(),
+    semester: "1학기",
+    subjectName: "",
+    credits: "3",
+    grade: "A+",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const yearOptions = Array.from({ length: 6 }, (_, i) => (CURRENT_YEAR - i).toString());
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.subjectName.trim()) return;
+    setSaving(true);
+    try {
+      const created = await createGrade({
+        year: parseInt(form.year),
+        semester: form.semester,
+        subjectName: form.subjectName.trim(),
+        credits: parseInt(form.credits),
+        grade: form.grade,
+      });
+      onAdd(created);
+      onClose();
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-card w-full rounded-t-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-xl font-black text-foreground">성적 추가</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">연도</label>
+              <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value })}
+                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {yearOptions.map(y => <option key={y} value={y}>{y}년</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학기</label>
+              <select value={form.semester} onChange={e => setForm({ ...form, semester: e.target.value })}
+                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {SEMESTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">과목명</label>
+            <input value={form.subjectName} onChange={e => setForm({ ...form, subjectName: e.target.value })}
+              placeholder="예) 데이터베이스"
+              className="w-full bg-secondary/50 border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
+              <select value={form.credits} onChange={e => setForm({ ...form, credits: e.target.value })}
+                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {["1", "2", "3", "4"].map(c => <option key={c} value={c}>{c}학점</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
+              <select value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })}
+                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className={cn("rounded-xl px-4 py-3 border text-center font-bold", GRADE_COLORS[form.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>
+            {form.grade} · {GRADE_POINTS[form.grade]?.toFixed(1)} · {form.credits}학점
+          </div>
+
+          <button type="submit" disabled={saving || !form.subjectName.trim()}
+            className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60">
+            {saving ? "저장 중..." : "성적 저장"}
           </button>
         </form>
       </div>
