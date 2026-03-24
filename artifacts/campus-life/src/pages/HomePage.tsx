@@ -103,8 +103,16 @@ export function HomePage() {
   };
 
   const todaySchedules = getTodaySchedules(schedules);
-  const incompleteTodos = todos.filter(t => !t.completed);
-  const completedTodos = todos.filter(t => t.completed);
+  const sortByDeadline = (list: Todo[]) =>
+    [...list].sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+
+  const incompleteTodos = sortByDeadline(todos.filter(t => !t.completed));
+  const completedTodos = sortByDeadline(todos.filter(t => t.completed));
 
   const now = new Date();
   const dayOfWeek = now.getDay(); // 0=Sun
@@ -179,7 +187,7 @@ export function HomePage() {
         <section>
           <div className="flex items-baseline justify-between mb-4">
             <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-              className="text-2xl font-bold text-foreground">Tasks</h3>
+              className="text-2xl font-bold text-foreground">할 일</h3>
             <button onClick={() => setIsAddTodoOpen(true)}
               className="text-primary font-bold text-sm flex items-center gap-1">
               <Plus className="w-4 h-4" />추가
@@ -262,32 +270,57 @@ function TaskRow({ todo, onToggle, onDelete }: { todo: Todo; onToggle: (id: numb
   const now = Date.now();
   const daysLeft = dueDateTime ? Math.ceil((dueDateTime.getTime() - now) / 86400000) : null;
   const isOverdue = dueDateTime ? dueDateTime.getTime() < now && !todo.completed : false;
+  const isUrgent = !isOverdue && daysLeft !== null && daysLeft <= 2;
+
+  const deadlineBg = isOverdue
+    ? "bg-red-50 text-red-600 border-red-200"
+    : isUrgent
+    ? "bg-orange-50 text-orange-500 border-orange-200"
+    : "bg-muted/60 text-muted-foreground border-border/50";
+
+  const dLabel = daysLeft === null ? null
+    : daysLeft < 0  ? `D+${Math.abs(daysLeft)}`
+    : daysLeft === 0 ? "오늘"
+    : `D-${daysLeft}`;
 
   return (
-    <label className="flex items-center gap-4 px-6 py-3.5 cursor-pointer group">
+    <div className="flex items-center gap-3 px-5 py-3.5 group">
       <button onClick={() => onToggle(todo.id, !todo.completed)} className="shrink-0">
         {todo.completed
           ? <CheckCircle2 className="w-6 h-6 text-primary" />
           : <Circle className="w-6 h-6 text-border group-hover:text-primary/40 transition-colors" />}
       </button>
+
       <div className="flex-1 min-w-0">
-        <span className={cn("text-sm font-medium", todo.completed ? "line-through text-muted-foreground decoration-primary/40" : "text-foreground")}>
+        <p className={cn("text-sm font-medium leading-snug", todo.completed ? "line-through text-muted-foreground decoration-primary/40" : "text-foreground")}>
           {todo.title}
+        </p>
+        <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 inline-block", cat.bg, cat.text)}>
+          {todo.category}
         </span>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", cat.bg, cat.text)}>{todo.category}</span>
-          {dueDateTime && (
-            <span className={cn("text-[10px] font-medium", isOverdue ? "text-destructive" : daysLeft !== null && daysLeft <= 1 ? "text-orange-500" : "text-muted-foreground")}>
-              {daysLeft === null ? "" : daysLeft < 0 ? `D+${Math.abs(daysLeft)}` : daysLeft === 0 ? "오늘" : `D-${daysLeft}`}
-              {hasTime && dueDateTime && ` · ${dueDateTime.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}`}
+      </div>
+
+      {/* Deadline badge */}
+      {dueDateTime && dLabel && (
+        <div className={cn("shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl border text-center min-w-[52px]", deadlineBg)}>
+          <span className="text-[11px] font-extrabold leading-none">{dLabel}</span>
+          {hasTime && (
+            <span className="text-[9px] font-medium mt-0.5 opacity-80 leading-none">
+              {dueDateTime.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+            </span>
+          )}
+          {!hasTime && (
+            <span className="text-[9px] font-medium mt-0.5 opacity-70 leading-none">
+              {`${dueDateTime.getMonth() + 1}/${dueDateTime.getDate()}`}
             </span>
           )}
         </div>
-      </div>
+      )}
+
       <button onClick={() => onDelete(todo.id)} className="shrink-0 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all">
         <X className="w-4 h-4" />
       </button>
-    </label>
+    </div>
   );
 }
 
