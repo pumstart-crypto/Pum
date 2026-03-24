@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { PNU_CATALOG } from "@/data/pnuCatalog";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp, List, ChevronLeft, Calendar, Pencil, Check } from "lucide-react";
 import { Layout } from "@/components/Layout";
@@ -1483,11 +1484,12 @@ function QuickGradeDialog({
   onAdd: (g: GradeEntry) => void;
 }) {
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
-  const [category, setCategory] = useState("전공필수");
-  const [credits, setCredits] = useState("3");
   const [saving, setSaving] = useState(false);
 
-  const isPassFail = selectedGrade === "S" || selectedGrade === "U";
+  // Auto-fill from 수강편람 catalog
+  const catalogInfo = useMemo(() => PNU_CATALOG[course.subjectName], [course.subjectName]);
+  const category = catalogInfo?.[0] ?? "전공선택";
+  const credits = catalogInfo?.[1] ?? 3;
 
   const handleSave = async () => {
     if (!selectedGrade) return;
@@ -1497,7 +1499,7 @@ function QuickGradeDialog({
         year,
         semester,
         subjectName: course.subjectName,
-        credits: parseInt(credits),
+        credits,
         grade: selectedGrade,
         category,
       });
@@ -1511,12 +1513,17 @@ function QuickGradeDialog({
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-card w-full rounded-t-3xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-3">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: course.color }} />
             <div className="min-w-0">
               <p className="font-black text-foreground text-base truncate">{course.subjectName}</p>
-              <p className="text-xs text-muted-foreground">{year}년 {semester}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={cn("text-xs font-bold px-2 py-0.5 rounded-lg", GRAD_CAT_BG[category] ?? "bg-muted text-muted-foreground")}>{category}</span>
+                <span className="text-xs text-muted-foreground">{credits}학점</span>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-muted-foreground">{year}년 {semester}</span>
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-secondary shrink-0 ml-2">
@@ -1524,7 +1531,7 @@ function QuickGradeDialog({
           </button>
         </div>
 
-        <div className="px-6 pb-8 space-y-5">
+        <div className="px-6 pb-8 space-y-4">
           {/* Grade grid */}
           <div className="space-y-2">
             {QUICK_GRADE_ROWS.map((row, ri) => (
@@ -1548,41 +1555,12 @@ function QuickGradeDialog({
                       {GRADE_POINTS[g] !== undefined && (
                         <span className="block text-[10px] font-normal opacity-70 mt-0.5">{GRADE_POINTS[g].toFixed(1)}</span>
                       )}
-                      {g === "S" && <span className="block text-[10px] font-normal opacity-70 mt-0.5">P/F</span>}
-                      {g === "U" && <span className="block text-[10px] font-normal opacity-70 mt-0.5">P/F</span>}
+                      {(g === "S" || g === "U") && <span className="block text-[10px] font-normal opacity-70 mt-0.5">P/F</span>}
                     </button>
                   )
                 )}
               </div>
             ))}
-          </div>
-
-          {/* 이수구분 + 학점 (compact row) */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">이수구분</label>
-              <div className="flex flex-wrap gap-1.5">
-                {GRAD_CATEGORIES.map(cat => (
-                  <button key={cat} type="button" onClick={() => setCategory(cat)}
-                    className={cn("px-3 py-1.5 rounded-xl text-xs font-bold border transition-all", category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {!isPassFail && (
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
-                <div className="flex gap-2">
-                  {["1", "2", "3", "4"].map(c => (
-                    <button key={c} type="button" onClick={() => setCredits(c)}
-                      className={cn("flex-1 py-2 rounded-xl text-sm font-bold border transition-all", credits === c ? "bg-primary text-primary-foreground border-transparent" : "bg-muted border-transparent text-muted-foreground hover:border-border")}>
-                      {c}학점
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Save */}
