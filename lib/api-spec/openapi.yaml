@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: 캠퍼스라이프 API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: schedule
+    description: 시간표 관리
+  - name: finance
+    description: 가계부 관리
+  - name: restaurant
+    description: 맛집 관리
+  - name: review
+    description: 후기 관리
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,281 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /schedule:
+    get:
+      operationId: getSchedules
+      tags: [schedule]
+      summary: 시간표 목록 조회
+      responses:
+        "200":
+          description: 시간표 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Schedule"
+    post:
+      operationId: createSchedule
+      tags: [schedule]
+      summary: 시간표 추가
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleRequest"
+      responses:
+        "201":
+          description: 생성된 시간표
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+
+  /schedule/{id}:
+    put:
+      operationId: updateSchedule
+      tags: [schedule]
+      summary: 시간표 수정
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleRequest"
+      responses:
+        "200":
+          description: 수정된 시간표
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+    delete:
+      operationId: deleteSchedule
+      tags: [schedule]
+      summary: 시간표 삭제
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 삭제 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /finance:
+    get:
+      operationId: getFinances
+      tags: [finance]
+      summary: 가계부 내역 조회
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+          description: YYYY-MM 형식
+      responses:
+        "200":
+          description: 가계부 내역
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Finance"
+    post:
+      operationId: createFinance
+      tags: [finance]
+      summary: 가계부 내역 추가
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFinanceRequest"
+      responses:
+        "201":
+          description: 생성된 가계부 내역
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Finance"
+
+  /finance/{id}:
+    delete:
+      operationId: deleteFinance
+      tags: [finance]
+      summary: 가계부 내역 삭제
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 삭제 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /finance/summary:
+    get:
+      operationId: getFinanceSummary
+      tags: [finance]
+      summary: 가계부 요약 조회
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+          description: YYYY-MM 형식
+      responses:
+        "200":
+          description: 가계부 요약
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceSummary"
+
+  /restaurant:
+    get:
+      operationId: getRestaurants
+      tags: [restaurant]
+      summary: 맛집 목록 조회
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: affiliated
+          in: query
+          schema:
+            type: boolean
+          description: 학생회 제휴 업체만 필터링
+      responses:
+        "200":
+          description: 맛집 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Restaurant"
+    post:
+      operationId: createRestaurant
+      tags: [restaurant]
+      summary: 맛집 추가
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRestaurantRequest"
+      responses:
+        "201":
+          description: 생성된 맛집
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Restaurant"
+
+  /restaurant/{id}:
+    get:
+      operationId: getRestaurant
+      tags: [restaurant]
+      summary: 맛집 상세 조회
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 맛집 상세
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Restaurant"
+
+  /restaurant/{restaurantId}/review:
+    get:
+      operationId: getRestaurantReviews
+      tags: [review]
+      summary: 맛집 후기 목록
+      parameters:
+        - name: restaurantId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 후기 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: createReview
+      tags: [review]
+      summary: 후기 작성
+      parameters:
+        - name: restaurantId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewRequest"
+      responses:
+        "201":
+          description: 작성된 후기
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+  /review/{id}:
+    delete:
+      operationId: deleteReview
+      tags: [review]
+      summary: 후기 삭제
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 삭제 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +315,233 @@ components:
       required:
         - status
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    Schedule:
+      type: object
+      properties:
+        id:
+          type: integer
+        subjectName:
+          type: string
+        professor:
+          type: string
+        location:
+          type: string
+        dayOfWeek:
+          type: integer
+          description: 0=월, 1=화, 2=수, 3=목, 4=금, 5=토
+        startTime:
+          type: string
+          description: "HH:MM 형식 (예: 09:00)"
+        endTime:
+          type: string
+          description: "HH:MM 형식 (예: 10:30)"
+        color:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - subjectName
+        - dayOfWeek
+        - startTime
+        - endTime
+        - color
+        - createdAt
+
+    CreateScheduleRequest:
+      type: object
+      properties:
+        subjectName:
+          type: string
+        professor:
+          type: string
+        location:
+          type: string
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        color:
+          type: string
+      required:
+        - subjectName
+        - dayOfWeek
+        - startTime
+        - endTime
+        - color
+
+    Finance:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [income, expense]
+        amount:
+          type: integer
+        category:
+          type: string
+        description:
+          type: string
+        date:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - amount
+        - category
+        - date
+        - createdAt
+
+    CreateFinanceRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [income, expense]
+        amount:
+          type: integer
+        category:
+          type: string
+        description:
+          type: string
+        date:
+          type: string
+      required:
+        - type
+        - amount
+        - category
+        - date
+
+    FinanceSummary:
+      type: object
+      properties:
+        totalIncome:
+          type: integer
+        totalExpense:
+          type: integer
+        balance:
+          type: integer
+        month:
+          type: string
+      required:
+        - totalIncome
+        - totalExpense
+        - balance
+        - month
+
+    Restaurant:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        description:
+          type: string
+        isAffiliated:
+          type: boolean
+          description: 학생회 제휴 여부
+        discountInfo:
+          type: string
+        averageRating:
+          type: number
+        reviewCount:
+          type: integer
+        imageUrl:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - category
+        - isAffiliated
+        - averageRating
+        - reviewCount
+        - createdAt
+
+    CreateRestaurantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        description:
+          type: string
+        isAffiliated:
+          type: boolean
+        discountInfo:
+          type: string
+        imageUrl:
+          type: string
+      required:
+        - name
+        - category
+        - isAffiliated
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        restaurantId:
+          type: integer
+        nickname:
+          type: string
+        rating:
+          type: integer
+          description: 1-5점
+        content:
+          type: string
+        visitDate:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - restaurantId
+        - nickname
+        - rating
+        - content
+        - createdAt
+
+    CreateReviewRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+        rating:
+          type: integer
+        content:
+          type: string
+        visitDate:
+          type: string
+      required:
+        - nickname
+        - rating
+        - content
