@@ -85,7 +85,7 @@ export function SettingsPage() {
         ))}
 
         {/* Coming Soon Notice */}
-        <div className="bg-secondary/60 rounded-2xl p-4 text-center">
+        <div className="bg-muted rounded-2xl p-4 text-center">
           <p className="text-xs text-muted-foreground">회원가입 및 로그인 기능이 곧 추가됩니다</p>
         </div>
 

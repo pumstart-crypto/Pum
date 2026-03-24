@@ -104,7 +104,7 @@ export function MealsPage() {
 
       {/* Meal Type Tabs */}
       <div className="px-4 mb-4">
-        <div className="flex gap-2 bg-secondary/60 p-1 rounded-2xl">
+        <div className="flex gap-2 bg-muted p-1 rounded-2xl">
           {MEAL_TYPES.map((type, i) => (
             <button
               key={type}
@@ -133,7 +133,7 @@ export function MealsPage() {
             "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors",
             showFaculty
               ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+              : "bg-muted text-muted-foreground hover:bg-border"
           )}
         >
           교직원 식당 {showFaculty ? "숨기기" : "포함"}
@@ -257,7 +257,7 @@ function CafeteriaCard({
                 {menu.items.map((item, i) => (
                   <span
                     key={i}
-                    className="text-xs bg-secondary/60 text-foreground px-2 py-0.5 rounded-full"
+                    className="text-xs bg-muted text-foreground/80 px-2 py-0.5 rounded-full"
                   >
                     {item}
                   </span>
