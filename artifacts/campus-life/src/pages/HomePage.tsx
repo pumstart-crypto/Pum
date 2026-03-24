@@ -17,8 +17,8 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-const DAYS = ["월", "화", "수", "목", "금", "토"];
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 9);
+const DAYS = ["월", "화", "수", "목", "금"];
+const HOURS = Array.from({ length: 9 }, (_, i) => i + 9);
 const COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
   "#D4A5A5", "#9B59B6", "#1ABC9C", "#F1C40F", "#E67E22",
@@ -247,7 +247,7 @@ export function HomePage() {
               </div>
               <div className="relative">
                 {HOURS.map(hour => (
-                  <div key={hour} className="flex border-t border-border/30 h-[52px]">
+                  <div key={hour} className="flex border-t border-border/30 h-[38px]">
                     <div className="w-10 text-[10px] text-muted-foreground font-medium relative -top-2 pr-1 text-right">{hour}</div>
                     {DAYS.map((_, i) => (
                       <div key={i} className="flex-1 border-l border-border/30" />
@@ -255,7 +255,7 @@ export function HomePage() {
                   </div>
                 ))}
                 {schedules.map(schedule => (
-                  <ScheduleBlock key={schedule.id} schedule={schedule} pixelsPerHour={52} readOnly />
+                  <ScheduleBlock key={schedule.id} schedule={schedule} pixelsPerHour={38} readOnly />
                 ))}
               </div>
             </div>
@@ -322,7 +322,7 @@ function ScheduleBlock({ schedule, pixelsPerHour = 60, readOnly = false }: { sch
   return (
     <div
       className="absolute rounded-lg p-1 text-white overflow-hidden shadow-sm z-10"
-      style={{ top: `${topOffset}px`, height: `${height}px`, left: `calc(40px + ${schedule.dayOfWeek} * ((100% - 40px) / 6))`, width: `calc((100% - 40px) / 6 - 3px)`, backgroundColor: schedule.color, marginLeft: "1px" }}
+      style={{ top: `${topOffset}px`, height: `${height}px`, left: `calc(40px + ${schedule.dayOfWeek} * ((100% - 40px) / 5))`, width: `calc((100% - 40px) / 5 - 3px)`, backgroundColor: schedule.color, marginLeft: "1px" }}
     >
       <div className="text-[10px] font-bold leading-tight line-clamp-2">{schedule.subjectName}</div>
       <div className="text-[9px] opacity-80 truncate">{schedule.location}</div>

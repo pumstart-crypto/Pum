@@ -11,7 +11,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-const DAYS = ["월", "화", "수", "목", "금", "토"];
+const DAYS = ["월", "화", "수", "목", "금"];
 const HOURS = Array.from({ length: 10 }, (_, i) => i + 9);
 const COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
@@ -213,8 +213,8 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
         style={{
           top: `${topOffset}px`,
           height: `${height}px`,
-          left: `calc(48px + ${schedule.dayOfWeek} * ((100% - 48px) / 6))`,
-          width: `calc((100% - 48px) / 6 - 4px)`,
+          left: `calc(48px + ${schedule.dayOfWeek} * ((100% - 48px) / 5))`,
+          width: `calc((100% - 48px) / 5 - 4px)`,
           backgroundColor: schedule.color,
           marginLeft: "2px",
         }}
