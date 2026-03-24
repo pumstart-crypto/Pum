@@ -130,6 +130,7 @@ const GRADE_POINTS: Record<string, number> = {
   "C+": 2.5, "C0": 2.0, "D+": 1.5, "D0": 1.0, "F": 0.0,
 };
 const GRADE_OPTIONS = Object.keys(GRADE_POINTS);
+const ALL_GRADE_OPTIONS = [...GRADE_OPTIONS, "S", "U"];
 const SEMESTER_OPTIONS = ["1학기", "2학기", "여름계절", "겨울계절"];
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -162,10 +163,12 @@ function saveGradReqs(r: Record<string, number>) {
 }
 
 function calcGPA(grades: GradeEntry[]) {
+  // S/U are pass/fail — excluded from GPA calculation
   const counted = grades.filter(g => GRADE_POINTS[g.grade] !== undefined);
   const totalCredits = counted.reduce((s, g) => s + g.credits, 0);
   const totalPoints = counted.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
-  const earnedCredits = grades.filter(g => g.grade !== "F").reduce((s, g) => s + g.credits, 0);
+  // Earned credits: exclude F and U (S counts as earned)
+  const earnedCredits = grades.filter(g => g.grade !== "F" && g.grade !== "U").reduce((s, g) => s + g.credits, 0);
   const gpa = totalCredits > 0 ? totalPoints / totalCredits : 0;
   return { gpa, totalCredits, earnedCredits };
 }
@@ -1106,6 +1109,8 @@ const GRADE_COLORS: Record<string, string> = {
   "D+": "bg-red-100 text-red-600 border-red-200",
   "D0": "bg-rose-100 text-rose-600 border-rose-200",
   "F":  "bg-gray-100 text-gray-500 border-gray-200",
+  "S":  "bg-teal-100 text-teal-700 border-teal-200",
+  "U":  "bg-rose-100 text-rose-500 border-rose-200",
 };
 // end marker - grade colors
 
@@ -1114,6 +1119,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
   const [loading, setLoading] = useState(true);
   const [addTarget, setAddTarget] = useState<SemesterEntry | null>(null);
   const [editingGrade, setEditingGrade] = useState<GradeEntry | null>(null);
+  const [quickTarget, setQuickTarget] = useState<{ course: Schedule; year: number; semester: string } | null>(null);
   const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(new Set());
   const [gradReqs, setGradReqs] = useState<Record<string, number>>(() => loadGradReqs());
   const [isEditingReqs, setIsEditingReqs] = useState(false);
@@ -1391,9 +1397,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
                             </>
                           ) : (
                             <button
-                              onClick={() => {
-                                setAddTarget({ year: parseInt(yr), semester: sem });
-                              }}
+                              onClick={() => setQuickTarget({ course, year: parseInt(yr), semester: sem })}
                               className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-border text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
                             >
                               <Plus className="w-3 h-3" />성적 입력
@@ -1449,6 +1453,148 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
           onSave={handleUpdate}
         />
       )}
+      {quickTarget && (
+        <QuickGradeDialog
+          course={quickTarget.course}
+          year={quickTarget.year}
+          semester={quickTarget.semester}
+          onClose={() => setQuickTarget(null)}
+          onAdd={handleAdd}
+        />
+      )}
+    </div>
+  );
+}
+
+// ────────────────────── QuickGradeDialog ──────────────────────
+const QUICK_GRADE_ROWS = [
+  ["A+", "A0", "B+", "B0"],
+  ["C+", "C0", "D+", "D0"],
+  ["F", "", "S", "U"],
+] as const;
+
+function QuickGradeDialog({
+  course, year, semester, onClose, onAdd,
+}: {
+  course: Schedule;
+  year: number;
+  semester: string;
+  onClose: () => void;
+  onAdd: (g: GradeEntry) => void;
+}) {
+  const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
+  const [category, setCategory] = useState("전공필수");
+  const [credits, setCredits] = useState("3");
+  const [saving, setSaving] = useState(false);
+
+  const isPassFail = selectedGrade === "S" || selectedGrade === "U";
+
+  const handleSave = async () => {
+    if (!selectedGrade) return;
+    setSaving(true);
+    try {
+      const created = await createGrade({
+        year,
+        semester,
+        subjectName: course.subjectName,
+        credits: parseInt(credits),
+        grade: selectedGrade,
+        category,
+      });
+      onAdd(created);
+      onClose();
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-card w-full rounded-t-3xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: course.color }} />
+            <div className="min-w-0">
+              <p className="font-black text-foreground text-base truncate">{course.subjectName}</p>
+              <p className="text-xs text-muted-foreground">{year}년 {semester}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-secondary shrink-0 ml-2">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 pb-8 space-y-5">
+          {/* Grade grid */}
+          <div className="space-y-2">
+            {QUICK_GRADE_ROWS.map((row, ri) => (
+              <div key={ri} className="grid grid-cols-4 gap-2">
+                {row.map((g, ci) =>
+                  g === "" ? (
+                    <div key={ci} />
+                  ) : (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setSelectedGrade(g)}
+                      className={cn(
+                        "py-3 rounded-2xl text-sm font-black border transition-all",
+                        selectedGrade === g
+                          ? cn("shadow-md scale-105", GRADE_COLORS[g] ?? "bg-gray-100 text-gray-500 border-gray-200")
+                          : "bg-muted border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                      )}
+                    >
+                      {g}
+                      {GRADE_POINTS[g] !== undefined && (
+                        <span className="block text-[10px] font-normal opacity-70 mt-0.5">{GRADE_POINTS[g].toFixed(1)}</span>
+                      )}
+                      {g === "S" && <span className="block text-[10px] font-normal opacity-70 mt-0.5">P/F</span>}
+                      {g === "U" && <span className="block text-[10px] font-normal opacity-70 mt-0.5">P/F</span>}
+                    </button>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* 이수구분 + 학점 (compact row) */}
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">이수구분</label>
+              <div className="flex flex-wrap gap-1.5">
+                {GRAD_CATEGORIES.map(cat => (
+                  <button key={cat} type="button" onClick={() => setCategory(cat)}
+                    className={cn("px-3 py-1.5 rounded-xl text-xs font-bold border transition-all", category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {!isPassFail && (
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
+                <div className="flex gap-2">
+                  {["1", "2", "3", "4"].map(c => (
+                    <button key={c} type="button" onClick={() => setCredits(c)}
+                      className={cn("flex-1 py-2 rounded-xl text-sm font-bold border transition-all", credits === c ? "bg-primary text-primary-foreground border-transparent" : "bg-muted border-transparent text-muted-foreground hover:border-border")}>
+                      {c}학점
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Save */}
+          <button
+            onClick={handleSave}
+            disabled={!selectedGrade || saving}
+            className="w-full bg-primary text-primary-foreground font-black py-4 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-40"
+          >
+            {saving ? "저장 중..." : selectedGrade ? `${selectedGrade} 저장` : "성적을 선택하세요"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1517,7 +1663,7 @@ function EditGradeDialog({ grade, onClose, onSave }: { grade: GradeEntry; onClos
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
               <select value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })}
                 className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
-                {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
+                {ALL_GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}{GRADE_POINTS[g] !== undefined ? ` (${GRADE_POINTS[g].toFixed(1)})` : " (P/F)"}</option>)}
               </select>
             </div>
           </div>
@@ -1739,7 +1885,7 @@ function AddGradeDialog({
                   <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
                   <select value={grade} onChange={e => setGrade(e.target.value)}
                     className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
+                    {ALL_GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}{GRADE_POINTS[g] !== undefined ? ` (${GRADE_POINTS[g].toFixed(1)})` : " (P/F)"}</option>)}
                   </select>
                 </div>
               </div>
