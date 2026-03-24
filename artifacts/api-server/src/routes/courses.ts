@@ -6,10 +6,17 @@ const router: IRouter = Router();
 
 router.get("/courses/departments", async (req, res) => {
   try {
+    const catalogYear = req.query.catalogYear as string | undefined;
+    const catalogSemester = req.query.catalogSemester as string | undefined;
+
+    const conditions = [isNotNull(coursesTable.offeringDept)];
+    if (catalogYear) conditions.push(eq(coursesTable.year, parseInt(catalogYear)));
+    if (catalogSemester) conditions.push(eq(coursesTable.semester, catalogSemester));
+
     const depts = await db
       .selectDistinct({ offeringDept: coursesTable.offeringDept })
       .from(coursesTable)
-      .where(isNotNull(coursesTable.offeringDept))
+      .where(and(...conditions))
       .orderBy(coursesTable.offeringDept);
 
     res.json(depts.map(d => d.offeringDept).filter(Boolean).sort());
@@ -22,7 +29,9 @@ router.get("/courses/departments", async (req, res) => {
 router.get("/courses", async (req, res) => {
   try {
     const dept = req.query.dept as string | undefined;
-    const year = req.query.year as string | undefined;
+    const catalogYear = req.query.catalogYear as string | undefined;
+    const catalogSemester = req.query.catalogSemester as string | undefined;
+    const category = req.query.category as string | undefined;
     const search = req.query.search as string | undefined;
 
     const conditions = [];
@@ -30,8 +39,14 @@ router.get("/courses", async (req, res) => {
     if (dept) {
       conditions.push(eq(coursesTable.offeringDept, dept));
     }
-    if (year && year !== "전체") {
-      conditions.push(eq(coursesTable.year, parseInt(year)));
+    if (catalogYear) {
+      conditions.push(eq(coursesTable.year, parseInt(catalogYear)));
+    }
+    if (catalogSemester) {
+      conditions.push(eq(coursesTable.semester, catalogSemester));
+    }
+    if (category) {
+      conditions.push(eq(coursesTable.category, category));
     }
     if (search && search.length >= 1) {
       conditions.push(

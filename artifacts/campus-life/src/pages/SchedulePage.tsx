@@ -37,6 +37,7 @@ interface ApiCourse {
   professor: string | null;
   timeRoom: string | null;
   year: number | null;
+  semester: string | null;
   category: string | null;
   offeringDept: string | null;
   credits: number | null;
@@ -99,16 +100,19 @@ function parseTimeSlots(timeRoom: string, subject: string, professor: string): P
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-async function fetchDepartments(): Promise<string[]> {
-  const res = await fetch(`${BASE}/api/courses/departments`);
+async function fetchDepartments(catalogYear: number, catalogSemester: string): Promise<string[]> {
+  const params = new URLSearchParams({ catalogYear: String(catalogYear), catalogSemester });
+  const res = await fetch(`${BASE}/api/courses/departments?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch departments");
   return res.json();
 }
 
-async function fetchCourses(dept: string, year: string, search: string): Promise<ApiCourse[]> {
+async function fetchCourses(dept: string, catalogYear: number, catalogSemester: string, category: string, search: string): Promise<ApiCourse[]> {
   const params = new URLSearchParams();
   if (dept) params.set("dept", dept);
-  if (year && year !== "전체") params.set("year", year);
+  params.set("catalogYear", String(catalogYear));
+  params.set("catalogSemester", catalogSemester);
+  if (category) params.set("category", category);
   if (search) params.set("search", search);
   const res = await fetch(`${BASE}/api/courses?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch courses");
@@ -629,11 +633,20 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
   );
 }
 
+// The catalog year for a given timetable year/semester
+// 2026-1학기 → catalog year 2026, etc.
+function catalogYearFor(timetableYear: number, _semester: string): number {
+  return timetableYear;
+}
+
+const CATALOG_CATEGORY_FILTERS = ["전체", "전공필수", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
+
 function CourseBrowserDialog({ year, semester, onClose }: { year: number; semester: string; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const catalogYear = catalogYearFor(year, semester);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
-  const [selectedYear, setSelectedYear] = useState("전체");
+  const [selectedCategory, setSelectedCategory] = useState("전체");
   const [searchQuery, setSearchQuery] = useState("");
   const [courses, setCourses] = useState<ApiCourse[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -649,21 +662,21 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
   const createMutation = useCreateSchedule();
 
   useEffect(() => {
-    fetchDepartments()
+    fetchDepartments(catalogYear, semester)
       .then(setDepartments)
       .catch(() => setError("학과 목록을 불러오지 못했습니다."))
       .finally(() => setIsLoadingDepts(false));
-  }, []);
+  }, [catalogYear, semester]);
 
-  const loadCourses = useCallback(async (dept: string, year: string, search: string) => {
-    if (!dept && !search) {
+  const loadCourses = useCallback(async (dept: string, category: string, search: string) => {
+    if (!dept && !search && category === "전체") {
       setCourses([]);
       return;
     }
     setIsLoadingCourses(true);
     setError("");
     try {
-      const data = await fetchCourses(dept, year, search);
+      const data = await fetchCourses(dept, catalogYear, semester, category === "전체" ? "" : category, search);
       setCourses(data);
       setSelected(new Set());
     } catch {
@@ -671,14 +684,14 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
     } finally {
       setIsLoadingCourses(false);
     }
-  }, []);
+  }, [catalogYear, semester]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadCourses(selectedDept, selectedYear, searchQuery);
+      loadCourses(selectedDept, selectedCategory, searchQuery);
     }, 300);
     return () => clearTimeout(timer);
-  }, [selectedDept, selectedYear, searchQuery, loadCourses]);
+  }, [selectedDept, selectedCategory, searchQuery, loadCourses]);
 
   const toggleSelect = (id: number) => {
     setSelected(prev => {
@@ -771,7 +784,7 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
             </div>
             <div>
               <h2 className="text-lg font-bold">수강편람 검색</h2>
-              <p className="text-xs text-muted-foreground">부산대학교 2025학년도 수강편람</p>
+              <p className="text-xs text-muted-foreground">부산대학교 {catalogYear}학년도 {semester} 수강편람</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 bg-muted rounded-full hover:bg-secondary">
@@ -838,33 +851,35 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
                 )}
               </div>
 
-              {/* Year + Search */}
-              <div className="flex gap-2">
-                <div className="flex gap-1 shrink-0">
-                  {["전체", "1", "2", "3", "4"].map(y => (
-                    <button
-                      key={y}
-                      onClick={() => setSelectedYear(y)}
-                      className={cn(
-                        "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                        selectedYear === y
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
-                      )}
-                    >
-                      {y === "전체" ? "전체" : `${y}학년`}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="과목명, 교수명 검색"
-                    className="w-full pl-9 pr-3 py-2 bg-secondary/60 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 ring-primary/20 transition-all"
-                  />
-                </div>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="과목명, 교수명 검색"
+                  className="w-full pl-9 pr-3 py-2 bg-secondary/60 rounded-lg text-sm outline-none focus:bg-white dark:focus:bg-muted focus:ring-2 ring-primary/20 transition-all"
+                />
+              </div>
+
+              {/* Category filter */}
+              <div className="flex gap-1.5 flex-wrap">
+                {CATALOG_CATEGORY_FILTERS.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold border transition-all",
+                      selectedCategory === cat
+                        ? cat === "전체"
+                          ? "bg-primary text-primary-foreground border-transparent"
+                          : cn("border-transparent", GRAD_CAT_BG[cat] ?? "bg-primary text-primary-foreground")
+                        : "bg-muted border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -884,7 +899,7 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
               ) : courses.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
                   <BookOpen className="w-10 h-10 opacity-30" />
-                  <p className="text-sm">{selectedDept || searchQuery ? "검색 결과가 없습니다." : "학과를 선택하거나 과목명으로 검색하세요."}</p>
+                  <p className="text-sm">{selectedDept || searchQuery || selectedCategory !== "전체" ? "검색 결과가 없습니다." : "학과 선택, 이수구분 필터 또는 과목명으로 검색하세요."}</p>
                 </div>
               ) : (
                 <>
@@ -919,11 +934,13 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
                                 <span className="shrink-0 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{course.credits}학점</span>
                               )}
                             </div>
-                            <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
-                              <div className="flex flex-wrap gap-x-2">
+                            <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {course.category && (
+                                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", GRAD_CAT_BG[course.category] ?? "bg-muted text-muted-foreground")}>{course.category}</span>
+                                )}
                                 {course.professor && <span>{course.professor} 교수</span>}
-                                {course.year && <span>{course.year}학년</span>}
-                                {course.category && <span className="text-muted-foreground/70">{course.category}</span>}
+                                {course.offeringDept && <span className="text-muted-foreground/60 truncate max-w-[120px]">{course.offeringDept}</span>}
                               </div>
                               {course.timeRoom && (
                                 <div className="text-primary/80 font-medium truncate">{course.timeRoom.replace(/<br\s*\/?>/gi, " / ")}</div>
