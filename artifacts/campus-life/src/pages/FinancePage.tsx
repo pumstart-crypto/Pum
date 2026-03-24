@@ -192,12 +192,12 @@ function AddFinanceDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="flex p-1 bg-secondary rounded-2xl mb-6">
+        <div className="flex p-1 bg-slate-100 rounded-2xl mb-6">
           <button
             onClick={() => { setType("expense"); setFormData(prev => ({...prev, category: EXPENSE_CATEGORIES[0]})) }}
             className={cn(
               "flex-1 py-3 rounded-xl font-bold transition-all",
-              type === "expense" ? "bg-white text-destructive shadow-sm" : "text-muted-foreground"
+              type === "expense" ? "bg-white text-destructive shadow-sm" : "text-slate-400"
             )}
           >
             지출
@@ -206,7 +206,7 @@ function AddFinanceDialog({ onClose }: { onClose: () => void }) {
             onClick={() => { setType("income"); setFormData(prev => ({...prev, category: INCOME_CATEGORIES[0]})) }}
             className={cn(
               "flex-1 py-3 rounded-xl font-bold transition-all",
-              type === "income" ? "bg-white text-green-600 shadow-sm" : "text-muted-foreground"
+              type === "income" ? "bg-white text-green-600 shadow-sm" : "text-slate-400"
             )}
           >
             수입
@@ -221,7 +221,7 @@ function AddFinanceDialog({ onClose }: { onClose: () => void }) {
                 type="number" required min="1"
                 value={formData.amount}
                 onChange={e => setFormData({ ...formData, amount: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent pl-4 pr-10 py-4 text-2xl font-bold rounded-xl transition-all outline-none" 
+                className="w-full bg-slate-50 focus:bg-white focus:border-primary border border-slate-200 pl-4 pr-10 py-4 text-2xl font-bold rounded-xl transition-all outline-none" 
                 placeholder="0" 
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">원</span>
@@ -256,7 +256,7 @@ function AddFinanceDialog({ onClose }: { onClose: () => void }) {
                 type="date" required
                 value={formData.date}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent px-4 py-3 rounded-xl transition-all outline-none text-sm" 
+                className="w-full bg-slate-50 focus:bg-white focus:border-primary border border-slate-200 px-4 py-3 rounded-xl transition-all outline-none text-sm" 
               />
             </div>
             <div>
@@ -264,7 +264,7 @@ function AddFinanceDialog({ onClose }: { onClose: () => void }) {
               <input 
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent px-4 py-3 rounded-xl transition-all outline-none text-sm" 
+                className="w-full bg-slate-50 focus:bg-white focus:border-primary border border-slate-200 px-4 py-3 rounded-xl transition-all outline-none text-sm" 
                 placeholder="간단한 메모"
               />
             </div>
