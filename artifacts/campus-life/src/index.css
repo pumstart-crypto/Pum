@@ -1,9 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme inline {
   --font-sans: 'Noto Sans KR', sans-serif;
-  --font-display: 'Outfit', sans-serif;
+  --font-headline: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -21,64 +20,62 @@
   --color-ring: hsl(var(--ring));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+  --color-surface: hsl(var(--surface));
+  --color-on-surface-variant: hsl(var(--on-surface-variant));
+  --color-outline-variant: hsl(var(--outline-variant));
+  --color-primary-container: hsl(var(--primary-container));
 }
 
 :root {
-  --background: 210 40% 98%; /* Soft cool grayish-blue white */
-  --foreground: 222 47% 11%;
-  
-  /* Vibrant Campus Blue */
-  --primary: 221 83% 53%; 
-  --primary-foreground: 210 40% 98%;
-  
-  --secondary: 214 32% 91%;
-  --secondary-foreground: 222 47% 11%;
-  
-  --muted: 214 32% 91%;
-  --muted-foreground: 215 16% 47%;
-  
-  /* Cheerful Coral Pink Accent */
-  --accent: 346 87% 60%;
-  --accent-foreground: 210 40% 98%;
-  
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  
-  --border: 214 32% 91%;
-  --ring: 221 83% 53%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  /* M3 Light — PNU Navy */
+  --background:      213 33% 97%;   /* #f8f9fa */
+  --foreground:      210 14%  11%;  /* #191c1d */
 
-  --radius: 1rem;
+  --primary:         213 100% 25%;  /* #00427d */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary:       214 24%  40%;  /* #4b5f7d */
+  --secondary-foreground: 0 0% 100%;
+
+  --muted:           210 16%  93%;  /* #edeeef */
+  --muted-foreground: 220 10%  40%; /* #627080 */
+
+  --accent:          213 100% 33%;  /* #0059a6 — slightly lighter navy */
+  --accent-foreground: 0 0% 100%;
+
+  --destructive:     4 89% 41%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border:          220 10%  87%;  /* #dde1e7 */
+  --ring:            213 100% 25%;
+
+  --card:            0 0% 100%;
+  --card-foreground: 210 14%  11%;
+
+  --surface:         213 25%  95%;  /* surface-container-low */
+  --on-surface-variant: 220 11%  38%; /* #424752 */
+  --outline-variant: 220 20%  83%;  /* #c2c6d4 */
+  --primary-container: 213 100%  33%; /* #0059a6 — for active nav */
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  
+  * { @apply border-border; }
+
   body {
     @apply bg-background text-foreground antialiased font-sans selection:bg-primary/20 selection:text-primary;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
+    font-family: var(--font-headline);
     @apply font-bold tracking-tight;
   }
 
-  /* Custom scrollbar for webkit */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
-  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-muted-foreground/20 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/40; }
 }

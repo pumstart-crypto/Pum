@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PNU Connect - Home</title>
+<script type="text/javascript" nonce="b4b567d1dc7d4db8a0ca71089e5" src="//local.adguard.org?ts=1774326085166&amp;type=content-script&amp;dmn=contribution.usercontent.google.com&amp;url=https%3A%2F%2Fcontribution.usercontent.google.com%2Fdownload%3Fc%3DCgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzg5NmY0NDA3MDhlODQxZjliOGM2ODc0ZmEzNGY4ZDU3EgsSBxC0wYXnkhsYAZIBIwoKcHJvamVjdF9pZBIVQhMyNDQ3NzUyMjMyNDYyMDgwODY5%26filename%3D%26opi%3D89354086&amp;app=com.apple.Safari&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-push&amp;st-loc&amp;st-java&amp;st-dnt"></script><script type="text/javascript" nonce="b4b567d1dc7d4db8a0ca71089e5" src="//local.adguard.org?ts=1774326085166&amp;name=AdGuard%20Extra&amp;type=user-script"></script><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-variant": "#e1e3e4",
+              "surface-dim": "#d9dadb",
+              "inverse-on-surface": "#f0f1f2",
+              "on-background": "#191c1d",
+              "surface-container-low": "#f3f4f5",
+              "tertiary-fixed": "#ffdbc9",
+              "error": "#ba1a1a",
+              "primary-fixed-dim": "#a6c8ff",
+              "secondary": "#4b5f7d",
+              "tertiary-fixed-dim": "#ffb68c",
+              "on-error": "#ffffff",
+              "on-secondary-fixed-variant": "#344864",
+              "secondary-fixed-dim": "#b3c8e9",
+              "inverse-surface": "#2e3132",
+              "surface-tint": "#0c5fae",
+              "surface-container-high": "#e7e8e9",
+              "on-secondary": "#ffffff",
+              "primary-fixed": "#d5e3ff",
+              "surface-container": "#edeeef",
+              "primary-container": "#0059a6",
+              "surface-bright": "#f8f9fa",
+              "primary": "#00427d",
+              "on-tertiary": "#ffffff",
+              "outline": "#727784",
+              "inverse-primary": "#a6c8ff",
+              "on-surface-variant": "#424752",
+              "surface": "#f8f9fa",
+              "secondary-container": "#c7dbfe",
+              "on-tertiary-container": "#ffc3a1",
+              "background": "#f8f9fa",
+              "outline-variant": "#c2c6d4",
+              "tertiary-container": "#914200",
+              "on-secondary-container": "#4c607d",
+              "on-error-container": "#93000a",
+              "on-tertiary-fixed-variant": "#753400",
+              "surface-container-highest": "#e1e3e4",
+              "surface-container-lowest": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-primary-fixed-variant": "#004787",
+              "tertiary": "#6d3000",
+              "secondary-fixed": "#d4e3ff",
+              "on-primary-fixed": "#001c3b",
+              "on-secondary-fixed": "#041c36",
+              "on-tertiary-fixed": "#321200",
+              "on-primary": "#ffffff",
+              "on-surface": "#191c1d",
+              "on-primary-container": "#b6d1ff"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background font-body text-on-surface antialiased">
+<!-- TopAppBar -->
+<header class="bg-[#f8f9fa] dark:bg-slate-900 sticky top-0 z-50 flex justify-between items-center w-full px-6 py-4 no-border tonal-depth-layering flat no-shadows">
+<div class="flex items-center gap-4">
+<button class="text-[#00427d] dark:text-[#0059a6] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors p-2 rounded-full active:scale-95 duration-200 ease-in-out">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="text-xl font-extrabold text-[#00427d] dark:text-[#0059a6] font-['Plus_Jakarta_Sans'] tracking-tight">PNU Academic Curator</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="text-[#00427d] dark:text-[#0059a6] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors p-2 rounded-full active:scale-95 duration-200 ease-in-out">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</div>
+</header>
+<main class="max-w-screen-md mx-auto px-6 pt-4 pb-32">
+<!-- Hero Header -->
+<section class="mb-10">
+<p class="text-sm font-bold uppercase tracking-[0.2em] text-primary mb-1">Pusan National University</p>
+<h2 class="text-4xl font-headline font-extrabold tracking-tighter text-on-surface">March 24th <span class="text-outline/40">Tuesday</span></h2>
+</section>
+<!-- Academic Services Bento Grid -->
+<section class="mb-10">
+<div class="grid grid-cols-3 gap-6">
+<!-- Service Icon Item -->
+<div class="flex flex-col items-center group">
+<div class="w-16 h-16 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,66,125,0.06)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+<span class="material-symbols-outlined !text-3xl" data-icon="language">language</span>
+</div>
+<span class="mt-3 text-xs font-bold font-label uppercase tracking-widest text-on-surface-variant">Website</span>
+</div>
+<div class="flex flex-col items-center group">
+<div class="w-16 h-16 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,66,125,0.06)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+<span class="material-symbols-outlined !text-3xl" data-icon="school">school</span>
+</div>
+<span class="mt-3 text-xs font-bold font-label uppercase tracking-widest text-on-surface-variant">PLATO</span>
+</div>
+<div class="flex flex-col items-center group">
+<div class="w-16 h-16 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,66,125,0.06)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+<span class="material-symbols-outlined !text-3xl" data-icon="local_library">local_library</span>
+</div>
+<span class="mt-3 text-xs font-bold font-label uppercase tracking-widest text-on-surface-variant">Library</span>
+</div>
+<div class="flex flex-col items-center group">
+<div class="w-16 h-16 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,66,125,0.06)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+<span class="material-symbols-outlined !text-3xl" data-icon="restaurant">restaurant</span>
+</div>
+<span class="mt-3 text-xs font-bold font-label uppercase tracking-widest text-on-surface-variant">Menu</span>
+</div>
+<div class="flex flex-col items-center group">
+<div class="w-16 h-16 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,66,125,0.06)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+<span class="material-symbols-outlined !text-3xl" data-icon="event_note">event_note</span>
+</div>
+<span class="mt-3 text-xs font-bold font-label uppercase tracking-widest text-on-surface-variant">Calendar</span>
+</div>
+<div class="flex flex-col items-center group">
+<div class="w-16 h-16 bg-surface-container-lowest shadow-[0_8px_24px_rgba(0,66,125,0.06)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+<span class="material-symbols-outlined !text-3xl" data-icon="help_center">help_center</span>
+</div>
+<span class="mt-3 text-xs font-bold font-label uppercase tracking-widest text-on-surface-variant">Support</span>
+</div>
+</div>
+</section>
+<!-- Timetable Section -->
+<section class="mb-10">
+<div class="flex justify-between items-baseline mb-6">
+<h3 class="text-2xl font-headline font-bold text-on-surface">Today's Timetable</h3>
+<span class="text-primary font-bold text-sm">View All</span>
+</div>
+<div class="space-y-4">
+<!-- Timetable Item 1 -->
+<div class="bg-surface-container-lowest rounded-3xl p-5 flex items-center gap-5 shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-outline-variant/10">
+<div class="flex flex-col items-center border-r border-outline-variant/30 pr-5">
+<span class="text-xs font-bold text-outline uppercase tracking-tighter">Starts</span>
+<span class="text-lg font-headline font-extrabold text-primary">09:00</span>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-on-surface">Data Structures</h4>
+<p class="text-sm text-on-surface-variant flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined !text-sm" data-icon="location_on">location_on</span>
+                            IT Hall 302
+                        </p>
+</div>
+<div class="w-2 h-12 bg-primary rounded-full"></div>
+</div>
+<!-- Timetable Item 2 -->
+<div class="bg-surface-container-lowest rounded-3xl p-5 flex items-center gap-5 shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-outline-variant/10">
+<div class="flex flex-col items-center border-r border-outline-variant/30 pr-5">
+<span class="text-xs font-bold text-outline uppercase tracking-tighter">Starts</span>
+<span class="text-lg font-headline font-extrabold text-primary">13:30</span>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-on-surface">Creative Writing</h4>
+<p class="text-sm text-on-surface-variant flex items-center gap-1 mt-0.5">
+<span class="material-symbols-outlined !text-sm" data-icon="location_on">location_on</span>
+                            Humanities Bldg 105
+                        </p>
+</div>
+<div class="w-2 h-12 bg-secondary-container rounded-full"></div>
+</div>
+</div>
+</section>
+<!-- To-do List Section -->
+<section class="mb-12">
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-6">Tasks</h3>
+<div class="bg-surface-container-lowest rounded-3xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
+<div class="space-y-4 mb-6">
+<label class="flex items-center gap-4 group cursor-pointer">
+<div class="relative flex items-center">
+<input checked="" class="w-6 h-6 rounded-lg border-2 border-primary text-primary focus:ring-0 transition-all cursor-pointer" type="checkbox"/>
+</div>
+<span class="text-on-surface font-medium line-through decoration-primary/40 text-on-surface-variant">Submit algorithm assignment</span>
+</label>
+<label class="flex items-center gap-4 group cursor-pointer">
+<div class="relative flex items-center">
+<input class="w-6 h-6 rounded-lg border-2 border-outline text-primary focus:ring-0 transition-all cursor-pointer group-hover:border-primary" type="checkbox"/>
+</div>
+<span class="text-on-surface font-medium">Prepare for group meeting</span>
+</label>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-low rounded-2xl p-4 border border-dashed border-outline-variant/50 group focus-within:border-primary transition-colors">
+<span class="material-symbols-outlined text-outline group-hover:text-primary" data-icon="add">add</span>
+<input class="bg-transparent border-none focus:ring-0 w-full p-0 text-sm font-semibold placeholder:text-outline/60" placeholder="Add a task" type="text"/>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-3xl shadow-[0_-12px_32px_rgba(25,28,29,0.04)] rounded-t-3xl border-t border-slate-100/10">
+<!-- Home Active -->
+<a class="flex flex-col items-center justify-center bg-[#0059a6] text-white rounded-2xl px-5 py-2 scale-105 duration-300 tap-highlight-none active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-['Manrope'] text-[10px] font-semibold uppercase tracking-wider mt-1">Home</span>
+</a>
+<!-- Community Inactive -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#00427d] dark:hover:text-white transition-all duration-300 tap-highlight-none active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-['Manrope'] text-[10px] font-semibold uppercase tracking-wider mt-1">Community</span>
+</a>
+<!-- Timetable Inactive -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#00427d] dark:hover:text-white transition-all duration-300 tap-highlight-none active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_view_week">calendar_view_week</span>
+<span class="font-['Manrope'] text-[10px] font-semibold uppercase tracking-wider mt-1">Timetable</span>
+</a>
+<!-- Budget Inactive -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#00427d] dark:hover:text-white transition-all duration-300 tap-highlight-none active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="font-['Manrope'] text-[10px] font-semibold uppercase tracking-wider mt-1">Budget</span>
+</a>
+<!-- Settings Inactive -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-[#00427d] dark:hover:text-white transition-all duration-300 tap-highlight-none active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-['Manrope'] text-[10px] font-semibold uppercase tracking-wider mt-1">Settings</span>
+</a>
+</nav>
+</body></html>

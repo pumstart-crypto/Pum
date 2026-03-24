@@ -1,59 +1,66 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, MessageSquare, Wallet, Settings, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
 
   const navItems = [
-    { name: "홈", path: "/", icon: Home },
-    { name: "게시판", path: "/board", icon: MessageSquare },
-    { name: "시간표", path: "/schedule", icon: CalendarDays },
-    { name: "가계부", path: "/finance", icon: Wallet },
-    { name: "설정", path: "/settings", icon: Settings },
+    { name: "홈", path: "/",        icon: "home" },
+    { name: "게시판", path: "/board",  icon: "group" },
+    { name: "시간표", path: "/schedule", icon: "calendar_view_week" },
+    { name: "가계부", path: "/finance", icon: "account_balance_wallet" },
+    { name: "설정",  path: "/settings", icon: "settings" },
   ];
 
   return (
     <div className="h-screen bg-background flex justify-center overflow-hidden">
-      {/* Mobile container - looks like an app even on desktop */}
       <div className="w-full max-w-md bg-card h-full shadow-2xl relative flex flex-col overflow-hidden">
-        
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto pb-24 scroll-smooth">
+
+        {/* ── Sticky Top App Bar ── */}
+        <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-4 bg-card/90 backdrop-blur-xl border-b border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-white" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>school</span>
+            </div>
+            <h1 className="text-base font-extrabold text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.02em" }}>
+              캠퍼스라이프
+            </h1>
+          </div>
+          <button className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
+          </button>
+        </header>
+
+        {/* ── Main Content ── */}
+        <main className="flex-1 overflow-y-auto scroll-smooth">
           {children}
         </main>
 
-        {/* Bottom Navigation - fixed to bottom of container, never scrolls */}
-        <nav className="absolute bottom-0 left-0 right-0 h-20 bg-card/80 backdrop-blur-xl border-t border-border flex items-center justify-around px-2 z-50 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        {/* ── Bottom Navigation ── */}
+        <nav className="absolute bottom-0 left-0 right-0 flex items-center justify-around px-3 pt-3 pb-5 bg-white/90 backdrop-blur-2xl border-t border-border/40 rounded-t-3xl shadow-[0_-12px_32px_rgba(0,66,125,0.06)] z-50">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
             return (
-              <Link key={item.path} href={item.path} className="w-full">
-                <div className="flex flex-col items-center justify-center space-y-1 py-2 cursor-pointer group">
-                  <div
-                    className={cn(
-                      "p-2 rounded-2xl transition-all duration-300",
-                      isActive 
-                        ? "bg-primary/10 text-primary scale-110 shadow-sm" 
-                        : "text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
-                    )}
-                  >
-                    <item.icon className="w-6 h-6 stroke-[2.5px]" />
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold transition-colors duration-300",
-                      isActive ? "text-primary" : "text-muted-foreground"
-                    )}
-                  >
-                    {item.name}
-                  </span>
+              <Link key={item.path} href={item.path} className="flex-1">
+                <div className="flex flex-col items-center justify-center gap-1 cursor-pointer">
+                  {isActive ? (
+                    <div className="flex flex-col items-center bg-primary rounded-2xl px-4 py-2 gap-0.5 shadow-[0_4px_12px_rgba(0,66,125,0.25)] active:scale-95 transition-transform">
+                      <span className="material-symbols-outlined text-white" style={{ fontSize: 22, fontVariationSettings: "'FILL' 1" }}>{item.icon}</span>
+                      <span className="text-[10px] font-bold text-white uppercase tracking-wider">{item.name}</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center px-4 py-2 gap-0.5 hover:text-primary transition-colors active:scale-95">
+                      <span className="material-symbols-outlined text-muted-foreground" style={{ fontSize: 22 }}>{item.icon}</span>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{item.name}</span>
+                    </div>
+                  )}
                 </div>
               </Link>
             );
           })}
         </nav>
+
       </div>
     </div>
   );
