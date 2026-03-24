@@ -5,7 +5,7 @@ import { useGetSchedules, type Schedule } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { Plus, X, Circle, CheckCircle2 } from "lucide-react";
+import { Plus, X, Circle, CheckCircle2, Pencil } from "lucide-react";
 
 const DAY_MAP: Record<string, number> = { 월: 0, 화: 1, 수: 2, 목: 3, 금: 4, 토: 5, 일: 6 };
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -57,6 +57,13 @@ async function toggleTodo(id: number, completed: boolean) {
   if (!res.ok) throw new Error("Failed");
   return res.json() as Promise<Todo>;
 }
+async function updateTodo(id: number, data: { title?: string; category?: string; dueDate?: string | null }) {
+  const res = await fetch(`${BASE}/api/todos/${id}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed");
+  return res.json() as Promise<Todo>;
+}
 async function deleteTodo(id: number) {
   await fetch(`${BASE}/api/todos/${id}`, { method: "DELETE" });
 }
@@ -75,6 +82,7 @@ export function HomePage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
   const [isAddTodoOpen, setIsAddTodoOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [newTask, setNewTask] = useState("");
   const [, navigate] = useLocation();
 
@@ -93,6 +101,10 @@ export function HomePage() {
   const handleAddTodo = async (data: { title: string; category: string; dueDate?: string }) => {
     const created = await createTodo(data);
     setTodos(prev => [created, ...prev]);
+  };
+  const handleUpdateTodo = async (id: number, data: { title: string; category: string; dueDate?: string | null }) => {
+    const updated = await updateTodo(id, data);
+    setTodos(prev => prev.map(t => t.id === id ? updated : t));
   };
 
   const quickAdd = async () => {
@@ -208,10 +220,10 @@ export function HomePage() {
               ) : (
                 <>
                   {incompleteTodos.map(todo => (
-                    <TaskRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+                    <TaskRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onEdit={setEditingTodo} />
                   ))}
                   {completedTodos.map(todo => (
-                    <TaskRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+                    <TaskRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onEdit={setEditingTodo} />
                   ))}
                 </>
               )}
@@ -234,6 +246,14 @@ export function HomePage() {
       </div>
 
       {isAddTodoOpen && <AddTodoDialog onClose={() => setIsAddTodoOpen(false)} onAdd={handleAddTodo} />}
+      {editingTodo && (
+        <EditTodoDialog
+          todo={editingTodo}
+          onClose={() => setEditingTodo(null)}
+          onSave={async (data) => { await handleUpdateTodo(editingTodo.id, data); setEditingTodo(null); }}
+          onDelete={async () => { await handleDelete(editingTodo.id); setEditingTodo(null); }}
+        />
+      )}
     </Layout>
   );
 }
@@ -263,7 +283,12 @@ function TimetableItem({ schedule }: { schedule: Schedule }) {
 }
 
 // ── Task Row ──────────────────────────────────────────────────────────
-function TaskRow({ todo, onToggle, onDelete }: { todo: Todo; onToggle: (id: number, v: boolean) => void; onDelete: (id: number) => void }) {
+function TaskRow({ todo, onToggle, onDelete, onEdit }: {
+  todo: Todo;
+  onToggle: (id: number, v: boolean) => void;
+  onDelete: (id: number) => void;
+  onEdit: (todo: Todo) => void;
+}) {
   const cat = CATEGORY_COLORS[todo.category] || CATEGORY_COLORS["기타"];
   const dueDateTime = todo.dueDate ? new Date(todo.dueDate) : null;
   const hasTime = todo.dueDate?.includes("T");
@@ -283,8 +308,15 @@ function TaskRow({ todo, onToggle, onDelete }: { todo: Todo; onToggle: (id: numb
     : daysLeft === 0 ? "오늘"
     : `D-${daysLeft}`;
 
+  const dateStr = dueDateTime
+    ? `${dueDateTime.getMonth() + 1}/${dueDateTime.getDate()}`
+    : null;
+  const timeStr = hasTime && dueDateTime
+    ? dueDateTime.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
+
   return (
-    <div className="flex items-center gap-3 px-5 py-3.5 group">
+    <div className="flex items-center gap-3 px-5 py-3.5 group border-b border-border/30 last:border-0">
       <button onClick={() => onToggle(todo.id, !todo.completed)} className="shrink-0">
         {todo.completed
           ? <CheckCircle2 className="w-6 h-6 text-primary" />
@@ -300,26 +332,121 @@ function TaskRow({ todo, onToggle, onDelete }: { todo: Todo; onToggle: (id: numb
         </span>
       </div>
 
-      {/* Deadline badge */}
-      {dueDateTime && dLabel && (
-        <div className={cn("shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl border text-center min-w-[52px]", deadlineBg)}>
-          <span className="text-[11px] font-extrabold leading-none">{dLabel}</span>
-          {hasTime && (
-            <span className="text-[9px] font-medium mt-0.5 opacity-80 leading-none">
-              {dueDateTime.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}
-            </span>
-          )}
-          {!hasTime && (
-            <span className="text-[9px] font-medium mt-0.5 opacity-70 leading-none">
-              {`${dueDateTime.getMonth() + 1}/${dueDateTime.getDate()}`}
-            </span>
-          )}
+      {/* Deadline badge — D-day + exact date/time */}
+      {dueDateTime && dLabel ? (
+        <div className={cn("shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl border text-center min-w-[54px]", deadlineBg)}>
+          <span className="text-[12px] font-extrabold leading-none">{dLabel}</span>
+          <span className="text-[9px] font-semibold mt-1 opacity-80 leading-none">{dateStr}</span>
+          {timeStr && <span className="text-[9px] font-medium mt-0.5 opacity-70 leading-none">{timeStr}</span>}
         </div>
+      ) : (
+        <div className="shrink-0 min-w-[54px]" />
       )}
 
-      <button onClick={() => onDelete(todo.id)} className="shrink-0 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all">
-        <X className="w-4 h-4" />
-      </button>
+      {/* Edit & Delete — always visible */}
+      <div className="shrink-0 flex gap-1">
+        <button onClick={() => onEdit(todo)} className="p-1.5 rounded-lg text-muted-foreground/50 hover:text-primary hover:bg-primary/10 active:scale-95 transition-colors">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => onDelete(todo.id)} className="p-1.5 rounded-lg text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 active:scale-95 transition-colors">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Todo Dialog ──────────────────────────────────────────────────
+function EditTodoDialog({ todo, onClose, onSave, onDelete }: {
+  todo: Todo;
+  onClose: () => void;
+  onSave: (data: { title: string; category: string; dueDate?: string | null }) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const initDate = todo.dueDate?.includes("T") ? todo.dueDate.split("T")[0] : todo.dueDate ?? "";
+  const initTime = todo.dueDate?.includes("T") ? todo.dueDate.split("T")[1].slice(0, 5) : "";
+
+  const [title, setTitle] = useState(todo.title);
+  const [category, setCategory] = useState(todo.category);
+  const [dueDate, setDueDate] = useState(initDate);
+  const [dueTime, setDueTime] = useState(initTime);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setSaving(true);
+    let dueVal: string | null = null;
+    if (dueDate && dueTime) dueVal = `${dueDate}T${dueTime}`;
+    else if (dueDate) dueVal = dueDate;
+    await onSave({ title: title.trim(), category, dueDate: dueVal });
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    await onDelete();
+    setDeleting(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full max-w-md rounded-t-3xl p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>할 일 편집</h2>
+          <button onClick={onClose} className="p-2 bg-muted rounded-full"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input required value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="할 일을 입력하세요..."
+            className="w-full bg-muted/50 px-4 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-primary/20 border border-transparent focus:border-primary transition-all" />
+
+          <div>
+            <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-wider">카테고리</p>
+            <div className="flex gap-2 flex-wrap">
+              {TODO_CATEGORIES.map(cat => {
+                const c = CATEGORY_COLORS[cat];
+                return (
+                  <button key={cat} type="button" onClick={() => setCategory(cat)}
+                    className={cn("px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-colors",
+                      category === cat ? `${c.bg} ${c.text} border-current` : "bg-muted text-muted-foreground border-transparent")}>
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-wider">마감일 · 시간</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="w-full bg-muted/50 px-3 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-primary/20 border border-transparent focus:border-primary transition-all" />
+              <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} disabled={!dueDate}
+                className="w-full bg-muted/50 px-3 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-primary/20 border border-transparent focus:border-primary transition-all disabled:opacity-40" />
+            </div>
+            {dueDate && (
+              <button type="button" onClick={() => { setDueDate(""); setDueTime(""); }}
+                className="mt-1.5 text-[11px] text-muted-foreground hover:text-destructive transition-colors">
+                마감일 삭제
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={handleDelete} disabled={deleting}
+              className="flex-none px-4 py-3 rounded-xl bg-destructive/10 text-destructive text-sm font-bold hover:bg-destructive/20 transition-colors disabled:opacity-50">
+              {deleting ? "삭제 중..." : "삭제"}
+            </button>
+            <button type="submit" disabled={saving || !title.trim()}
+              className="flex-1 bg-primary text-white font-bold py-3 rounded-xl shadow-[0_4px_16px_rgba(0,66,125,0.25)] hover:-translate-y-0.5 transition-all disabled:opacity-50"
+              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {saving ? "저장 중..." : "저장하기"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
