@@ -1124,11 +1124,14 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
     try {
       const data = await fetchGrades();
       setGrades(data);
-      const keys = Array.from(new Set(data.map(g => `${g.year}-${g.semester}`)));
-      setExpandedSemesters(new Set(keys.slice(-1)));
     } catch {}
     setLoading(false);
   }, []);
+
+  // Auto-expand the active semester on mount
+  useEffect(() => {
+    setExpandedSemesters(new Set([`${activeSemester.year}-${activeSemester.semester}`]));
+  }, [activeSemester.year, activeSemester.semester]);
 
   useEffect(() => { loadGrades(); }, [loadGrades]);
 
@@ -1162,18 +1165,37 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
 
   const { gpa: overallGPA, earnedCredits: totalEarned } = calcGPA(grades);
 
-  const semesterGroups = grades.reduce<Record<string, GradeEntry[]>>((acc, g) => {
+  const SEM_ORDER = ["1학기", "여름계절", "2학기", "겨울계절"];
+
+  // Normalize schedules: null year/semester → activeSemester (legacy data)
+  const normalizedSchedules = schedules.map(s =>
+    s.year == null || s.semester == null
+      ? { ...s, year: activeSemester.year, semester: activeSemester.semester }
+      : s
+  );
+
+  // Semester list comes from SCHEDULES (timetable) — every semester with courses
+  const scheduleKeys = Array.from(new Set(normalizedSchedules.map(s => `${s.year}-${s.semester}`)));
+  const gradeOnlyKeys = grades
+    .map(g => `${g.year}-${g.semester}`)
+    .filter(k => !scheduleKeys.includes(k));
+  const sortedKeys = Array.from(new Set([...scheduleKeys, ...gradeOnlyKeys])).sort((a, b) => {
+    const [ay, as_] = a.split(/-(.+)/);
+    const [by, bs] = b.split(/-(.+)/);
+    return Number(ay) !== Number(by) ? Number(ay) - Number(by) : SEM_ORDER.indexOf(as_) - SEM_ORDER.indexOf(bs);
+  });
+
+  // Grade lookup maps
+  const gradeBySubject = grades.reduce<Record<string, GradeEntry>>((acc, g) => {
+    acc[`${g.year}-${g.semester}-${g.subjectName}`] = g;
+    return acc;
+  }, {});
+  const gradesBySemKey = grades.reduce<Record<string, GradeEntry[]>>((acc, g) => {
     const key = `${g.year}-${g.semester}`;
     if (!acc[key]) acc[key] = [];
     acc[key].push(g);
     return acc;
   }, {});
-  const sortedKeys = Object.keys(semesterGroups).sort((a, b) => {
-    const [ay, as_] = a.split(/-(.+)/);
-    const [by, bs] = b.split(/-(.+)/);
-    const semOrder = ["1학기", "여름계절", "2학기", "겨울계절"];
-    return Number(ay) !== Number(by) ? Number(ay) - Number(by) : semOrder.indexOf(as_) - semOrder.indexOf(bs);
-  });
 
   const creditsByCat = GRAD_CATEGORIES.reduce<Record<string, number>>((acc, cat) => {
     acc[cat] = grades.filter(g => g.category === cat && g.grade !== "F").reduce((s, g) => s + g.credits, 0);
@@ -1276,25 +1298,35 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
         <Plus className="w-5 h-5" />성적 추가
       </button>
 
-      {/* ── Semester Groups ── */}
+      {/* ── Semester Groups (derived from timetable) ── */}
       {sortedKeys.length === 0 ? (
         <div className="bg-card rounded-3xl p-10 text-center border border-border/50 shadow-sm">
           <GraduationCap className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground font-medium">아직 성적이 없어요</p>
-          <p className="text-sm text-muted-foreground/60 mt-1">+ 성적 추가 버튼으로 입력하세요</p>
+          <p className="text-muted-foreground font-medium">시간표에 등록된 학기가 없어요</p>
+          <p className="text-sm text-muted-foreground/60 mt-1">시간표 탭에서 과목을 추가하세요</p>
         </div>
       ) : (
         <div className="space-y-3">
           {sortedKeys.map(key => {
             const [yr, sem] = key.split(/-(.+)/);
-            const semGrades = semesterGroups[key];
+            const semGrades = gradesBySemKey[key] ?? [];
             const { gpa: semGPA, earnedCredits: semEarned } = calcGPA(semGrades);
             const isOpen = expandedSemesters.has(key);
-            const semSchedules = schedules.filter(s =>
-              s.year === parseInt(yr) && s.semester === sem
+
+            // All unique courses for this semester from the timetable (using normalized schedules)
+            const semCourses = Array.from(
+              new Map(
+                normalizedSchedules
+                  .filter(s => s.year === parseInt(yr) && s.semester === sem)
+                  .map(s => [s.subjectName, s])
+              ).values()
             );
+            const totalCourses = semCourses.length;
+            const gradedCount = semGrades.length;
+
             return (
               <div key={key} className="bg-card rounded-3xl border border-border/50 shadow-sm overflow-hidden">
+                {/* Semester header row */}
                 <button
                   onClick={() => toggleSemester(key)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/40 transition-colors"
@@ -1305,46 +1337,94 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
                     </div>
                     <div className="text-left">
                       <p className="font-bold text-foreground">{yr}년 {sem}</p>
-                      <p className="text-xs text-muted-foreground">{semGrades.length}과목 · {semEarned}학점</p>
+                      <p className="text-xs text-muted-foreground">
+                        {totalCourses > 0 ? `${totalCourses}과목` : `${gradedCount}과목`}
+                        {semEarned > 0 && ` · ${semEarned}학점 입력완료`}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className="text-lg font-black text-primary">{semGPA.toFixed(2)}</p>
-                      <p className="text-[10px] text-muted-foreground">학기 평점</p>
-                    </div>
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" />}
+                    {semGrades.length > 0 && (
+                      <div className="text-right">
+                        <p className="text-lg font-black text-primary">{semGPA.toFixed(2)}</p>
+                        <p className="text-[10px] text-muted-foreground">학기 평점</p>
+                      </div>
+                    )}
+                    {isOpen
+                      ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-1" />
+                      : <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" />}
                   </div>
                 </button>
 
+                {/* Expanded: timetable courses with grade status */}
                 {isOpen && (
                   <div className="border-t border-border/50">
-                    {semGrades.map(g => (
-                      <div key={g.id} className="flex items-center gap-3 px-5 py-3 border-b border-border/20 last:border-0 hover:bg-muted/20 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-sm text-foreground truncate">{g.subjectName}</p>
-                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{g.category}</span>
+                    {semCourses.map(course => {
+                      const gradeKey = `${yr}-${sem}-${course.subjectName}`;
+                      const g = gradeBySubject[gradeKey];
+                      return (
+                        <div key={course.id} className="flex items-center gap-3 px-5 py-3.5 border-b border-border/20 last:border-0">
+                          {/* Course color dot */}
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: course.color }} />
+                          {/* Name + category */}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-foreground truncate">{course.subjectName}</p>
+                            {g ? (
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{g.category}</span>
+                                <span className="text-[10px] text-muted-foreground">{g.credits}학점</span>
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">성적 미입력</p>
+                            )}
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{g.credits}학점 · {(GRADE_POINTS[g.grade] ?? 0).toFixed(1)}</p>
+                          {/* Grade badge or add button */}
+                          {g ? (
+                            <>
+                              <span className={cn("px-2.5 py-1 rounded-full text-sm font-bold border shrink-0", GRADE_COLORS[g.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>{g.grade}</span>
+                              <button onClick={() => setEditingGrade(g)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setAddTarget({ year: parseInt(yr), semester: sem });
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-border text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
+                            >
+                              <Plus className="w-3 h-3" />성적 입력
+                            </button>
+                          )}
                         </div>
-                        <span className={cn("px-2.5 py-1 rounded-full text-sm font-bold border shrink-0", GRADE_COLORS[g.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>{g.grade}</span>
-                        <button onClick={() => setEditingGrade(g)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="px-5 py-3">
-                      <button
-                        onClick={() => setAddTarget({ year: parseInt(yr), semester: sem })}
-                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors text-sm font-semibold"
-                      >
-                        <Plus className="w-4 h-4" />{yr}년 {sem} 성적 추가
-                      </button>
-                    </div>
+                      );
+                    })}
+                    {/* If there are grade-only entries (no timetable course) */}
+                    {semGrades
+                      .filter(g => !semCourses.some(c => c.subjectName === g.subjectName))
+                      .map(g => (
+                        <div key={g.id} className="flex items-center gap-3 px-5 py-3.5 border-b border-border/20 last:border-0">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-muted-foreground/30" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-foreground truncate">{g.subjectName}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{g.category}</span>
+                              <span className="text-[10px] text-muted-foreground">{g.credits}학점</span>
+                            </div>
+                          </div>
+                          <span className={cn("px-2.5 py-1 rounded-full text-sm font-bold border shrink-0", GRADE_COLORS[g.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>{g.grade}</span>
+                          <button onClick={() => setEditingGrade(g)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    }
                   </div>
                 )}
               </div>
