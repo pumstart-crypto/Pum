@@ -11,6 +11,7 @@ export const coursesTable = pgTable("courses", {
   timeRoom: text("time_room"),
   year: integer("year"),
   semester: text("semester"),
+  gradeYear: integer("grade_year"),
   category: text("category"),
   offeringDept: text("offering_dept"),
   credits: integer("credits"),

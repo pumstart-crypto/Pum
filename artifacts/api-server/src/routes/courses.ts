@@ -31,6 +31,7 @@ router.get("/courses", async (req, res) => {
     const dept = req.query.dept as string | undefined;
     const catalogYear = req.query.catalogYear as string | undefined;
     const catalogSemester = req.query.catalogSemester as string | undefined;
+    const gradeYear = req.query.gradeYear as string | undefined;
     const category = req.query.category as string | undefined;
     const search = req.query.search as string | undefined;
 
@@ -44,6 +45,11 @@ router.get("/courses", async (req, res) => {
     }
     if (catalogSemester) {
       conditions.push(eq(coursesTable.semester, catalogSemester));
+    }
+    if (gradeYear && gradeYear !== "전체") {
+      conditions.push(
+        sql`(${coursesTable.gradeYear} = ${parseInt(gradeYear)} OR ${coursesTable.gradeYear} IS NULL OR ${coursesTable.gradeYear} = 0)`
+      );
     }
     if (category) {
       conditions.push(eq(coursesTable.category, category));
