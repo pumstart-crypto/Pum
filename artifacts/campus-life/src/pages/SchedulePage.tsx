@@ -1,68 +1,74 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Clock, MapPin, User, Trash2, Upload, Search, CheckSquare, Square, FileSpreadsheet, AlertCircle } from "lucide-react";
+import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle } from "lucide-react";
 import { Layout } from "@/components/Layout";
-import { 
-  useGetSchedules, 
-  useCreateSchedule, 
-  useDeleteSchedule, 
-  type Schedule 
+import {
+  useGetSchedules,
+  useCreateSchedule,
+  useDeleteSchedule,
+  type Schedule,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
 
 const DAYS = ["월", "화", "수", "목", "금", "토"];
 const HOURS = Array.from({ length: 10 }, (_, i) => i + 9);
 const COLORS = [
-  "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD", 
-  "#D4A5A5", "#9B59B6", "#1ABC9C", "#F1C40F", "#E67E22"
+  "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
+  "#D4A5A5", "#9B59B6", "#1ABC9C", "#F1C40F", "#E67E22",
 ];
 
 const DAY_MAP: Record<string, number> = {
   월: 0, 화: 1, 수: 2, 목: 3, 금: 4, 토: 5, 일: 6,
 };
 
-interface ParsedCourse {
+interface ApiCourse {
+  id: number;
+  subjectName: string;
+  subjectCode: string | null;
+  section: string | null;
+  professor: string | null;
+  timeRoom: string | null;
+  year: number | null;
+  category: string | null;
+  offeringDept: string | null;
+  credits: number | null;
+  isOnline: boolean | null;
+  isForeign: boolean | null;
+}
+
+interface ParsedSlot {
   subjectName: string;
   professor: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
   location: string;
-  rawTime: string;
 }
 
-function parseTimeSlots(timeRoom: string, subject: string, professor: string): ParsedCourse[] {
+function parseTimeSlots(timeRoom: string, subject: string, professor: string): ParsedSlot[] {
   if (!timeRoom) return [];
-
   const parts = timeRoom.split(/,?\s*<br\s*\/?>\s*/i);
-  const result: ParsedCourse[] = [];
+  const result: ParsedSlot[] = [];
 
   for (const part of parts) {
     const trimmed = part.trim();
     if (!trimmed) continue;
-
     const dayMatch = trimmed.match(/^([월화수목금토일])\s+/);
     if (!dayMatch) continue;
-
     const day = dayMatch[1];
     const dayOfWeek = DAY_MAP[day];
     const rest = trimmed.slice(dayMatch[0].length);
-
     const timeMatch = rest.match(/^(\d{2}:\d{2})/);
     if (!timeMatch) continue;
-
     const startTime = timeMatch[1];
     const afterStart = rest.slice(startTime.length);
-
     let endTime = "";
     let location = "";
-
     const endTimeMatch = afterStart.match(/^-(\d{2}:\d{2})/);
     if (endTimeMatch) {
       endTime = endTimeMatch[1];
-      location = afterStart.slice(endTimeMatch[0].length).replace(/^\(외부\)[^\s]*/g, "온라인").trim();
+      location = afterStart.slice(endTimeMatch[0].length).replace(/\(외부\)[^\s]*/g, "온라인").trim();
     } else {
       const durationMatch = afterStart.match(/^\((\d+)\)/);
       if (durationMatch) {
@@ -78,55 +84,34 @@ function parseTimeSlots(timeRoom: string, subject: string, professor: string): P
         location = afterStart.replace(/\(외부\)[^\s]*/g, "온라인").trim();
       }
     }
-
-    if (location.match(/^knu10|^(외부)/)) {
-      location = "온라인";
-    }
-
-    result.push({ subjectName: subject, professor, dayOfWeek, startTime, endTime, location, rawTime: trimmed });
+    if (location.match(/^knu10|^(외부)/)) location = "온라인";
+    result.push({ subjectName: subject, professor, dayOfWeek, startTime, endTime, location });
   }
-
   return result;
 }
 
-function parseExcelFile(file: File): Promise<ParsedCourse[]> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const wb = XLSX.read(data, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as string[][];
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-        const courses: ParsedCourse[] = [];
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || !row[4]) continue;
+async function fetchDepartments(): Promise<string[]> {
+  const res = await fetch(`${BASE}/api/courses/departments`);
+  if (!res.ok) throw new Error("Failed to fetch departments");
+  return res.json();
+}
 
-          const subject = String(row[4] || "").trim();
-          const professor = String(row[10] || "").trim();
-          const timeRoom = String(row[11] || "").trim();
-
-          if (!subject || !timeRoom) continue;
-
-          const slots = parseTimeSlots(timeRoom, subject, professor);
-          courses.push(...slots);
-        }
-        resolve(courses);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = () => reject(new Error("파일 읽기 실패"));
-    reader.readAsArrayBuffer(file);
-  });
+async function fetchCourses(dept: string, year: string, search: string): Promise<ApiCourse[]> {
+  const params = new URLSearchParams();
+  if (dept) params.set("dept", dept);
+  if (year && year !== "전체") params.set("year", year);
+  if (search) params.set("search", search);
+  const res = await fetch(`${BASE}/api/courses?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch courses");
+  return res.json();
 }
 
 export function SchedulePage() {
   const { data: schedules = [], isLoading } = useGetSchedules();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isBrowseOpen, setIsBrowseOpen] = useState(false);
 
   return (
     <Layout>
@@ -139,11 +124,11 @@ export function SchedulePage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsImportOpen(true)}
+            onClick={() => setIsBrowseOpen(true)}
             className="flex items-center gap-1.5 bg-secondary text-secondary-foreground rounded-full px-4 py-2.5 text-sm font-semibold hover:bg-secondary/80 active:scale-95 transition-all shadow-sm"
           >
-            <Upload className="w-4 h-4" />
-            엑셀
+            <BookOpen className="w-4 h-4" />
+            수강편람
           </button>
           <button
             onClick={() => setIsAddOpen(true)}
@@ -170,7 +155,6 @@ export function SchedulePage() {
                   </div>
                 ))}
               </div>
-
               <div className="relative">
                 {HOURS.map((hour) => (
                   <div key={hour} className="flex border-t border-border/40 h-[60px]">
@@ -182,7 +166,6 @@ export function SchedulePage() {
                     ))}
                   </div>
                 ))}
-
                 {schedules.map((schedule) => (
                   <ScheduleBlock key={schedule.id} schedule={schedule} />
                 ))}
@@ -193,7 +176,7 @@ export function SchedulePage() {
       </div>
 
       {isAddOpen && <AddScheduleDialog onClose={() => setIsAddOpen(false)} />}
-      {isImportOpen && <ExcelImportDialog onClose={() => setIsImportOpen(false)} />}
+      {isBrowseOpen && <CourseBrowserDialog onClose={() => setIsBrowseOpen(false)} />}
     </Layout>
   );
 }
@@ -219,7 +202,6 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
   const startMins = parseTime(schedule.startTime);
   const endMins = parseTime(schedule.endTime);
   const dayStartMins = 9 * 60;
-
   const topOffset = startMins - dayStartMins;
   const height = Math.max(endMins - startMins, 20);
 
@@ -282,86 +264,120 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
   );
 }
 
-function ExcelImportDialog({ onClose }: { onClose: () => void }) {
+function CourseBrowserDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [courses, setCourses] = useState<ParsedCourse[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedDept, setSelectedDept] = useState("");
+  const [selectedYear, setSelectedYear] = useState("전체");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [courses, setCourses] = useState<ApiCourse[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [isLoadingDepts, setIsLoadingDepts] = useState(true);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importDone, setImportDone] = useState(false);
+  const [error, setError] = useState("");
   const [colorIndex, setColorIndex] = useState(0);
+  const [showDeptDropdown, setShowDeptDropdown] = useState(false);
+  const [deptSearch, setDeptSearch] = useState("");
 
   const createMutation = useCreateSchedule();
 
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsLoading(true);
+  useEffect(() => {
+    fetchDepartments()
+      .then(setDepartments)
+      .catch(() => setError("학과 목록을 불러오지 못했습니다."))
+      .finally(() => setIsLoadingDepts(false));
+  }, []);
+
+  const loadCourses = useCallback(async (dept: string, year: string, search: string) => {
+    if (!dept && !search) {
+      setCourses([]);
+      return;
+    }
+    setIsLoadingCourses(true);
     setError("");
-    setCourses([]);
-    setSelected(new Set());
     try {
-      const parsed = await parseExcelFile(file);
-      setCourses(parsed);
-      if (parsed.length === 0) {
-        setError("파싱 가능한 수업 데이터가 없습니다. 부산대 수강편람 파일인지 확인하세요.");
-      }
+      const data = await fetchCourses(dept, year, search);
+      setCourses(data);
+      setSelected(new Set());
     } catch {
-      setError("파일을 읽는 중 오류가 발생했습니다.");
+      setError("강의 목록을 불러오지 못했습니다.");
     } finally {
-      setIsLoading(false);
+      setIsLoadingCourses(false);
     }
   }, []);
 
-  const filtered = courses.filter(c =>
-    c.subjectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.professor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCourses(selectedDept, selectedYear, searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [selectedDept, selectedYear, searchQuery, loadCourses]);
 
-  const toggleSelect = (idx: number) => {
+  const toggleSelect = (id: number) => {
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
   const toggleAll = () => {
-    if (selected.size === filtered.length) {
+    if (selected.size === courses.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(filtered.map((_, i) => courses.indexOf(_))));
+      setSelected(new Set(courses.map(c => c.id)));
     }
   };
 
   const handleImport = async () => {
-    const toImport = courses.filter((_, i) => selected.has(i));
+    const toImport = courses.filter(c => selected.has(c.id));
     if (toImport.length === 0) return;
     setIsImporting(true);
     let ci = colorIndex;
+
     for (const course of toImport) {
-      try {
-        await createMutation.mutateAsync({
-          data: {
-            subjectName: course.subjectName,
-            professor: course.professor || undefined,
-            location: course.location || undefined,
-            dayOfWeek: course.dayOfWeek,
-            startTime: course.startTime,
-            endTime: course.endTime,
-            color: COLORS[ci % COLORS.length],
-          },
-        });
-        ci++;
-      } catch {
-        // continue
+      if (!course.timeRoom) {
+        try {
+          await createMutation.mutateAsync({
+            data: {
+              subjectName: course.subjectName,
+              professor: course.professor || undefined,
+              location: "온라인",
+              dayOfWeek: 0,
+              startTime: "09:00",
+              endTime: "10:00",
+              color: COLORS[ci % COLORS.length],
+            },
+          });
+          ci++;
+        } catch {}
+        continue;
       }
+
+      const slots = parseTimeSlots(course.timeRoom, course.subjectName, course.professor || "");
+      if (slots.length === 0) continue;
+      const color = COLORS[ci % COLORS.length];
+      for (const slot of slots) {
+        try {
+          await createMutation.mutateAsync({
+            data: {
+              subjectName: slot.subjectName,
+              professor: slot.professor || undefined,
+              location: slot.location || undefined,
+              dayOfWeek: slot.dayOfWeek,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              color,
+            },
+          });
+        } catch {}
+      }
+      ci++;
     }
+
     setColorIndex(ci);
     queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
     setIsImporting(false);
@@ -369,20 +385,24 @@ function ExcelImportDialog({ onClose }: { onClose: () => void }) {
     setTimeout(() => onClose(), 1500);
   };
 
+  const filteredDepts = deptSearch
+    ? departments.filter(d => d.includes(deptSearch))
+    : departments;
+
   const selectedCount = selected.size;
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
-      <div className="bg-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom-full sm:fade-in sm:zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+      <div className="bg-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom-full sm:fade-in sm:zoom-in-95 duration-300 flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border/50">
+        <div className="flex items-center justify-between p-6 border-b border-border/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
-              <FileSpreadsheet className="w-5 h-5" />
+              <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">수강편람 불러오기</h2>
-              <p className="text-xs text-muted-foreground">부산대학교 수강편람 엑셀 파일</p>
+              <h2 className="text-lg font-bold">수강편람 검색</h2>
+              <p className="text-xs text-muted-foreground">부산대학교 2025학년도 수강편람</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 bg-muted rounded-full hover:bg-secondary">
@@ -400,75 +420,118 @@ function ExcelImportDialog({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
-            {/* File Upload Area */}
-            <div className="p-4 border-b border-border/50">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-primary/30 rounded-2xl p-4 flex items-center gap-3 hover:border-primary/60 hover:bg-primary/5 transition-all"
-              >
-                <Upload className="w-5 h-5 text-primary shrink-0" />
-                <div className="text-left">
-                  <div className="font-semibold text-sm text-foreground">
-                    {courses.length > 0 ? `✅ ${courses.length}개 수업 파싱 완료 — 다른 파일 선택` : "수강편람 xlsx 파일 선택"}
+            {/* Filters */}
+            <div className="p-4 border-b border-border/50 space-y-3 shrink-0">
+              {/* Department selector */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowDeptDropdown(!showDeptDropdown)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-secondary/60 rounded-xl text-sm font-medium hover:bg-secondary transition-colors"
+                >
+                  <span className={selectedDept ? "text-foreground" : "text-muted-foreground"}>
+                    {isLoadingDepts ? "학과 목록 불러오는 중..." : (selectedDept || "학과/학부 선택")}
+                  </span>
+                  <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showDeptDropdown && "rotate-180")} />
+                </button>
+
+                {showDeptDropdown && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 flex flex-col">
+                    <div className="p-2 border-b border-border shrink-0">
+                      <input
+                        autoFocus
+                        value={deptSearch}
+                        onChange={e => setDeptSearch(e.target.value)}
+                        placeholder="학과 검색..."
+                        className="w-full px-3 py-2 bg-secondary/60 rounded-lg text-sm outline-none"
+                      />
+                    </div>
+                    <div className="overflow-y-auto">
+                      <button
+                        onClick={() => { setSelectedDept(""); setShowDeptDropdown(false); setDeptSearch(""); }}
+                        className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/60 transition-colors", !selectedDept && "text-primary font-semibold")}
+                      >
+                        전체 학과
+                      </button>
+                      {filteredDepts.map(dept => (
+                        <button
+                          key={dept}
+                          onClick={() => { setSelectedDept(dept); setShowDeptDropdown(false); setDeptSearch(""); }}
+                          className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/60 transition-colors", selectedDept === dept && "text-primary font-semibold bg-primary/5")}
+                        >
+                          {dept}
+                        </button>
+                      ))}
+                      {filteredDepts.length === 0 && (
+                        <div className="px-4 py-3 text-sm text-muted-foreground">검색 결과 없음</div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">부산대 학생지원시스템 → 학사정보 → 수업/수강편람</div>
-                </div>
-              </button>
+                )}
+              </div>
 
-              {error && (
-                <div className="mt-3 flex items-center gap-2 text-destructive text-sm bg-destructive/10 rounded-xl px-4 py-3">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
+              {/* Year + Search */}
+              <div className="flex gap-2">
+                <div className="flex gap-1 shrink-0">
+                  {["전체", "1", "2", "3", "4"].map(y => (
+                    <button
+                      key={y}
+                      onClick={() => setSelectedYear(y)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                        selectedYear === y
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
+                      )}
+                    >
+                      {y === "전체" ? "전체" : `${y}학년`}
+                    </button>
+                  ))}
                 </div>
-              )}
-
-              {isLoading && (
-                <div className="mt-3 flex items-center gap-2 text-primary text-sm px-2">
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span>파일 분석 중...</span>
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="과목명, 교수명 검색"
+                    className="w-full pl-9 pr-3 py-2 bg-secondary/60 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 ring-primary/20 transition-all"
+                  />
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Course List */}
-            {courses.length > 0 && (
-              <>
-                <div className="p-4 border-b border-border/50 flex items-center gap-3">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="과목명, 교수명으로 검색..."
-                      className="w-full pl-9 pr-4 py-2.5 bg-secondary/60 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 ring-primary/20 transition-all"
-                    />
-                  </div>
-                  <button
-                    onClick={toggleAll}
-                    className="shrink-0 text-sm font-semibold text-primary hover:underline"
-                  >
-                    {selected.size === filtered.length ? "전체 해제" : "전체 선택"}
-                  </button>
-                </div>
+            {error && (
+              <div className="mx-4 mt-3 flex items-center gap-2 text-destructive text-sm bg-destructive/10 rounded-xl px-4 py-3 shrink-0">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-                <div className="flex-1 overflow-y-auto divide-y divide-border/40">
-                  {filtered.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground text-sm">검색 결과가 없습니다.</div>
-                  ) : (
-                    filtered.map((course) => {
-                      const realIdx = courses.indexOf(course);
-                      const isChecked = selected.has(realIdx);
+            {/* Course List */}
+            <div className="flex-1 overflow-y-auto">
+              {isLoadingCourses ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="w-6 h-6 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : courses.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
+                  <BookOpen className="w-10 h-10 opacity-30" />
+                  <p className="text-sm">{selectedDept || searchQuery ? "검색 결과가 없습니다." : "학과를 선택하거나 과목명으로 검색하세요."}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/40 px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground font-medium">{courses.length}개 강의</span>
+                    <button onClick={toggleAll} className="text-xs font-semibold text-primary hover:underline">
+                      {selected.size === courses.length ? "전체 해제" : "전체 선택"}
+                    </button>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {courses.map((course) => {
+                      const isChecked = selected.has(course.id);
                       return (
                         <button
-                          key={realIdx}
-                          onClick={() => toggleSelect(realIdx)}
+                          key={course.id}
+                          onClick={() => toggleSelect(course.id)}
                           className={cn(
                             "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
                             isChecked ? "bg-primary/5" : "hover:bg-secondary/50"
@@ -481,35 +544,45 @@ function ExcelImportDialog({ onClose }: { onClose: () => void }) {
                             {isChecked && <CheckSquare className="w-3 h-3 text-white fill-white" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm text-foreground leading-tight truncate">{course.subjectName}</div>
-                            <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
-                              <span className="text-primary font-medium">{DAYS[course.dayOfWeek]}요일 {course.startTime}~{course.endTime}</span>
-                              {course.professor && <span>{course.professor} 교수</span>}
-                              {course.location && <span className="truncate">{course.location}</span>}
+                            <div className="flex items-start justify-between gap-1">
+                              <span className="font-semibold text-sm text-foreground leading-tight">{course.subjectName}</span>
+                              {course.credits && (
+                                <span className="shrink-0 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{course.credits}학점</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                              <div className="flex flex-wrap gap-x-2">
+                                {course.professor && <span>{course.professor} 교수</span>}
+                                {course.year && <span>{course.year}학년</span>}
+                                {course.category && <span className="text-muted-foreground/70">{course.category}</span>}
+                              </div>
+                              {course.timeRoom && (
+                                <div className="text-primary/80 font-medium truncate">{course.timeRoom.replace(/<br\s*\/?>/gi, " / ")}</div>
+                              )}
                             </div>
                           </div>
                         </button>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
-                {/* Footer */}
-                <div className="p-4 border-t border-border/50">
-                  <button
-                    onClick={handleImport}
-                    disabled={selectedCount === 0 || isImporting}
-                    className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isImporting
-                      ? "불러오는 중..."
-                      : selectedCount > 0
-                        ? `선택한 수업 ${selectedCount}개 불러오기`
-                        : "수업을 선택하세요"}
-                  </button>
-                </div>
-              </>
-            )}
+            {/* Footer */}
+            <div className="p-4 border-t border-border/50 shrink-0">
+              <button
+                onClick={handleImport}
+                disabled={selectedCount === 0 || isImporting}
+                className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isImporting
+                  ? "불러오는 중..."
+                  : selectedCount > 0
+                    ? `선택한 수업 ${selectedCount}개 시간표에 추가`
+                    : "수업을 선택하세요"}
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -547,7 +620,7 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
       <div className="bg-card w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold">새 시간표 추가</h2>
+          <h2 className="text-xl font-bold">직접 추가</h2>
           <button onClick={onClose} className="p-2 bg-muted rounded-full hover:bg-secondary">
             <X className="w-5 h-5" />
           </button>
@@ -571,7 +644,8 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
               <input
                 value={formData.professor}
                 onChange={e => setFormData({ ...formData, professor: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+                placeholder="홍길동"
               />
             </div>
             <div>
@@ -579,24 +653,23 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
               <input
                 value={formData.location}
                 onChange={e => setFormData({ ...formData, location: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+                placeholder="308호"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-bold text-muted-foreground block mb-1">요일 *</label>
+            <label className="text-sm font-bold text-muted-foreground block mb-1">요일</label>
             <div className="flex gap-2">
-              {DAYS.map((day, idx) => (
+              {DAYS.map((day, i) => (
                 <button
                   key={day}
                   type="button"
-                  onClick={() => setFormData({ ...formData, dayOfWeek: idx })}
+                  onClick={() => setFormData({ ...formData, dayOfWeek: i })}
                   className={cn(
-                    "flex-1 py-2 rounded-xl font-bold text-sm transition-all",
-                    formData.dayOfWeek === idx
-                      ? "bg-primary text-white shadow-md"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary-foreground/10"
+                    "flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors",
+                    formData.dayOfWeek === i ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   )}
                 >
                   {day}
@@ -607,30 +680,28 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-bold text-muted-foreground block mb-1">시작 시간 *</label>
+              <label className="text-sm font-bold text-muted-foreground block mb-1">시작 시간</label>
               <input
                 type="time"
-                required
                 value={formData.startTime}
                 onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
               />
             </div>
             <div>
-              <label className="text-sm font-bold text-muted-foreground block mb-1">종료 시간 *</label>
+              <label className="text-sm font-bold text-muted-foreground block mb-1">종료 시간</label>
               <input
                 type="time"
-                required
                 value={formData.endTime}
                 onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                className="w-full bg-secondary/50 focus:bg-white focus:border-primary border border-transparent px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-bold text-muted-foreground block mb-2">색상 *</label>
-            <div className="flex flex-wrap gap-3">
+            <label className="text-sm font-bold text-muted-foreground block mb-2">색상</label>
+            <div className="flex gap-2 flex-wrap">
               {COLORS.map(color => (
                 <button
                   key={color}
@@ -638,7 +709,7 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
                   onClick={() => setFormData({ ...formData, color })}
                   className={cn(
                     "w-8 h-8 rounded-full transition-transform",
-                    formData.color === color ? "scale-125 ring-4 ring-offset-2 ring-primary/30" : "hover:scale-110"
+                    formData.color === color ? "scale-125 ring-2 ring-offset-2 ring-foreground/30" : "hover:scale-110"
                   )}
                   style={{ backgroundColor: color }}
                 />
@@ -649,9 +720,9 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="w-full mt-4 bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50"
+            className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60"
           >
-            {createMutation.isPending ? "추가 중..." : "시간표에 추가하기"}
+            {createMutation.isPending ? "추가 중..." : "시간표 추가"}
           </button>
         </form>
       </div>
