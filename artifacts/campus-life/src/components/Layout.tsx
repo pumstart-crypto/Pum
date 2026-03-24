@@ -15,16 +15,16 @@ export function Layout({ children }: { children: ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex justify-center">
+    <div className="h-screen bg-background flex justify-center overflow-hidden">
       {/* Mobile container - looks like an app even on desktop */}
-      <div className="w-full max-w-md bg-card min-h-screen shadow-2xl relative overflow-hidden flex flex-col">
+      <div className="w-full max-w-md bg-card h-full shadow-2xl relative flex flex-col overflow-hidden">
         
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto pb-24 scroll-smooth">
           {children}
         </main>
 
-        {/* Bottom Navigation */}
+        {/* Bottom Navigation - fixed to bottom of container, never scrolls */}
         <nav className="absolute bottom-0 left-0 right-0 h-20 bg-card/80 backdrop-blur-xl border-t border-border flex items-center justify-around px-2 z-50 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
