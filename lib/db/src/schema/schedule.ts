@@ -11,6 +11,8 @@ export const schedulesTable = pgTable("schedules", {
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
   color: text("color").notNull().default("#4F86C6"),
+  year: integer("year"),
+  semester: text("semester"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

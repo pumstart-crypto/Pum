@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp } from "lucide-react";
+import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp, List, ChevronLeft, Calendar, Pencil, Check } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import {
   useGetSchedules,
@@ -159,11 +159,79 @@ async function deleteGrade(id: number): Promise<void> {
   await fetch(`${BASE}/api/grades/${id}`, { method: "DELETE" });
 }
 
+// ─── Semester helpers ────────────────────────────────────────────────────────
+type SemesterEntry = { year: number; semester: string };
+const SEMESTERS_KEY = "campus-semesters";
+const ACTIVE_SEM_KEY = "campus-active-semester";
+
+function getCurrentSemester(): SemesterEntry {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  let semester = "1학기";
+  if (month <= 2) semester = "겨울계절";
+  else if (month <= 6) semester = "1학기";
+  else if (month <= 8) semester = "여름계절";
+  else semester = "2학기";
+  return { year, semester };
+}
+
+function loadStoredSemesters(): SemesterEntry[] {
+  try { return JSON.parse(localStorage.getItem(SEMESTERS_KEY) || "[]"); } catch { return []; }
+}
+function saveStoredSemesters(list: SemesterEntry[]) {
+  localStorage.setItem(SEMESTERS_KEY, JSON.stringify(list));
+}
+function loadActiveSemester(): SemesterEntry | null {
+  try { return JSON.parse(localStorage.getItem(ACTIVE_SEM_KEY) || "null"); } catch { return null; }
+}
+function saveActiveSemester(s: SemesterEntry) {
+  localStorage.setItem(ACTIVE_SEM_KEY, JSON.stringify(s));
+}
+function semKey(s: SemesterEntry) { return `${s.year}-${s.semester}`; }
+
 export function SchedulePage() {
   const { data: schedules = [], isLoading } = useGetSchedules();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBrowseOpen, setIsBrowseOpen] = useState(false);
+  const [isAddOptionOpen, setIsAddOptionOpen] = useState(false);
+  const [isSemesterOpen, setIsSemesterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"timetable" | "grades">("timetable");
+
+  const defaultSem = getCurrentSemester();
+  const [activeSemester, setActiveSemesterState] = useState<SemesterEntry>(
+    () => loadActiveSemester() ?? defaultSem
+  );
+  const [semesters, setSemesters] = useState<SemesterEntry[]>(() => {
+    const stored = loadStoredSemesters();
+    if (!stored.some(s => semKey(s) === semKey(defaultSem))) {
+      const merged = [defaultSem, ...stored];
+      saveStoredSemesters(merged);
+      return merged;
+    }
+    return stored;
+  });
+
+  const setActiveSemester = (s: SemesterEntry) => {
+    setActiveSemesterState(s);
+    saveActiveSemester(s);
+  };
+
+  const addSemester = (s: SemesterEntry) => {
+    setSemesters(prev => {
+      if (prev.some(p => semKey(p) === semKey(s))) return prev;
+      const next = [...prev, s].sort((a, b) => a.year !== b.year ? a.year - b.year : SEMESTER_OPTIONS.indexOf(a.semester) - SEMESTER_OPTIONS.indexOf(b.semester));
+      saveStoredSemesters(next);
+      return next;
+    });
+    setActiveSemester(s);
+  };
+
+  const filteredSchedules = schedules.filter(s =>
+    s.year == null || s.semester == null
+      ? true
+      : s.year === activeSemester.year && s.semester === activeSemester.semester
+  );
 
   return (
     <Layout>
@@ -177,17 +245,31 @@ export function SchedulePage() {
         </div>
         {activeTab === "timetable" && (
           <div className="flex items-center gap-2">
-            <button onClick={() => setIsBrowseOpen(true)}
-              className="flex items-center gap-1.5 bg-secondary text-secondary-foreground rounded-full px-4 py-2.5 text-sm font-semibold hover:bg-secondary/80 active:scale-95 transition-all shadow-sm">
-              <BookOpen className="w-4 h-4" />수강편람
+            <button onClick={() => setIsSemesterOpen(true)}
+              className="w-11 h-11 bg-secondary text-secondary-foreground rounded-full flex items-center justify-center hover:bg-secondary/80 active:scale-95 transition-all shadow-sm">
+              <List className="w-5 h-5" />
             </button>
-            <button onClick={() => setIsAddOpen(true)}
+            <button onClick={() => setIsAddOptionOpen(true)}
               className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
               <Plus className="w-6 h-6" />
             </button>
           </div>
         )}
       </div>
+
+      {/* Semester badge (timetable tab only) */}
+      {activeTab === "timetable" && (
+        <div className="px-6 pb-2">
+          <button
+            onClick={() => setIsSemesterOpen(true)}
+            className="flex items-center gap-1.5 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-semibold hover:bg-primary/20 transition-colors"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            {activeSemester.year}년 {activeSemester.semester}
+            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+          </button>
+        </div>
+      )}
 
       {/* Tab Switcher */}
       <div className="px-4 mb-4">
@@ -237,7 +319,7 @@ export function SchedulePage() {
                       {slot}
                     </div>
                   ))}
-                  {schedules.map((schedule) => (<ScheduleBlock key={schedule.id} schedule={schedule} />))}
+                  {filteredSchedules.map((schedule) => (<ScheduleBlock key={schedule.id} schedule={schedule} />))}
                 </div>
               </div>
             )}
@@ -248,9 +330,177 @@ export function SchedulePage() {
       {/* Grades Tab */}
       {activeTab === "grades" && <GradeSection />}
 
-      {isAddOpen && <AddScheduleDialog onClose={() => setIsAddOpen(false)} />}
-      {isBrowseOpen && <CourseBrowserDialog onClose={() => setIsBrowseOpen(false)} />}
+      {isAddOptionOpen && (
+        <AddOptionDialog
+          onBrowse={() => { setIsAddOptionOpen(false); setIsBrowseOpen(true); }}
+          onManual={() => { setIsAddOptionOpen(false); setIsAddOpen(true); }}
+          onClose={() => setIsAddOptionOpen(false)}
+        />
+      )}
+      {isSemesterOpen && (
+        <SemesterManagerDialog
+          semesters={semesters}
+          active={activeSemester}
+          onSelect={(s) => { setActiveSemester(s); setIsSemesterOpen(false); }}
+          onAdd={addSemester}
+          onClose={() => setIsSemesterOpen(false)}
+        />
+      )}
+      {isAddOpen && (
+        <AddScheduleDialog
+          year={activeSemester.year}
+          semester={activeSemester.semester}
+          onClose={() => setIsAddOpen(false)}
+        />
+      )}
+      {isBrowseOpen && (
+        <CourseBrowserDialog
+          year={activeSemester.year}
+          semester={activeSemester.semester}
+          onClose={() => setIsBrowseOpen(false)}
+        />
+      )}
     </Layout>
+  );
+}
+
+// ─── AddOptionDialog ─────────────────────────────────────────────────────────
+function AddOptionDialog({ onBrowse, onManual, onClose }: { onBrowse: () => void; onManual: () => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={onClose}>
+      <div
+        className="bg-card w-full max-w-lg rounded-t-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-muted rounded-full mx-auto mb-6" />
+        <h2 className="text-lg font-bold mb-4">수업 추가</h2>
+        <div className="space-y-3">
+          <button
+            onClick={onBrowse}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-secondary/60 hover:bg-secondary active:scale-[0.98] transition-all text-left"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="font-bold text-foreground">수강편람에서 추가</div>
+              <div className="text-xs text-muted-foreground mt-0.5">부산대 수강편람에서 수업을 검색해 추가</div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
+          </button>
+          <button
+            onClick={onManual}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-secondary/60 hover:bg-secondary active:scale-[0.98] transition-all text-left"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Pencil className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="font-bold text-foreground">직접 추가</div>
+              <div className="text-xs text-muted-foreground mt-0.5">과목명, 시간, 장소를 직접 입력해 추가</div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
+          </button>
+        </div>
+        <button onClick={onClose} className="mt-4 w-full py-3 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-secondary transition-colors">
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── SemesterManagerDialog ───────────────────────────────────────────────────
+function SemesterManagerDialog({
+  semesters, active, onSelect, onAdd, onClose,
+}: {
+  semesters: SemesterEntry[];
+  active: SemesterEntry;
+  onSelect: (s: SemesterEntry) => void;
+  onAdd: (s: SemesterEntry) => void;
+  onClose: () => void;
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newYear, setNewYear] = useState(new Date().getFullYear().toString());
+  const [newSem, setNewSem] = useState("1학기");
+
+  const handleAdd = () => {
+    const y = parseInt(newYear);
+    if (!y || y < 2000 || y > 2100) return;
+    onAdd({ year: y, semester: newSem });
+    setIsAdding(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={onClose}>
+      <div
+        className="bg-card w-full max-w-lg rounded-t-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300 max-h-[80vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-muted rounded-full mx-auto mb-6" />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold">학기 관리</h2>
+          <button onClick={onClose} className="p-2 bg-muted rounded-full hover:bg-secondary"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 space-y-2 mb-4">
+          {semesters.map(s => {
+            const isActive = semKey(s) === semKey(active);
+            return (
+              <button
+                key={semKey(s)}
+                onClick={() => onSelect(s)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all text-left",
+                  isActive ? "bg-primary text-primary-foreground" : "bg-secondary/60 hover:bg-secondary"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Calendar className={cn("w-4 h-4", isActive ? "text-primary-foreground/80" : "text-muted-foreground")} />
+                  <span className="font-semibold">{s.year}년 {s.semester}</span>
+                </div>
+                {isActive && <Check className="w-4 h-4" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {isAdding ? (
+          <div className="border border-border rounded-2xl p-4 space-y-3">
+            <p className="text-sm font-bold text-muted-foreground">새 학기 추가</p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={newYear}
+                onChange={e => setNewYear(e.target.value)}
+                className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder="연도"
+                min="2020" max="2100"
+              />
+              <select
+                value={newSem}
+                onChange={e => setNewSem(e.target.value)}
+                className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                {SEMESTER_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setIsAdding(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary hover:bg-secondary/80 transition-colors">취소</button>
+              <button onClick={handleAdd} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">추가</button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors font-semibold text-sm"
+          >
+            <Plus className="w-4 h-4" /> 새 학기 추가
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -337,7 +587,7 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
   );
 }
 
-function CourseBrowserDialog({ onClose }: { onClose: () => void }) {
+function CourseBrowserDialog({ year, semester, onClose }: { year: number; semester: string; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
@@ -423,6 +673,8 @@ function CourseBrowserDialog({ onClose }: { onClose: () => void }) {
               startTime: "09:00",
               endTime: "10:00",
               color: COLORS[ci % COLORS.length],
+              year,
+              semester,
             },
           });
           ci++;
@@ -444,6 +696,8 @@ function CourseBrowserDialog({ onClose }: { onClose: () => void }) {
               startTime: slot.startTime,
               endTime: slot.endTime,
               color,
+              year,
+              semester,
             },
           });
         } catch {}
@@ -663,7 +917,7 @@ function CourseBrowserDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AddScheduleDialog({ onClose }: { onClose: () => void }) {
+function AddScheduleDialog({ year, semester, onClose }: { year: number; semester: string; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     subjectName: "",
@@ -686,7 +940,7 @@ function AddScheduleDialog({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ data: formData });
+    createMutation.mutate({ data: { ...formData, year, semester } });
   };
 
   return (
