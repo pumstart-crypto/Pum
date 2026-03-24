@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Calendar, Wallet, UtensilsCrossed } from "lucide-react";
+import { Calendar, Wallet, UtensilsCrossed, ChefHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -9,6 +9,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const navItems = [
     { name: "시간표", path: "/", icon: Calendar },
     { name: "가계부", path: "/finance", icon: Wallet },
+    { name: "식단표", path: "/meals", icon: ChefHat },
     { name: "맛집", path: "/restaurants", icon: UtensilsCrossed },
   ];
 
