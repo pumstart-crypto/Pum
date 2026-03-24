@@ -10,6 +10,10 @@ import {
   type Schedule,
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
+import {
+  getCurriculum, loadAdmissionYear, catLabel, catBg, catColor,
+  type Curriculum,
+} from "@/lib/curriculum";
 
 const DAYS = ["월", "화", "수", "목", "금"];
 // 30-minute slots: 09:00 → 18:30 (20 slots × 30px = 600px)
@@ -139,9 +143,10 @@ const ALL_GRADE_OPTIONS = [...GRADE_OPTIONS, "S", "U"];
 const SEMESTER_OPTIONS = ["1학기", "2학기", "여름계절", "겨울계절"];
 const CURRENT_YEAR = new Date().getFullYear();
 
-const GRAD_CATEGORIES = ["전공필수", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
+const GRAD_CATEGORIES = ["전공필수", "전공기초", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
 const GRAD_CAT_COLORS: Record<string, string> = {
   "전공필수": "bg-blue-500",
+  "전공기초": "bg-indigo-500",
   "전공선택": "bg-sky-400",
   "교양필수": "bg-violet-500",
   "교양선택": "bg-purple-400",
@@ -149,19 +154,17 @@ const GRAD_CAT_COLORS: Record<string, string> = {
 };
 const GRAD_CAT_BG: Record<string, string> = {
   "전공필수": "bg-blue-50 text-blue-700",
+  "전공기초": "bg-indigo-50 text-indigo-700",
   "전공선택": "bg-sky-50 text-sky-700",
   "교양필수": "bg-violet-50 text-violet-700",
   "교양선택": "bg-purple-50 text-purple-700",
   "일반선택": "bg-slate-100 text-slate-600",
 };
-const DEFAULT_GRAD_REQS: Record<string, number> = {
-  "전공필수": 39, "전공선택": 21, "교양필수": 21, "교양선택": 9, "일반선택": 30,
-};
 const GRAD_REQS_KEY = "campus-grad-reqs";
 
-function loadGradReqs(): Record<string, number> {
-  try { return { ...DEFAULT_GRAD_REQS, ...JSON.parse(localStorage.getItem(GRAD_REQS_KEY) || "{}") }; }
-  catch { return { ...DEFAULT_GRAD_REQS }; }
+function loadGradReqs(defaultReqs: Record<string, number>): Record<string, number> {
+  try { return { ...defaultReqs, ...JSON.parse(localStorage.getItem(GRAD_REQS_KEY) || "{}") }; }
+  catch { return { ...defaultReqs }; }
 }
 function saveGradReqs(r: Record<string, number>) {
   localStorage.setItem(GRAD_REQS_KEY, JSON.stringify(r));
@@ -243,6 +246,14 @@ export function SchedulePage() {
   const [isAddOptionOpen, setIsAddOptionOpen] = useState(false);
   const [isSemesterOpen, setIsSemesterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"timetable" | "grades">("timetable");
+  const [admissionYear, setAdmissionYear] = useState<number>(() => loadAdmissionYear());
+  const curriculum = getCurriculum(admissionYear);
+
+  useEffect(() => {
+    const handler = () => setAdmissionYear(loadAdmissionYear());
+    window.addEventListener("campus-admission-year-change", handler);
+    return () => window.removeEventListener("campus-admission-year-change", handler);
+  }, []);
 
   const defaultSem = getCurrentSemester();
   const [activeSemester, setActiveSemesterState] = useState<SemesterEntry>(
@@ -369,7 +380,7 @@ export function SchedulePage() {
       )}
 
       {/* Grades Tab */}
-      {activeTab === "grades" && <GradeSection activeSemester={activeSemester} schedules={schedules} />}
+      {activeTab === "grades" && <GradeSection activeSemester={activeSemester} schedules={schedules} curriculum={curriculum} />}
 
       {isAddOptionOpen && (
         <AddOptionDialog
@@ -398,6 +409,7 @@ export function SchedulePage() {
         <CourseBrowserDialog
           year={activeSemester.year}
           semester={activeSemester.semester}
+          curriculum={curriculum}
           onClose={() => setIsBrowseOpen(false)}
         />
       )}
@@ -634,9 +646,9 @@ function catalogYearFor(timetableYear: number, _semester: string): number {
   return timetableYear;
 }
 
-const CATALOG_CATEGORY_FILTERS = ["전체", "전공필수", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
+const CATALOG_CATEGORY_FILTERS = ["전체", "전공필수", "전공기초", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
 
-function CourseBrowserDialog({ year, semester, onClose }: { year: number; semester: string; onClose: () => void }) {
+function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: number; semester: string; curriculum: Curriculum; onClose: () => void }) {
   const queryClient = useQueryClient();
   const catalogYear = catalogYearFor(year, semester);
   const [departments, setDepartments] = useState<string[]>([]);
@@ -891,7 +903,7 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
                         : "bg-muted border-transparent text-muted-foreground hover:border-border hover:text-foreground"
                     )}
                   >
-                    {cat}
+                    {cat === "전체" ? "전체" : catLabel(curriculum, cat)}
                   </button>
                 ))}
               </div>
@@ -951,7 +963,7 @@ function CourseBrowserDialog({ year, semester, onClose }: { year: number; semest
                             <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {course.category && (
-                                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", GRAD_CAT_BG[course.category] ?? "bg-muted text-muted-foreground")}>{course.category}</span>
+                                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", GRAD_CAT_BG[course.category] ?? "bg-muted text-muted-foreground")}>{catLabel(curriculum, course.category)}</span>
                                 )}
                                 {course.professor && <span>{course.professor} 교수</span>}
                                 {course.offeringDept && <span className="text-muted-foreground/60 truncate max-w-[120px]">{course.offeringDept}</span>}
@@ -1146,16 +1158,16 @@ const GRADE_COLORS: Record<string, string> = {
 };
 // end marker - grade colors
 
-function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterEntry; schedules: Schedule[] }) {
+function GradeSection({ activeSemester, schedules, curriculum }: { activeSemester: SemesterEntry; schedules: Schedule[]; curriculum: Curriculum }) {
   const [grades, setGrades] = useState<GradeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [addTarget, setAddTarget] = useState<SemesterEntry | null>(null);
   const [editingGrade, setEditingGrade] = useState<GradeEntry | null>(null);
   const [quickTarget, setQuickTarget] = useState<{ course: Schedule; year: number; semester: string } | null>(null);
   const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(new Set());
-  const [gradReqs, setGradReqs] = useState<Record<string, number>>(() => loadGradReqs());
+  const [gradReqs, setGradReqs] = useState<Record<string, number>>(() => loadGradReqs(curriculum.defaultGradReqs));
   const [isEditingReqs, setIsEditingReqs] = useState(false);
-  const [reqDraft, setReqDraft] = useState<Record<string, number>>({ ...DEFAULT_GRAD_REQS });
+  const [reqDraft, setReqDraft] = useState<Record<string, number>>(() => loadGradReqs(curriculum.defaultGradReqs));
   const [showGradSection, setShowGradSection] = useState(true);
 
   const loadGrades = useCallback(async () => {
@@ -1287,7 +1299,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
               return (
                 <div key={cat}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", GRAD_CAT_BG[cat])}>{cat}</span>
+                    <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", GRAD_CAT_BG[cat])}>{catLabel(curriculum, cat)}</span>
                     {isEditingReqs ? (
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-muted-foreground">{earned} /</span>
@@ -1409,7 +1421,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
                             <p className="font-semibold text-sm text-foreground truncate">{course.subjectName}</p>
                             {g ? (
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{g.category}</span>
+                                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{catLabel(curriculum, g.category)}</span>
                                 <span className="text-[10px] text-muted-foreground">{g.credits}학점</span>
                               </div>
                             ) : (
@@ -1447,7 +1459,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-foreground truncate">{g.subjectName}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{g.category}</span>
+                              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{catLabel(curriculum, g.category)}</span>
                               <span className="text-[10px] text-muted-foreground">{g.credits}학점</span>
                             </div>
                           </div>
@@ -1474,6 +1486,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
           defaultYear={addTarget.year}
           defaultSemester={addTarget.semester}
           schedules={schedules}
+          curriculum={curriculum}
           onClose={() => setAddTarget(null)}
           onAdd={handleAdd}
         />
@@ -1481,6 +1494,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
       {editingGrade && (
         <EditGradeDialog
           grade={editingGrade}
+          curriculum={curriculum}
           onClose={() => setEditingGrade(null)}
           onSave={handleUpdate}
         />
@@ -1490,6 +1504,7 @@ function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterE
           course={quickTarget.course}
           year={quickTarget.year}
           semester={quickTarget.semester}
+          curriculum={curriculum}
           onClose={() => setQuickTarget(null)}
           onAdd={handleAdd}
         />
@@ -1506,11 +1521,12 @@ const QUICK_GRADE_ROWS = [
 ] as const;
 
 function QuickGradeDialog({
-  course, year, semester, onClose, onAdd,
+  course, year, semester, curriculum, onClose, onAdd,
 }: {
   course: Schedule;
   year: number;
   semester: string;
+  curriculum: Curriculum;
   onClose: () => void;
   onAdd: (g: GradeEntry) => void;
 }) {
@@ -1609,7 +1625,7 @@ function QuickGradeDialog({
 }
 
 // ────────────────────── EditGradeDialog ──────────────────────
-function EditGradeDialog({ grade, onClose, onSave }: { grade: GradeEntry; onClose: () => void; onSave: (g: GradeEntry) => void }) {
+function EditGradeDialog({ grade, curriculum, onClose, onSave }: { grade: GradeEntry; curriculum: Curriculum; onClose: () => void; onSave: (g: GradeEntry) => void }) {
   const [form, setForm] = useState({
     subjectName: grade.subjectName,
     credits: grade.credits.toString(),
@@ -1655,7 +1671,7 @@ function EditGradeDialog({ grade, onClose, onSave }: { grade: GradeEntry; onClos
               {GRAD_CATEGORIES.map(cat => (
                 <button key={cat} type="button" onClick={() => setForm({ ...form, category: cat })}
                   className={cn("px-3 py-2 rounded-xl text-xs font-bold border transition-all", form.category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
-                  {cat}
+                  {catLabel(curriculum, cat)}
                 </button>
               ))}
             </div>
@@ -1691,11 +1707,12 @@ function EditGradeDialog({ grade, onClose, onSave }: { grade: GradeEntry; onClos
 
 // ────────────────────── AddGradeDialog ──────────────────────
 function AddGradeDialog({
-  defaultYear, defaultSemester, schedules, onClose, onAdd,
+  defaultYear, defaultSemester, schedules, curriculum, onClose, onAdd,
 }: {
   defaultYear: number;
   defaultSemester: string;
   schedules: Schedule[];
+  curriculum: Curriculum;
   onClose: () => void;
   onAdd: (g: GradeEntry) => void;
 }) {
@@ -1875,7 +1892,7 @@ function AddGradeDialog({
                   {GRAD_CATEGORIES.map(cat => (
                     <button key={cat} type="button" onClick={() => setCategory(cat)}
                       className={cn("px-3 py-2 rounded-xl text-xs font-bold border transition-all", category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
-                      {cat}
+                      {catLabel(curriculum, cat)}
                     </button>
                   ))}
                 </div>
