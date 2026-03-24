@@ -48,6 +48,29 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## CampusLife App — Feature Summary
+
+### 캠퍼스라이프 Web App (`artifacts/campus-life`)
+React + Vite app for 부산대학교 students. Bottom nav: **홈 / 게시판 / 가계부 / 설정**
+
+**Pages:**
+- `HomePage.tsx` — Date + 5 quick links (홈페이지/PLATO/도서관/식단/수강신청), weekly timetable (editable, import from 수강편람), To-do list (과제/팀플/동영상시청/기타 categories with D-day)
+- `BoardPage.tsx` — 학과 게시판 with sample posts (category tabs: 전체/공지/자유/질문/거래)
+- `FinancePage.tsx` — Income/expense tracker with monthly summary
+- `MealsPage.tsx` — Real-time cafeteria meals (scrapes m.pusan.ac.kr), 조식/중식/석식 tabs, 교직원식당 toggle
+- `SettingsPage.tsx` — Profile card + settings sections (계정/앱 설정/지원)
+
+**API Routes (api-server):**
+- `GET/POST /api/todos`, `PATCH/DELETE /api/todos/:id` — Todo CRUD
+- `GET /api/schedule`, `POST /api/schedule`, `DELETE /api/schedule/:id` — Timetable
+- `GET /api/finance`, `POST /api/finance`, `DELETE /api/finance/:id`, `GET /api/finance/summary` — Finance
+- `GET /api/meals` — Cafeteria meals with daily cache (HTML scrape)
+- `GET /api/courses/departments`, `GET /api/courses` — 수강편람 (4,312 courses from 13 xlsx files)
+
+**DB Tables:** `schedules`, `finance_entries`, `restaurant`, `courses`, `todos`
+
+**Note:** API routes should NOT import `zod` directly — use `@workspace/db` re-exports only (esbuild bundling limitation).
+
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)

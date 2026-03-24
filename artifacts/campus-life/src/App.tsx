@@ -4,11 +4,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Pages
-import { SchedulePage } from "./pages/SchedulePage";
+import { HomePage } from "./pages/HomePage";
+import { BoardPage } from "./pages/BoardPage";
 import { FinancePage } from "./pages/FinancePage";
 import { MealsPage } from "./pages/MealsPage";
-import { RestaurantListPage } from "./pages/RestaurantListPage";
-import { RestaurantDetailPage } from "./pages/RestaurantDetailPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { Layout } from "./components/Layout";
 
 const queryClient = new QueryClient({
@@ -24,7 +24,7 @@ function NotFound() {
   return (
     <Layout>
       <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 text-center">
-        <h1 className="text-6xl font-bold text-primary mb-4 font-display">404</h1>
+        <h1 className="text-6xl font-bold text-primary mb-4">404</h1>
         <p className="text-xl font-bold text-foreground mb-2">페이지를 찾을 수 없습니다</p>
         <p className="text-muted-foreground mb-8">요청하신 페이지가 사라졌거나 잘못된 경로입니다.</p>
         <Link href="/" className="px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl shadow-lg shadow-primary/25 hover:-translate-y-0.5 transition-all">
@@ -38,11 +38,11 @@ function NotFound() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={SchedulePage} />
+      <Route path="/" component={HomePage} />
+      <Route path="/board" component={BoardPage} />
       <Route path="/finance" component={FinancePage} />
       <Route path="/meals" component={MealsPage} />
-      <Route path="/restaurants" component={RestaurantListPage} />
-      <Route path="/restaurants/:id" component={RestaurantDetailPage} />
+      <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
   );
