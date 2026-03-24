@@ -29,7 +29,7 @@ router.post("/grades", async (req, res) => {
 router.patch("/grades/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { subjectName, credits, grade, year, semester } = req.body;
+    const { subjectName, credits, grade, year, semester, category } = req.body;
     const [updated] = await db
       .update(gradesTable)
       .set({
@@ -38,6 +38,7 @@ router.patch("/grades/:id", async (req, res) => {
         ...(grade && { grade }),
         ...(year !== undefined && { year }),
         ...(semester && { semester }),
+        ...(category && { category }),
       })
       .where(eq(gradesTable.id, id))
       .returning();

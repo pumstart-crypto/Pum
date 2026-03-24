@@ -122,6 +122,7 @@ interface GradeEntry {
   subjectName: string;
   credits: number;
   grade: string;
+  category: string;
 }
 
 const GRADE_POINTS: Record<string, number> = {
@@ -132,8 +133,36 @@ const GRADE_OPTIONS = Object.keys(GRADE_POINTS);
 const SEMESTER_OPTIONS = ["1학기", "2학기", "여름계절", "겨울계절"];
 const CURRENT_YEAR = new Date().getFullYear();
 
+const GRAD_CATEGORIES = ["전공필수", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
+const GRAD_CAT_COLORS: Record<string, string> = {
+  "전공필수": "bg-blue-500",
+  "전공선택": "bg-sky-400",
+  "교양필수": "bg-violet-500",
+  "교양선택": "bg-purple-400",
+  "일반선택": "bg-slate-400",
+};
+const GRAD_CAT_BG: Record<string, string> = {
+  "전공필수": "bg-blue-50 text-blue-700",
+  "전공선택": "bg-sky-50 text-sky-700",
+  "교양필수": "bg-violet-50 text-violet-700",
+  "교양선택": "bg-purple-50 text-purple-700",
+  "일반선택": "bg-slate-100 text-slate-600",
+};
+const DEFAULT_GRAD_REQS: Record<string, number> = {
+  "전공필수": 39, "전공선택": 21, "교양필수": 21, "교양선택": 9, "일반선택": 30,
+};
+const GRAD_REQS_KEY = "campus-grad-reqs";
+
+function loadGradReqs(): Record<string, number> {
+  try { return { ...DEFAULT_GRAD_REQS, ...JSON.parse(localStorage.getItem(GRAD_REQS_KEY) || "{}") }; }
+  catch { return { ...DEFAULT_GRAD_REQS }; }
+}
+function saveGradReqs(r: Record<string, number>) {
+  localStorage.setItem(GRAD_REQS_KEY, JSON.stringify(r));
+}
+
 function calcGPA(grades: GradeEntry[]) {
-  const counted = grades.filter(g => g.grade !== "F" || GRADE_POINTS[g.grade] !== undefined);
+  const counted = grades.filter(g => GRADE_POINTS[g.grade] !== undefined);
   const totalCredits = counted.reduce((s, g) => s + g.credits, 0);
   const totalPoints = counted.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
   const earnedCredits = grades.filter(g => g.grade !== "F").reduce((s, g) => s + g.credits, 0);
@@ -149,6 +178,15 @@ async function fetchGrades(): Promise<GradeEntry[]> {
 async function createGrade(data: Omit<GradeEntry, "id">): Promise<GradeEntry> {
   const res = await fetch(`${BASE}/api/grades`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed");
+  return res.json();
+}
+async function updateGrade(id: number, data: Partial<Omit<GradeEntry, "id">>): Promise<GradeEntry> {
+  const res = await fetch(`${BASE}/api/grades/${id}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
@@ -328,7 +366,7 @@ export function SchedulePage() {
       )}
 
       {/* Grades Tab */}
-      {activeTab === "grades" && <GradeSection />}
+      {activeTab === "grades" && <GradeSection activeSemester={activeSemester} schedules={schedules} />}
 
       {isAddOptionOpen && (
         <AddOptionDialog
@@ -1069,34 +1107,43 @@ const GRADE_COLORS: Record<string, string> = {
   "D0": "bg-rose-100 text-rose-600 border-rose-200",
   "F":  "bg-gray-100 text-gray-500 border-gray-200",
 };
+// end marker - grade colors
 
-function GradeSection() {
+function GradeSection({ activeSemester, schedules }: { activeSemester: SemesterEntry; schedules: Schedule[] }) {
   const [grades, setGrades] = useState<GradeEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [addTarget, setAddTarget] = useState<SemesterEntry | null>(null);
+  const [editingGrade, setEditingGrade] = useState<GradeEntry | null>(null);
   const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(new Set());
+  const [gradReqs, setGradReqs] = useState<Record<string, number>>(() => loadGradReqs());
+  const [isEditingReqs, setIsEditingReqs] = useState(false);
+  const [reqDraft, setReqDraft] = useState<Record<string, number>>({ ...DEFAULT_GRAD_REQS });
+  const [showGradSection, setShowGradSection] = useState(true);
 
   const loadGrades = useCallback(async () => {
     try {
       const data = await fetchGrades();
       setGrades(data);
-      const semesters = Array.from(new Set(data.map(g => `${g.year}-${g.semester}`)));
-      setExpandedSemesters(new Set(semesters.slice(-2)));
+      const keys = Array.from(new Set(data.map(g => `${g.year}-${g.semester}`)));
+      setExpandedSemesters(new Set(keys.slice(-1)));
     } catch {}
     setLoading(false);
   }, []);
 
   useEffect(() => { loadGrades(); }, [loadGrades]);
 
+  const handleAdd = (entry: GradeEntry) => {
+    setGrades(prev => [...prev, entry]);
+    setExpandedSemesters(prev => new Set([...prev, `${entry.year}-${entry.semester}`]));
+  };
+
+  const handleUpdate = (updated: GradeEntry) => {
+    setGrades(prev => prev.map(g => g.id === updated.id ? updated : g));
+  };
+
   const handleDelete = async (id: number) => {
     await deleteGrade(id);
     setGrades(prev => prev.filter(g => g.id !== id));
-  };
-
-  const handleAdd = (entry: GradeEntry) => {
-    setGrades(prev => [...prev, entry]);
-    const key = `${entry.year}-${entry.semester}`;
-    setExpandedSemesters(prev => new Set([...prev, key]));
   };
 
   const toggleSemester = (key: string) => {
@@ -1107,7 +1154,13 @@ function GradeSection() {
     });
   };
 
-  const { gpa: overallGPA, totalCredits, earnedCredits } = calcGPA(grades);
+  const saveReqs = () => {
+    setGradReqs({ ...reqDraft });
+    saveGradReqs(reqDraft);
+    setIsEditingReqs(false);
+  };
+
+  const { gpa: overallGPA, earnedCredits: totalEarned } = calcGPA(grades);
 
   const semesterGroups = grades.reduce<Record<string, GradeEntry[]>>((acc, g) => {
     const key = `${g.year}-${g.semester}`;
@@ -1116,50 +1169,114 @@ function GradeSection() {
     return acc;
   }, {});
   const sortedKeys = Object.keys(semesterGroups).sort((a, b) => {
-    const [ay, as_] = a.split("-");
-    const [by, bs] = b.split("-");
+    const [ay, as_] = a.split(/-(.+)/);
+    const [by, bs] = b.split(/-(.+)/);
     const semOrder = ["1학기", "여름계절", "2학기", "겨울계절"];
     return Number(ay) !== Number(by) ? Number(ay) - Number(by) : semOrder.indexOf(as_) - semOrder.indexOf(bs);
   });
 
+  const creditsByCat = GRAD_CATEGORIES.reduce<Record<string, number>>((acc, cat) => {
+    acc[cat] = grades.filter(g => g.category === cat && g.grade !== "F").reduce((s, g) => s + g.credits, 0);
+    return acc;
+  }, {} as Record<string, number>);
+
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center p-20">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="px-4 pb-10 overflow-y-auto">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+    <div className="px-4 pb-10 space-y-4">
+      {/* ── Overall Summary ── */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-primary/10 rounded-2xl p-4 text-center">
           <Award className="w-5 h-5 text-primary mx-auto mb-1" />
-          <p className="text-2xl font-black text-primary">{grades.length > 0 ? overallGPA.toFixed(2) : "-"}</p>
-          <p className="text-xs text-muted-foreground font-medium mt-0.5">전체 평점</p>
+          <p className="text-3xl font-black text-primary">{grades.length > 0 ? overallGPA.toFixed(2) : "-"}</p>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">전체 평점 / 4.5</p>
         </div>
         <div className="bg-blue-50 rounded-2xl p-4 text-center">
           <GraduationCap className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-          <p className="text-2xl font-black text-blue-600">{earnedCredits}</p>
-          <p className="text-xs text-muted-foreground font-medium mt-0.5">이수학점</p>
-        </div>
-        <div className="bg-violet-50 rounded-2xl p-4 text-center">
-          <TrendingUp className="w-5 h-5 text-violet-600 mx-auto mb-1" />
-          <p className="text-2xl font-black text-violet-600">{totalCredits}</p>
-          <p className="text-xs text-muted-foreground font-medium mt-0.5">총 신청학점</p>
+          <p className="text-3xl font-black text-blue-600">{totalEarned}</p>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">총 이수학점</p>
         </div>
       </div>
 
-      {/* Add Button */}
+      {/* ── 졸업요건 트래커 ── */}
+      <div className="bg-card rounded-3xl border border-border/50 shadow-sm overflow-hidden">
+        <button
+          onClick={() => setShowGradSection(p => !p)}
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            <span className="font-bold text-sm">졸업요건 이수현황</span>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{totalEarned}/{Object.values(gradReqs).reduce((a, b) => a + b, 0)}학점</span>
+          </div>
+          {showGradSection ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </button>
+
+        {showGradSection && (
+          <div className="border-t border-border/50 px-5 py-4 space-y-3">
+            {GRAD_CATEGORIES.map(cat => {
+              const earned = creditsByCat[cat] ?? 0;
+              const req = gradReqs[cat] ?? 0;
+              const pct = req > 0 ? Math.min(earned / req, 1) : 0;
+              return (
+                <div key={cat}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", GRAD_CAT_BG[cat])}>{cat}</span>
+                    {isEditingReqs ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">{earned} /</span>
+                        <input
+                          type="number"
+                          value={reqDraft[cat]}
+                          onChange={e => setReqDraft(p => ({ ...p, [cat]: parseInt(e.target.value) || 0 }))}
+                          className="w-14 text-xs text-right bg-muted rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-primary/40"
+                        />
+                        <span className="text-xs text-muted-foreground">학점</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-semibold text-foreground">{earned}<span className="text-muted-foreground">/{req}학점</span></span>
+                    )}
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-500", GRAD_CAT_COLORS[cat])}
+                      style={{ width: `${pct * 100}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <div className="flex justify-end gap-2 pt-1">
+              {isEditingReqs ? (
+                <>
+                  <button onClick={() => { setIsEditingReqs(false); setReqDraft({ ...gradReqs }); }} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">취소</button>
+                  <button onClick={saveReqs} className="text-xs text-primary font-bold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors">저장</button>
+                </>
+              ) : (
+                <button onClick={() => { setIsEditingReqs(true); setReqDraft({ ...gradReqs }); }} className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
+                  <Pencil className="w-3 h-3" />목표학점 수정
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Add Grade Button ── */}
       <button
-        onClick={() => setIsAddOpen(true)}
-        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold py-3.5 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all mb-5"
+        onClick={() => setAddTarget(activeSemester)}
+        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold py-3.5 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all"
       >
         <Plus className="w-5 h-5" />성적 추가
       </button>
 
-      {/* Semester Groups */}
+      {/* ── Semester Groups ── */}
       {sortedKeys.length === 0 ? (
         <div className="bg-card rounded-3xl p-10 text-center border border-border/50 shadow-sm">
           <GraduationCap className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -1173,42 +1290,61 @@ function GradeSection() {
             const semGrades = semesterGroups[key];
             const { gpa: semGPA, earnedCredits: semEarned } = calcGPA(semGrades);
             const isOpen = expandedSemesters.has(key);
+            const semSchedules = schedules.filter(s =>
+              s.year === parseInt(yr) && s.semester === sem
+            );
             return (
               <div key={key} className="bg-card rounded-3xl border border-border/50 shadow-sm overflow-hidden">
                 <button
                   onClick={() => toggleSemester(key)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/40 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                       <GraduationCap className="w-5 h-5 text-primary" />
                     </div>
                     <div className="text-left">
                       <p className="font-bold text-foreground">{yr}년 {sem}</p>
-                      <p className="text-xs text-muted-foreground">{semGrades.length}과목 · {semEarned}학점 · 평점 {semGPA.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{semGrades.length}과목 · {semEarned}학점</p>
                     </div>
                   </div>
-                  {isOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-lg font-black text-primary">{semGPA.toFixed(2)}</p>
+                      <p className="text-[10px] text-muted-foreground">학기 평점</p>
+                    </div>
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" />}
+                  </div>
                 </button>
+
                 {isOpen && (
                   <div className="border-t border-border/50">
                     {semGrades.map(g => (
-                      <div key={g.id} className="flex items-center justify-between px-5 py-3 border-b border-border/30 last:border-0">
+                      <div key={g.id} className="flex items-center gap-3 px-5 py-3 border-b border-border/20 last:border-0 hover:bg-muted/20 transition-colors">
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-foreground truncate">{g.subjectName}</p>
-                          <p className="text-xs text-muted-foreground">{g.credits}학점</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm text-foreground truncate">{g.subjectName}</p>
+                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0", GRAD_CAT_BG[g.category] ?? "bg-slate-100 text-slate-600")}>{g.category}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{g.credits}학점 · {(GRADE_POINTS[g.grade] ?? 0).toFixed(1)}</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className={cn("px-3 py-1 rounded-full text-sm font-bold border", GRADE_COLORS[g.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>
-                            {g.grade}
-                          </span>
-                          <span className="text-sm text-muted-foreground w-8 text-right">{(GRADE_POINTS[g.grade] ?? 0).toFixed(1)}</span>
-                          <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <span className={cn("px-2.5 py-1 rounded-full text-sm font-bold border shrink-0", GRADE_COLORS[g.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>{g.grade}</span>
+                        <button onClick={() => setEditingGrade(g)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(g.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
+                    <div className="px-5 py-3">
+                      <button
+                        onClick={() => setAddTarget({ year: parseInt(yr), semester: sem })}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors text-sm font-semibold"
+                      >
+                        <Plus className="w-4 h-4" />{yr}년 {sem} 성적 추가
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1217,22 +1353,134 @@ function GradeSection() {
         </div>
       )}
 
-      {isAddOpen && <AddGradeDialog onClose={() => setIsAddOpen(false)} onAdd={handleAdd} />}
+      {addTarget && (
+        <AddGradeDialog
+          defaultYear={addTarget.year}
+          defaultSemester={addTarget.semester}
+          schedules={schedules}
+          onClose={() => setAddTarget(null)}
+          onAdd={handleAdd}
+        />
+      )}
+      {editingGrade && (
+        <EditGradeDialog
+          grade={editingGrade}
+          onClose={() => setEditingGrade(null)}
+          onSave={handleUpdate}
+        />
+      )}
     </div>
   );
 }
 
-function AddGradeDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (g: GradeEntry) => void }) {
+// ────────────────────── EditGradeDialog ──────────────────────
+function EditGradeDialog({ grade, onClose, onSave }: { grade: GradeEntry; onClose: () => void; onSave: (g: GradeEntry) => void }) {
   const [form, setForm] = useState({
-    year: CURRENT_YEAR.toString(),
-    semester: "1학기",
+    subjectName: grade.subjectName,
+    credits: grade.credits.toString(),
+    grade: grade.grade,
+    category: grade.category,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const updated = await updateGrade(grade.id, {
+        subjectName: form.subjectName.trim(),
+        credits: parseInt(form.credits),
+        grade: form.grade,
+        category: form.category,
+      });
+      onSave(updated);
+      onClose();
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-card w-full rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-black text-foreground">성적 수정</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-secondary">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">과목명</label>
+            <input value={form.subjectName} onChange={e => setForm({ ...form, subjectName: e.target.value })}
+              className="w-full bg-muted border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">이수구분</label>
+            <div className="flex flex-wrap gap-2">
+              {GRAD_CATEGORIES.map(cat => (
+                <button key={cat} type="button" onClick={() => setForm({ ...form, category: cat })}
+                  className={cn("px-3 py-2 rounded-xl text-xs font-bold border transition-all", form.category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
+              <select value={form.credits} onChange={e => setForm({ ...form, credits: e.target.value })}
+                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {["1", "2", "3", "4"].map(c => <option key={c} value={c}>{c}학점</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
+              <select value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })}
+                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
+              </select>
+            </div>
+          </div>
+          <div className={cn("rounded-xl px-4 py-3 border text-center font-bold", GRADE_COLORS[form.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>
+            {form.grade} · {GRADE_POINTS[form.grade]?.toFixed(1)} · {form.credits}학점
+          </div>
+          <button type="submit" disabled={saving || !form.subjectName.trim()}
+            className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60">
+            {saving ? "저장 중..." : "수정 완료"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────── AddGradeDialog ──────────────────────
+function AddGradeDialog({
+  defaultYear, defaultSemester, schedules, onClose, onAdd,
+}: {
+  defaultYear: number;
+  defaultSemester: string;
+  schedules: Schedule[];
+  onClose: () => void;
+  onAdd: (g: GradeEntry) => void;
+}) {
+  const [form, setForm] = useState({
+    year: defaultYear.toString(),
+    semester: defaultSemester,
     subjectName: "",
     credits: "3",
     grade: "A+",
+    category: "전공필수",
   });
   const [saving, setSaving] = useState(false);
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => (CURRENT_YEAR - i).toString());
+
+  // Courses from schedule for the selected year/semester (unique by name)
+  const semSchedules = schedules.filter(s =>
+    s.year === parseInt(form.year) && s.semester === form.semester
+  );
+  const uniqueSubjects = Array.from(new Map(semSchedules.map(s => [s.subjectName, s])).values());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1245,6 +1493,7 @@ function AddGradeDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (g: Gr
         subjectName: form.subjectName.trim(),
         credits: parseInt(form.credits),
         grade: form.grade,
+        category: form.category,
       });
       onAdd(created);
       onClose();
@@ -1254,50 +1503,94 @@ function AddGradeDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (g: Gr
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-card w-full rounded-t-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div className="bg-card w-full rounded-t-3xl p-6 space-y-4 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-xl font-black text-foreground">성적 추가</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80">
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-secondary">
             <X className="w-4 h-4" />
           </button>
         </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Year + Semester */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">연도</label>
               <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value })}
-                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {yearOptions.map(y => <option key={y} value={y}>{y}년</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학기</label>
               <select value={form.semester} onChange={e => setForm({ ...form, semester: e.target.value })}
-                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {SEMESTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
 
+          {/* 시간표 과목 빠른선택 */}
+          {uniqueSubjects.length > 0 && (
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+                시간표에서 불러오기
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {uniqueSubjects.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, subjectName: s.subjectName }))}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                      form.subjectName === s.subjectName
+                        ? "bg-primary text-primary-foreground border-transparent"
+                        : "bg-muted border-border hover:border-primary hover:text-primary"
+                    )}
+                  >
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                    {s.subjectName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 과목명 */}
           <div>
             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">과목명</label>
             <input value={form.subjectName} onChange={e => setForm({ ...form, subjectName: e.target.value })}
               placeholder="예) 데이터베이스"
-              className="w-full bg-secondary/50 border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              className="w-full bg-muted border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
 
+          {/* 이수구분 */}
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">이수구분</label>
+            <div className="flex flex-wrap gap-2">
+              {GRAD_CATEGORIES.map(cat => (
+                <button key={cat} type="button" onClick={() => setForm({ ...form, category: cat })}
+                  className={cn("px-3 py-2 rounded-xl text-xs font-bold border transition-all", form.category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 학점 + 성적 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
               <select value={form.credits} onChange={e => setForm({ ...form, credits: e.target.value })}
-                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {["1", "2", "3", "4"].map(c => <option key={c} value={c}>{c}학점</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
               <select value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })}
-                className="w-full bg-secondary/50 border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
               </select>
             </div>

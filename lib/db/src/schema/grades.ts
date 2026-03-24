@@ -9,6 +9,7 @@ export const gradesTable = pgTable("grades", {
   subjectName: text("subject_name").notNull(),
   credits: integer("credits").notNull().default(3),
   grade: text("grade").notNull(),
+  category: text("category").notNull().default("일반선택"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
