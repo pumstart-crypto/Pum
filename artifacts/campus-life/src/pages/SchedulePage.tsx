@@ -12,7 +12,13 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const DAYS = ["월", "화", "수", "목", "금"];
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 9);
+// 30-minute slots: 09:00 → 18:30 (20 slots × 30px = 600px)
+const HALF_HOURS = Array.from({ length: 20 }, (_, i) => {
+  const total = 9 * 60 + i * 30;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+});
 const COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
   "#D4A5A5", "#9B59B6", "#1ABC9C", "#F1C40F", "#E67E22",
@@ -208,16 +214,27 @@ export function SchedulePage() {
             ) : (
               <div className="min-w-[400px]">
                 <div className="flex mb-2">
-                  <div className="w-12" />
+                  <div className="w-14" />
                   {DAYS.map((day) => (
                     <div key={day} className="flex-1 text-center font-bold text-muted-foreground text-sm py-2">{day}</div>
                   ))}
                 </div>
                 <div className="relative">
-                  {HOURS.map((hour) => (
-                    <div key={hour} className="flex border-t border-border/40 h-[60px]">
-                      <div className="w-12 text-xs text-muted-foreground font-medium relative -top-2.5 pr-2 text-right">{hour}</div>
+                  {/* Grid rows — 30px each, no time label inside */}
+                  {HALF_HOURS.map((slot) => (
+                    <div key={slot} className="flex border-t border-border/40 h-[30px]">
+                      <div className="w-14 shrink-0" />
                       {DAYS.map((_, i) => (<div key={i} className="flex-1 border-l border-border/40" />))}
+                    </div>
+                  ))}
+                  {/* Time labels — absolutely placed so they sit ABOVE each line */}
+                  {HALF_HOURS.map((slot, i) => (
+                    <div
+                      key={`lbl-${slot}`}
+                      className="absolute text-[10px] text-muted-foreground font-medium text-right pr-2 leading-none"
+                      style={{ top: i * 30 + 2, left: 0, width: 56 }}
+                    >
+                      {slot}
                     </div>
                   ))}
                   {schedules.map((schedule) => (<ScheduleBlock key={schedule.id} schedule={schedule} />))}
@@ -269,8 +286,8 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
         style={{
           top: `${topOffset}px`,
           height: `${height}px`,
-          left: `calc(48px + ${schedule.dayOfWeek} * ((100% - 48px) / 5))`,
-          width: `calc((100% - 48px) / 5 - 4px)`,
+          left: `calc(56px + ${schedule.dayOfWeek} * ((100% - 56px) / 5))`,
+          width: `calc((100% - 56px) / 5 - 4px)`,
           backgroundColor: schedule.color,
           marginLeft: "2px",
         }}
