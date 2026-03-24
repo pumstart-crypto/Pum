@@ -9,7 +9,6 @@ import {
   useDeleteSchedule,
   type Schedule,
 } from "@workspace/api-client-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const DAYS = ["월", "화", "수", "목", "금"];
@@ -275,9 +274,7 @@ export function SchedulePage() {
   };
 
   const filteredSchedules = schedules.filter(s =>
-    s.year == null || s.semester == null
-      ? true
-      : s.year === activeSemester.year && s.semester === activeSemester.semester
+    s.year === activeSemester.year && s.semester === activeSemester.semester
   );
 
   return (
@@ -285,10 +282,21 @@ export function SchedulePage() {
       {/* Header */}
       <div className="px-6 pt-12 pb-4 flex items-center justify-between">
         <div>
-          <p className="text-muted-foreground font-medium mb-1">{format(new Date(), "MM월 dd일")}</p>
-          <h1 className="text-3xl text-foreground">
-            {activeTab === "timetable" ? <>이번 주 <span className="text-primary">시간표</span></> : <>학기별 <span className="text-primary">성적 관리</span></>}
-          </h1>
+          {activeTab === "timetable" ? (
+            <button
+              onClick={() => setIsSemesterOpen(true)}
+              className="flex items-center gap-1.5 text-left group"
+            >
+              <h1 className="text-2xl font-bold text-foreground">
+                {activeSemester.year}년 {activeSemester.semester} <span className="text-primary">시간표</span>
+              </h1>
+              <ChevronDown className="w-4 h-4 text-primary mt-0.5 group-hover:opacity-70 transition-opacity" />
+            </button>
+          ) : (
+            <h1 className="text-3xl text-foreground">
+              학기별 <span className="text-primary">성적 관리</span>
+            </h1>
+          )}
         </div>
         {activeTab === "timetable" && (
           <div className="flex items-center gap-2">
@@ -303,20 +311,6 @@ export function SchedulePage() {
           </div>
         )}
       </div>
-
-      {/* Semester badge (timetable tab only) */}
-      {activeTab === "timetable" && (
-        <div className="px-6 pb-2">
-          <button
-            onClick={() => setIsSemesterOpen(true)}
-            className="flex items-center gap-1.5 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-semibold hover:bg-primary/20 transition-colors"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            {activeSemester.year}년 {activeSemester.semester}
-            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-          </button>
-        </div>
-      )}
 
       {/* Tab Switcher */}
       <div className="px-4 mb-4">
