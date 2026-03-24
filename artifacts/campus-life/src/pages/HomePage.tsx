@@ -127,9 +127,9 @@ export function HomePage() {
           </h2>
         </section>
 
-        {/* ── Quick Links 3×2 Grid ─────────────────── */}
-        <section className="mb-8">
-          <div className="grid grid-cols-3 gap-5">
+        {/* ── Quick Links horizontal scroll ─────────────────── */}
+        <section className="mb-8 -mx-5">
+          <div className="flex gap-4 overflow-x-auto px-5 pb-1" style={{ scrollbarWidth: "none" }}>
             {QUICK_LINKS.map((link) => (
               <a
                 key={link.label}
@@ -137,7 +137,7 @@ export function HomePage() {
                 onClick={!link.external ? (e) => { e.preventDefault(); navigate(link.href); } : undefined}
                 target={link.external ? "_blank" : undefined}
                 rel={link.external ? "noopener noreferrer" : undefined}
-                className="flex flex-col items-center group"
+                className="flex flex-col items-center shrink-0 group"
               >
                 <div className="w-16 h-16 bg-white shadow-[0_8px_24px_rgba(0,66,125,0.07)] rounded-3xl flex items-center justify-center text-primary group-hover:scale-105 group-active:scale-95 transition-transform duration-200">
                   <span className="material-symbols-outlined" style={{ fontSize: 28 }}>{link.icon}</span>
