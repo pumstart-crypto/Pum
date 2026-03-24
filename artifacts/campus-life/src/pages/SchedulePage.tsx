@@ -1464,36 +1464,50 @@ function AddGradeDialog({
   onClose: () => void;
   onAdd: (g: GradeEntry) => void;
 }) {
-  const [form, setForm] = useState({
-    year: defaultYear.toString(),
-    semester: defaultSemester,
-    subjectName: "",
-    credits: "3",
-    grade: "A+",
-    category: "전공필수",
-  });
+  const [year, setYear] = useState(defaultYear.toString());
+  const [semester, setSemester] = useState(defaultSemester);
+  const [selectedSubject, setSelectedSubject] = useState<{ name: string; color?: string } | null>(null);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [grade, setGrade] = useState("A+");
+  const [credits, setCredits] = useState("3");
+  const [category, setCategory] = useState("전공필수");
   const [saving, setSaving] = useState(false);
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => (CURRENT_YEAR - i).toString());
 
-  // Courses from schedule for the selected year/semester (unique by name)
   const semSchedules = schedules.filter(s =>
-    s.year === parseInt(form.year) && s.semester === form.semester
+    s.year === parseInt(year) && s.semester === semester
   );
-  const uniqueSubjects = Array.from(new Map(semSchedules.map(s => [s.subjectName, s])).values());
+  const uniqueSubjects = Array.from(
+    new Map(semSchedules.map(s => [s.subjectName, s])).values()
+  );
+
+  const activeSubjectName = manualMode ? manualName : (selectedSubject?.name ?? "");
+  const activeSubjectColor = manualMode ? undefined : selectedSubject?.color;
+
+  const step2Ready = activeSubjectName.trim().length > 0;
+
+  const handleSemesterChange = (newYear: string, newSem: string) => {
+    setYear(newYear);
+    setSemester(newSem);
+    setSelectedSubject(null);
+    setManualMode(false);
+    setManualName("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.subjectName.trim()) return;
+    if (!activeSubjectName.trim()) return;
     setSaving(true);
     try {
       const created = await createGrade({
-        year: parseInt(form.year),
-        semester: form.semester,
-        subjectName: form.subjectName.trim(),
-        credits: parseInt(form.credits),
-        grade: form.grade,
-        category: form.category,
+        year: parseInt(year),
+        semester,
+        subjectName: activeSubjectName.trim(),
+        credits: parseInt(credits),
+        grade,
+        category,
       });
       onAdd(created);
       onClose();
@@ -1503,107 +1517,163 @@ function AddGradeDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-card w-full rounded-t-3xl p-6 space-y-4 max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-xl font-black text-foreground">성적 추가</h2>
+      <div className="bg-card w-full rounded-t-3xl max-h-[92vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+          <div>
+            <h2 className="text-xl font-black text-foreground">성적 추가</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">시간표 과목을 선택하세요</p>
+          </div>
           <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-secondary">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Year + Semester */}
+        <form onSubmit={handleSubmit} className="px-6 pb-8 space-y-5">
+          {/* ── 학기 선택 ── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">연도</label>
-              <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value })}
+              <select value={year} onChange={e => handleSemesterChange(e.target.value, semester)}
                 className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {yearOptions.map(y => <option key={y} value={y}>{y}년</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학기</label>
-              <select value={form.semester} onChange={e => setForm({ ...form, semester: e.target.value })}
+              <select value={semester} onChange={e => handleSemesterChange(year, e.target.value)}
                 className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {SEMESTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
 
-          {/* 시간표 과목 빠른선택 */}
-          {uniqueSubjects.length > 0 && (
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
-                시간표에서 불러오기
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {uniqueSubjects.map(s => (
+          {/* ── STEP 1: 과목 선택 ── */}
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">
+              {uniqueSubjects.length > 0 ? "시간표 과목 선택" : "과목명"}
+            </label>
+
+            {uniqueSubjects.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  {uniqueSubjects.map(s => {
+                    const isSelected = !manualMode && selectedSubject?.name === s.subjectName;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => { setSelectedSubject({ name: s.subjectName, color: s.color }); setManualMode(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-all text-left",
+                          isSelected
+                            ? "border-primary/40 bg-primary/8 shadow-sm"
+                            : "border-border/60 bg-muted/40 hover:border-primary/30 hover:bg-primary/5"
+                        )}
+                      >
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        <span className="font-semibold text-sm flex-1 text-foreground">{s.subjectName}</span>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* 직접 입력 토글 */}
+                {!manualMode ? (
                   <button
-                    key={s.id}
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, subjectName: s.subjectName }))}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all",
-                      form.subjectName === s.subjectName
-                        ? "bg-primary text-primary-foreground border-transparent"
-                        : "bg-muted border-border hover:border-primary hover:text-primary"
-                    )}
+                    onClick={() => { setManualMode(true); setSelectedSubject(null); }}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors font-semibold"
                   >
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                    {s.subjectName}
+                    <Plus className="w-4 h-4" />시간표에 없는 과목 직접 입력
                   </button>
-                ))}
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      autoFocus
+                      value={manualName}
+                      onChange={e => setManualName(e.target.value)}
+                      placeholder="과목명 입력"
+                      className="w-full bg-muted border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setManualMode(false); setManualName(""); }}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
+                    >
+                      ← 시간표 과목으로 돌아가기
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <input
+                autoFocus
+                value={manualName}
+                onChange={e => { setManualName(e.target.value); setManualMode(true); }}
+                placeholder="예) 데이터베이스"
+                className="w-full bg-muted border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            )}
+          </div>
+
+          {/* ── STEP 2: 성적 입력 (과목 선택 후에만 표시) ── */}
+          {step2Ready && (
+            <>
+              {/* 선택된 과목 표시 */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-primary/8 rounded-2xl border border-primary/20">
+                {activeSubjectColor && (
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: activeSubjectColor }} />
+                )}
+                <span className="font-bold text-sm text-foreground flex-1 truncate">{activeSubjectName}</span>
+                <span className="text-xs text-primary font-semibold">선택됨</span>
               </div>
-            </div>
+
+              {/* 이수구분 */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">이수구분</label>
+                <div className="flex flex-wrap gap-2">
+                  {GRAD_CATEGORIES.map(cat => (
+                    <button key={cat} type="button" onClick={() => setCategory(cat)}
+                      className={cn("px-3 py-2 rounded-xl text-xs font-bold border transition-all", category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 학점 + 성적 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
+                  <select value={credits} onChange={e => setCredits(e.target.value)}
+                    className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    {["1", "2", "3", "4"].map(c => <option key={c} value={c}>{c}학점</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
+                  <select value={grade} onChange={e => setGrade(e.target.value)}
+                    className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className={cn("rounded-xl px-4 py-3 border text-center font-bold", GRADE_COLORS[grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>
+                {grade} · {GRADE_POINTS[grade]?.toFixed(1)} · {credits}학점
+              </div>
+
+              <button type="submit" disabled={saving}
+                className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60">
+                {saving ? "저장 중..." : "성적 저장"}
+              </button>
+            </>
           )}
-
-          {/* 과목명 */}
-          <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">과목명</label>
-            <input value={form.subjectName} onChange={e => setForm({ ...form, subjectName: e.target.value })}
-              placeholder="예) 데이터베이스"
-              className="w-full bg-muted border border-border/50 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-
-          {/* 이수구분 */}
-          <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">이수구분</label>
-            <div className="flex flex-wrap gap-2">
-              {GRAD_CATEGORIES.map(cat => (
-                <button key={cat} type="button" onClick={() => setForm({ ...form, category: cat })}
-                  className={cn("px-3 py-2 rounded-xl text-xs font-bold border transition-all", form.category === cat ? cn("border-transparent", GRAD_CAT_BG[cat]) : "border-border bg-muted text-muted-foreground hover:bg-muted/70")}>
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 학점 + 성적 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">학점</label>
-              <select value={form.credits} onChange={e => setForm({ ...form, credits: e.target.value })}
-                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
-                {["1", "2", "3", "4"].map(c => <option key={c} value={c}>{c}학점</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">성적</label>
-              <select value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })}
-                className="w-full bg-muted border border-border/50 rounded-xl px-3 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30">
-                {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g} ({GRADE_POINTS[g].toFixed(1)})</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className={cn("rounded-xl px-4 py-3 border text-center font-bold", GRADE_COLORS[form.grade] ?? "bg-gray-100 text-gray-500 border-gray-200")}>
-            {form.grade} · {GRADE_POINTS[form.grade]?.toFixed(1)} · {form.credits}학점
-          </div>
-
-          <button type="submit" disabled={saving || !form.subjectName.trim()}
-            className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60">
-            {saving ? "저장 중..." : "성적 저장"}
-          </button>
         </form>
       </div>
     </div>
