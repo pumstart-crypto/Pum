@@ -333,9 +333,23 @@ function ScheduleBlock({ schedule, pixelsPerHour = 60, readOnly = false }: { sch
 // ────────────────────── Todo Item ──────────────────────
 function TodoItem({ todo, onToggle, onDelete }: { todo: Todo; onToggle: (id: number, v: boolean) => void; onDelete: (id: number) => void }) {
   const cat = CATEGORY_COLORS[todo.category] || CATEGORY_COLORS["기타"];
-  const [swiped, setSwiped] = useState(false);
 
-  const daysLeft = todo.dueDate ? Math.ceil((new Date(todo.dueDate).getTime() - Date.now()) / 86400000) : null;
+  const dueDateTime = todo.dueDate ? new Date(todo.dueDate) : null;
+  const now = Date.now();
+  const hasTime = todo.dueDate?.includes("T");
+  const daysLeft = dueDateTime
+    ? hasTime
+      ? Math.ceil((dueDateTime.getTime() - now) / 86400000)
+      : Math.ceil((dueDateTime.getTime() - now) / 86400000)
+    : null;
+  const isOverdue = dueDateTime ? dueDateTime.getTime() < now : false;
+
+  const timeLabel = hasTime
+    ? dueDateTime!.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
+  const dateLabel = dueDateTime
+    ? `${dueDateTime.getMonth() + 1}/${dueDateTime.getDate()}`
+    : null;
 
   return (
     <div className={cn("bg-white rounded-2xl border border-border/50 shadow-sm p-3 flex items-center gap-3 transition-opacity", todo.completed && "opacity-60")}>
@@ -344,11 +358,18 @@ function TodoItem({ todo, onToggle, onDelete }: { todo: Todo; onToggle: (id: num
       </button>
       <div className="flex-1 min-w-0">
         <p className={cn("text-sm font-semibold text-foreground truncate", todo.completed && "line-through text-muted-foreground")}>{todo.title}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", cat.bg, cat.text)}>{todo.category}</span>
-          {daysLeft !== null && (
-            <span className={cn("text-[10px] font-medium", daysLeft < 0 ? "text-destructive" : daysLeft <= 2 ? "text-orange-500" : "text-muted-foreground")}>
-              {daysLeft < 0 ? `D+${Math.abs(daysLeft)}` : daysLeft === 0 ? "오늘까지" : `D-${daysLeft}`}
+          {dueDateTime && (
+            <span className={cn(
+              "text-[10px] font-medium flex items-center gap-0.5",
+              isOverdue ? "text-destructive" : daysLeft !== null && daysLeft <= 1 ? "text-orange-500" : "text-muted-foreground"
+            )}>
+              {dateLabel}
+              {timeLabel && <span className="opacity-80"> {timeLabel}</span>}
+              <span className="ml-0.5">
+                {daysLeft === null ? "" : daysLeft < 0 ? `(D+${Math.abs(daysLeft)})` : daysLeft === 0 ? "(오늘)" : `(D-${daysLeft})`}
+              </span>
             </span>
           )}
         </div>
@@ -365,13 +386,20 @@ function AddTodoDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (d: { t
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("과제");
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     setLoading(true);
-    await onAdd({ title: title.trim(), category, dueDate: dueDate || undefined });
+    let combined: string | undefined;
+    if (dueDate && dueTime) {
+      combined = `${dueDate}T${dueTime}`;
+    } else if (dueDate) {
+      combined = dueDate;
+    }
+    await onAdd({ title: title.trim(), category, dueDate: combined });
     setLoading(false);
     onClose();
   };
@@ -404,10 +432,21 @@ function AddTodoDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (d: { t
             </div>
           </div>
           <div>
-            <p className="text-xs font-bold text-muted-foreground mb-1">마감일 (선택)</p>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-              className="w-full bg-secondary/50 px-4 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-primary/20 border border-transparent focus:border-primary transition-all"
-            />
+            <p className="text-xs font-bold text-muted-foreground mb-1">마감일 · 시간 (선택)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="w-full bg-secondary/50 px-3 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-primary/20 border border-transparent focus:border-primary transition-all"
+              />
+              <input
+                type="time" value={dueTime} onChange={e => setDueTime(e.target.value)}
+                disabled={!dueDate}
+                className="w-full bg-secondary/50 px-3 py-3 rounded-xl text-sm outline-none focus:ring-2 ring-primary/20 border border-transparent focus:border-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              />
+            </div>
+            {dueDate && !dueTime && (
+              <p className="text-[11px] text-muted-foreground mt-1 px-1">시간을 입력하지 않으면 날짜만 저장됩니다</p>
+            )}
           </div>
           <button type="submit" disabled={loading || !title.trim()}
             className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:-translate-y-0.5 transition-all disabled:opacity-50">
