@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, MessageSquare, Wallet, Settings } from "lucide-react";
+import { Home, MessageSquare, Wallet, Settings, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -9,6 +9,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const navItems = [
     { name: "홈", path: "/", icon: Home },
     { name: "게시판", path: "/board", icon: MessageSquare },
+    { name: "시간표", path: "/schedule", icon: CalendarDays },
     { name: "가계부", path: "/finance", icon: Wallet },
     { name: "설정", path: "/settings", icon: Settings },
   ];

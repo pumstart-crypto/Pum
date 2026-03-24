@@ -11,7 +11,6 @@ import { useLocation } from "wouter";
 import {
   useGetSchedules,
   useCreateSchedule,
-  useDeleteSchedule,
   type Schedule,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
@@ -34,7 +33,8 @@ const QUICK_LINKS = [
   { label: "PLATO", icon: Monitor, color: "#2563EB", href: "https://plato.pusan.ac.kr", external: true },
   { label: "도서관", icon: Library, color: "#7C3AED", href: "https://lib.pusan.ac.kr", external: true },
   { label: "식단", icon: UtensilsCrossed, color: "#EA580C", href: "/meals", external: false },
-  { label: "수강신청", icon: Laptop, color: "#0891B2", href: "https://sugang.pusan.ac.kr", external: true },
+  { label: "학사일정", icon: Calendar, color: "#0891B2", href: "https://www.pusan.ac.kr/kor/CMS/UnivSchedule/listPage.do", external: true },
+  { label: "학생지원", icon: Laptop, color: "#7C3AED", href: "https://student.pusan.ac.kr", external: true },
 ];
 
 // ────────────────────── Todo Types ──────────────────────
@@ -160,9 +160,6 @@ async function fetchCourses(dept: string, year: string, search: string): Promise
 // ────────────────────── Main Page ──────────────────────
 export function HomePage() {
   const { data: schedules = [], isLoading: schedLoading } = useGetSchedules();
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isBrowseOpen, setIsBrowseOpen] = useState(false);
-
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
   const [isAddTodoOpen, setIsAddTodoOpen] = useState(false);
@@ -227,21 +224,12 @@ export function HomePage() {
             <Calendar className="w-4 h-4 text-primary" />
             시간표
           </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsBrowseOpen(true)}
-              className="flex items-center gap-1 bg-secondary text-secondary-foreground rounded-full px-3 py-1.5 text-xs font-semibold hover:bg-secondary/80 active:scale-95 transition-all"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              수강편람
-            </button>
-            <button
-              onClick={() => setIsAddOpen(true)}
-              className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-md shadow-primary/30 hover:scale-105 active:scale-95 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            onClick={() => navigate("/schedule")}
+            className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            수정하기 →
+          </button>
         </div>
 
         <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-x-auto">
@@ -267,7 +255,7 @@ export function HomePage() {
                   </div>
                 ))}
                 {schedules.map(schedule => (
-                  <ScheduleBlock key={schedule.id} schedule={schedule} pixelsPerHour={52} />
+                  <ScheduleBlock key={schedule.id} schedule={schedule} pixelsPerHour={52} readOnly />
                 ))}
               </div>
             </div>
@@ -318,20 +306,13 @@ export function HomePage() {
         </div>
       </div>
 
-      {isAddOpen && <AddScheduleDialog onClose={() => setIsAddOpen(false)} />}
-      {isBrowseOpen && <CourseBrowserDialog onClose={() => setIsBrowseOpen(false)} />}
       {isAddTodoOpen && <AddTodoDialog onClose={() => setIsAddTodoOpen(false)} onAdd={handleAddTodo} />}
     </Layout>
   );
 }
 
 // ────────────────────── Schedule Block ──────────────────────
-function ScheduleBlock({ schedule, pixelsPerHour = 60 }: { schedule: Schedule; pixelsPerHour?: number }) {
-  const queryClient = useQueryClient();
-  const [showDetail, setShowDetail] = useState(false);
-  const deleteMutation = useDeleteSchedule({
-    mutation: { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/schedule"] }); setShowDetail(false); } },
-  });
+function ScheduleBlock({ schedule, pixelsPerHour = 60, readOnly = false }: { schedule: Schedule; pixelsPerHour?: number; readOnly?: boolean }) {
   const parseTime = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const startMins = parseTime(schedule.startTime);
   const endMins = parseTime(schedule.endTime);
@@ -339,33 +320,13 @@ function ScheduleBlock({ schedule, pixelsPerHour = 60 }: { schedule: Schedule; p
   const topOffset = (startMins - dayStartMins) * pixelsPerHour / 60;
   const height = Math.max((endMins - startMins) * pixelsPerHour / 60, 18);
   return (
-    <>
-      <div
-        onClick={() => setShowDetail(true)}
-        className="absolute rounded-lg p-1 text-white overflow-hidden shadow-sm cursor-pointer hover:brightness-110 transition-all z-10"
-        style={{ top: `${topOffset}px`, height: `${height}px`, left: `calc(40px + ${schedule.dayOfWeek} * ((100% - 40px) / 6))`, width: `calc((100% - 40px) / 6 - 3px)`, backgroundColor: schedule.color, marginLeft: "1px" }}
-      >
-        <div className="text-[10px] font-bold leading-tight line-clamp-2">{schedule.subjectName}</div>
-        <div className="text-[9px] opacity-80 truncate">{schedule.location}</div>
-      </div>
-      {showDetail && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card w-full max-w-sm rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-            <button onClick={() => setShowDetail(false)} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"><X className="w-6 h-6" /></button>
-            <div className="w-12 h-12 rounded-2xl mb-4" style={{ backgroundColor: schedule.color }} />
-            <h3 className="text-2xl font-bold mb-1">{schedule.subjectName}</h3>
-            <div className="space-y-3 mt-6">
-              <div className="flex items-center text-muted-foreground"><Clock className="w-5 h-5 mr-3 text-primary" /><span>{DAYS[schedule.dayOfWeek]}요일 {schedule.startTime} ~ {schedule.endTime}</span></div>
-              {schedule.location && <div className="flex items-center text-muted-foreground"><MapPin className="w-5 h-5 mr-3 text-primary" /><span>{schedule.location}</span></div>}
-              {schedule.professor && <div className="flex items-center text-muted-foreground"><User className="w-5 h-5 mr-3 text-primary" /><span>{schedule.professor} 교수님</span></div>}
-            </div>
-            <button onClick={() => deleteMutation.mutate({ id: schedule.id })} disabled={deleteMutation.isPending} className="mt-8 w-full py-4 rounded-xl font-bold bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-colors">
-              <Trash2 className="w-5 h-5 mr-2" />{deleteMutation.isPending ? "삭제 중..." : "이 수업 삭제하기"}
-            </button>
-          </div>
-        </div>
-      )}
-    </>
+    <div
+      className="absolute rounded-lg p-1 text-white overflow-hidden shadow-sm z-10"
+      style={{ top: `${topOffset}px`, height: `${height}px`, left: `calc(40px + ${schedule.dayOfWeek} * ((100% - 40px) / 6))`, width: `calc((100% - 40px) / 6 - 3px)`, backgroundColor: schedule.color, marginLeft: "1px" }}
+    >
+      <div className="text-[10px] font-bold leading-tight line-clamp-2">{schedule.subjectName}</div>
+      <div className="text-[9px] opacity-80 truncate">{schedule.location}</div>
+    </div>
   );
 }
 
