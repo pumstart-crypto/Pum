@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { PNU_CATALOG } from "@/data/pnuCatalog";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp, List, ChevronLeft, Calendar, Pencil, Check } from "lucide-react";
+import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp, List, ChevronLeft, Calendar, Pencil, Check, Settings2 } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import {
   useGetSchedules,
@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import {
-  getCurriculum, loadAdmissionYear, catLabel, catBg, catColor,
+  getCurriculum, loadAdmissionYear, saveAdmissionYear, catLabel, catBg, catColor,
   type Curriculum,
 } from "@/lib/curriculum";
 
@@ -246,6 +246,7 @@ export function SchedulePage() {
   const [isAddOptionOpen, setIsAddOptionOpen] = useState(false);
   const [isSemesterOpen, setIsSemesterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"timetable" | "grades">("timetable");
+  const [isGradeSettingsOpen, setIsGradeSettingsOpen] = useState(false);
   const [admissionYear, setAdmissionYear] = useState<number>(() => loadAdmissionYear());
   const curriculum = getCurriculum(admissionYear);
 
@@ -309,18 +310,32 @@ export function SchedulePage() {
             </h1>
           )}
         </div>
-        {activeTab === "timetable" && (
-          <div className="flex items-center gap-2">
-            <button onClick={() => setIsSemesterOpen(true)}
-              className="w-11 h-11 bg-secondary text-secondary-foreground rounded-full flex items-center justify-center hover:bg-secondary/80 active:scale-95 transition-all shadow-sm">
-              <List className="w-5 h-5" />
+        <div className="flex items-center gap-2">
+          {activeTab === "timetable" ? (
+            <>
+              <button onClick={() => setIsSemesterOpen(true)}
+                className="w-11 h-11 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all shadow-sm">
+                <List className="w-5 h-5" />
+              </button>
+              <button onClick={() => setIsAddOptionOpen(true)}
+                className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
+                <Plus className="w-6 h-6" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsGradeSettingsOpen(p => !p)}
+              className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-sm",
+                isGradeSettingsOpen
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              )}
+            >
+              <Settings2 className="w-5 h-5" />
             </button>
-            <button onClick={() => setIsAddOptionOpen(true)}
-              className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
-              <Plus className="w-6 h-6" />
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Tab Switcher */}
@@ -380,7 +395,21 @@ export function SchedulePage() {
       )}
 
       {/* Grades Tab */}
-      {activeTab === "grades" && <GradeSection activeSemester={activeSemester} schedules={schedules} curriculum={curriculum} />}
+      {activeTab === "grades" && (
+        <GradeSection
+          activeSemester={activeSemester}
+          schedules={schedules}
+          curriculum={curriculum}
+          admissionYear={admissionYear}
+          onAdmissionYearChange={(y) => {
+            setAdmissionYear(y);
+            saveAdmissionYear(y);
+            window.dispatchEvent(new Event("campus-admission-year-change"));
+          }}
+          isSettingsOpen={isGradeSettingsOpen}
+          onSettingsClose={() => setIsGradeSettingsOpen(false)}
+        />
+      )}
 
       {isAddOptionOpen && (
         <AddOptionDialog
@@ -1158,7 +1187,19 @@ const GRADE_COLORS: Record<string, string> = {
 };
 // end marker - grade colors
 
-function GradeSection({ activeSemester, schedules, curriculum }: { activeSemester: SemesterEntry; schedules: Schedule[]; curriculum: Curriculum }) {
+function GradeSection({
+  activeSemester, schedules, curriculum,
+  admissionYear, onAdmissionYearChange,
+  isSettingsOpen,
+}: {
+  activeSemester: SemesterEntry;
+  schedules: Schedule[];
+  curriculum: Curriculum;
+  admissionYear: number;
+  onAdmissionYearChange: (y: number) => void;
+  isSettingsOpen: boolean;
+  onSettingsClose: () => void;
+}) {
   const [grades, setGrades] = useState<GradeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [addTarget, setAddTarget] = useState<SemesterEntry | null>(null);
@@ -1166,9 +1207,16 @@ function GradeSection({ activeSemester, schedules, curriculum }: { activeSemeste
   const [quickTarget, setQuickTarget] = useState<{ course: Schedule; year: number; semester: string } | null>(null);
   const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(new Set());
   const [gradReqs, setGradReqs] = useState<Record<string, number>>(() => loadGradReqs(curriculum.defaultGradReqs));
-  const [isEditingReqs, setIsEditingReqs] = useState(false);
   const [reqDraft, setReqDraft] = useState<Record<string, number>>(() => loadGradReqs(curriculum.defaultGradReqs));
   const [showGradSection, setShowGradSection] = useState(true);
+  const [settingsDraft, setSettingsDraft] = useState({ admissionYear, reqDraft: loadGradReqs(curriculum.defaultGradReqs) });
+
+  // Sync settingsDraft when settings panel opens
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setSettingsDraft({ admissionYear, reqDraft: { ...gradReqs } });
+    }
+  }, [isSettingsOpen]);
 
   const loadGrades = useCallback(async () => {
     try {
@@ -1177,11 +1225,6 @@ function GradeSection({ activeSemester, schedules, curriculum }: { activeSemeste
     } catch {}
     setLoading(false);
   }, []);
-
-  // Auto-expand the active semester on mount
-  useEffect(() => {
-    setExpandedSemesters(new Set([`${activeSemester.year}-${activeSemester.semester}`]));
-  }, [activeSemester.year, activeSemester.semester]);
 
   useEffect(() => { loadGrades(); }, [loadGrades]);
 
@@ -1207,10 +1250,13 @@ function GradeSection({ activeSemester, schedules, curriculum }: { activeSemeste
     });
   };
 
-  const saveReqs = () => {
-    setGradReqs({ ...reqDraft });
-    saveGradReqs(reqDraft);
-    setIsEditingReqs(false);
+  const applySettings = () => {
+    // Apply curriculum change
+    onAdmissionYearChange(settingsDraft.admissionYear);
+    // Apply grad reqs change
+    setGradReqs({ ...settingsDraft.reqDraft });
+    setReqDraft({ ...settingsDraft.reqDraft });
+    saveGradReqs(settingsDraft.reqDraft);
   };
 
   const { gpa: overallGPA, earnedCredits: totalEarned } = calcGPA(grades);
@@ -1262,6 +1308,82 @@ function GradeSection({ activeSemester, schedules, curriculum }: { activeSemeste
 
   return (
     <div className="px-4 pb-10 space-y-4">
+
+      {/* ── 설정 패널 ── */}
+      {isSettingsOpen && (
+        <div className="bg-card rounded-3xl border border-primary/20 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 space-y-5">
+            {/* 교육과정 선택 */}
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">교양교육체계</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSettingsDraft(d => ({ ...d, admissionYear: 2025 }))}
+                  className={cn(
+                    "flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all",
+                    settingsDraft.admissionYear < 2026
+                      ? "bg-primary text-primary-foreground border-transparent"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  )}
+                >
+                  2026 개편 전
+                </button>
+                <button
+                  onClick={() => setSettingsDraft(d => ({ ...d, admissionYear: 2026 }))}
+                  className={cn(
+                    "flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all",
+                    settingsDraft.admissionYear >= 2026
+                      ? "bg-primary text-primary-foreground border-transparent"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  )}
+                >
+                  2026 개편 후
+                </button>
+              </div>
+            </div>
+
+            {/* 이수구분별 목표학점 */}
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">이수구분별 목표학점</p>
+              <div className="space-y-2">
+                {GRAD_CATEGORIES.map(cat => {
+                  const draftCurriculum = getCurriculum(settingsDraft.admissionYear);
+                  return (
+                    <div key={cat} className="flex items-center justify-between">
+                      <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", GRAD_CAT_BG[cat])}>
+                        {catLabel(draftCurriculum, cat)}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={200}
+                          value={settingsDraft.reqDraft[cat] ?? 0}
+                          onChange={e => setSettingsDraft(d => ({
+                            ...d,
+                            reqDraft: { ...d.reqDraft, [cat]: parseInt(e.target.value) || 0 }
+                          }))}
+                          className="w-14 text-xs text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                        />
+                        <span className="text-xs text-muted-foreground">학점</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 적용 버튼 */}
+            <button
+              onClick={applySettings}
+              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-opacity"
+            >
+              적용하기
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Overall Summary ── */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-primary/10 rounded-2xl p-4 text-center">
@@ -1300,20 +1422,7 @@ function GradeSection({ activeSemester, schedules, curriculum }: { activeSemeste
                 <div key={cat}>
                   <div className="flex items-center justify-between mb-1">
                     <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", GRAD_CAT_BG[cat])}>{catLabel(curriculum, cat)}</span>
-                    {isEditingReqs ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">{earned} /</span>
-                        <input
-                          type="number"
-                          value={reqDraft[cat]}
-                          onChange={e => setReqDraft(p => ({ ...p, [cat]: parseInt(e.target.value) || 0 }))}
-                          className="w-14 text-xs text-right bg-muted rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-primary/40"
-                        />
-                        <span className="text-xs text-muted-foreground">학점</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs font-semibold text-foreground">{earned}<span className="text-muted-foreground">/{req}학점</span></span>
-                    )}
+                    <span className="text-xs font-semibold text-foreground">{earned}<span className="text-muted-foreground">/{req}학점</span></span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
@@ -1324,18 +1433,6 @@ function GradeSection({ activeSemester, schedules, curriculum }: { activeSemeste
                 </div>
               );
             })}
-            <div className="flex justify-end gap-2 pt-1">
-              {isEditingReqs ? (
-                <>
-                  <button onClick={() => { setIsEditingReqs(false); setReqDraft({ ...gradReqs }); }} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">취소</button>
-                  <button onClick={saveReqs} className="text-xs text-primary font-bold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors">저장</button>
-                </>
-              ) : (
-                <button onClick={() => { setIsEditingReqs(true); setReqDraft({ ...gradReqs }); }} className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
-                  <Pencil className="w-3 h-3" />목표학점 수정
-                </button>
-              )}
-            </div>
           </div>
         )}
       </div>

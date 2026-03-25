@@ -1,14 +1,8 @@
-import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import {
   User, Bell, Shield, HelpCircle, ChevronRight, LogOut,
-  Moon, Globe, Smartphone, Info, GraduationCap
+  Moon, Globe, Smartphone, Info
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { loadAdmissionYear, saveAdmissionYear, getCurriculum } from "@/lib/curriculum";
-
-const CURRENT_YEAR = new Date().getFullYear();
-const ADMISSION_YEARS = Array.from({ length: 10 }, (_, i) => CURRENT_YEAR - i);
 
 const SETTINGS_SECTIONS = [
   {
@@ -37,15 +31,6 @@ const SETTINGS_SECTIONS = [
 ];
 
 export function SettingsPage() {
-  const [admissionYear, setAdmissionYear] = useState<number>(() => loadAdmissionYear());
-  const curriculum = getCurriculum(admissionYear);
-
-  function handleAdmissionYearChange(year: number) {
-    setAdmissionYear(year);
-    saveAdmissionYear(year);
-    window.dispatchEvent(new Event("campus-admission-year-change"));
-  }
-
   return (
     <Layout>
       <div className="p-6 pt-12 pb-4">
@@ -61,46 +46,10 @@ export function SettingsPage() {
           </div>
           <div>
             <p className="font-bold text-lg text-foreground">부산대학교 학생</p>
-            <p className="text-sm text-muted-foreground">컴퓨터공학전공 · {CURRENT_YEAR - admissionYear + 1}학년</p>
+            <p className="text-sm text-muted-foreground">컴퓨터공학전공 · 학생</p>
             <button className="mt-1.5 text-xs font-semibold text-primary hover:underline">
               프로필 편집
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Admission Year Selector */}
-      <div className="px-4 mb-5">
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">학적 설정</p>
-        <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-primary/10">
-                <GraduationCap className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">입학년도</p>
-                <p className="text-xs text-muted-foreground">
-                  교육과정 기준: <span className="font-semibold text-primary">{curriculum.admissionYearLabel}</span>
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {ADMISSION_YEARS.map(y => (
-                <button
-                  key={y}
-                  onClick={() => handleAdmissionYearChange(y)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-xl text-xs font-bold border transition-all",
-                    admissionYear === y
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-muted border-border text-muted-foreground hover:bg-muted/70"
-                  )}
-                >
-                  {y}년
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
