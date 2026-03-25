@@ -1437,14 +1437,6 @@ function GradeSection({
         )}
       </div>
 
-      {/* ── Add Grade Button ── */}
-      <button
-        onClick={() => setAddTarget(activeSemester)}
-        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold py-3.5 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all"
-      >
-        <Plus className="w-5 h-5" />성적 추가
-      </button>
-
       {/* ── Semester Groups (derived from timetable) ── */}
       {sortedKeys.length === 0 ? (
         <div className="bg-card rounded-3xl p-10 text-center border border-border/50 shadow-sm">
@@ -1570,6 +1562,13 @@ function GradeSection({
                         </div>
                       ))
                     }
+                    {/* Add grade button at bottom of each semester */}
+                    <button
+                      onClick={() => setAddTarget({ year: parseInt(yr), semester: sem })}
+                      className="w-full flex items-center justify-center gap-1.5 py-3 text-sm font-semibold text-primary hover:bg-primary/5 transition-colors border-t border-border/30"
+                    >
+                      <Plus className="w-4 h-4" />성적 추가
+                    </button>
                   </div>
                 )}
               </div>
