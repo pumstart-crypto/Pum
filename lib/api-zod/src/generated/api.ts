@@ -26,6 +26,8 @@ export const GetSchedulesResponseItem = zod.object({
   startTime: zod.string().describe("HH:MM 형식 (예: 09:00)"),
   endTime: zod.string().describe("HH:MM 형식 (예: 10:30)"),
   color: zod.string(),
+  category: zod.string().optional(),
+  credits: zod.number().optional(),
   createdAt: zod.string(),
 });
 export const GetSchedulesResponse = zod.array(GetSchedulesResponseItem);
@@ -41,6 +43,10 @@ export const CreateScheduleBody = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   color: zod.string(),
+  year: zod.number().optional(),
+  semester: zod.string().optional(),
+  category: zod.string().optional(),
+  credits: zod.number().optional(),
 });
 
 /**
@@ -58,6 +64,10 @@ export const UpdateScheduleBody = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   color: zod.string(),
+  year: zod.number().optional(),
+  semester: zod.string().optional(),
+  category: zod.string().optional(),
+  credits: zod.number().optional(),
 });
 
 export const UpdateScheduleResponse = zod.object({
@@ -69,6 +79,8 @@ export const UpdateScheduleResponse = zod.object({
   startTime: zod.string().describe("HH:MM 형식 (예: 09:00)"),
   endTime: zod.string().describe("HH:MM 형식 (예: 10:30)"),
   color: zod.string(),
+  category: zod.string().optional(),
+  credits: zod.number().optional(),
   createdAt: zod.string(),
 });
 

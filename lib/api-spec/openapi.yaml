@@ -345,6 +345,10 @@ components:
           description: "HH:MM 형식 (예: 10:30)"
         color:
           type: string
+        category:
+          type: string
+        credits:
+          type: integer
         createdAt:
           type: string
       required:
@@ -373,6 +377,14 @@ components:
           type: string
         color:
           type: string
+        year:
+          type: integer
+        semester:
+          type: string
+        category:
+          type: string
+        credits:
+          type: integer
       required:
         - subjectName
         - dayOfWeek

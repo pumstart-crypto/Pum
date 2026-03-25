@@ -18,5 +18,7 @@ export interface Schedule {
   /** HH:MM 형식 (예: 10:30) */
   endTime: string;
   color: string;
+  category?: string;
+  credits?: number;
   createdAt: string;
 }

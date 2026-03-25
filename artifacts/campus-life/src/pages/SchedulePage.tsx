@@ -7,6 +7,7 @@ import {
   useGetSchedules,
   useCreateSchedule,
   useDeleteSchedule,
+  createSchedule,
   type Schedule,
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -431,6 +432,7 @@ export function SchedulePage() {
         <AddScheduleDialog
           year={activeSemester.year}
           semester={activeSemester.semester}
+          curriculum={curriculum}
           onClose={() => setIsAddOpen(false)}
         />
       )}
@@ -1031,43 +1033,94 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
   );
 }
 
-function AddScheduleDialog({ year, semester, onClose }: { year: number; semester: string; onClose: () => void }) {
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  const nh = Math.floor(total / 60) % 24;
+  const nm = total % 60;
+  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+}
+
+function AddScheduleDialog({
+  year, semester, curriculum, onClose,
+}: {
+  year: number;
+  semester: string;
+  curriculum: Curriculum;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     subjectName: "",
     professor: "",
     location: "",
-    dayOfWeek: 0,
+    selectedDays: [0] as number[],
     startTime: "09:00",
-    endTime: "10:30",
+    endTime: addMinutesToTime("09:00", 75),
     color: COLORS[0],
+    category: curriculum.categories[0]?.code ?? "전공필수",
+    credits: 3,
   });
 
-  const createMutation = useCreateSchedule({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
-        onClose();
-      },
-    },
-  });
+  const toggleDay = (i: number) => {
+    setFormData(prev => {
+      const has = prev.selectedDays.includes(i);
+      const next = has
+        ? prev.selectedDays.filter(d => d !== i)
+        : [...prev.selectedDays, i];
+      return { ...prev, selectedDays: next.length === 0 ? [i] : next };
+    });
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleStartTimeChange = (val: string) => {
+    setFormData(prev => ({
+      ...prev,
+      startTime: val,
+      endTime: addMinutesToTime(val, 75),
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ data: { ...formData, year, semester } });
+    if (formData.selectedDays.length === 0) return;
+    setSaving(true);
+    try {
+      await Promise.all(
+        formData.selectedDays.map(dayOfWeek =>
+          createSchedule({
+            subjectName: formData.subjectName,
+            professor: formData.professor,
+            location: formData.location,
+            dayOfWeek,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            color: formData.color,
+            category: formData.category,
+            credits: formData.credits,
+            year,
+            semester,
+          })
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
+      onClose();
+    } catch {}
+    setSaving(false);
   };
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
-      <div className="bg-card w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-card w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto">
+        <div className="flex justify-between items-center px-6 pt-6 pb-4">
           <h2 className="text-xl font-bold">직접 추가</h2>
           <button onClick={onClose} className="p-2 bg-muted rounded-full hover:bg-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="px-6 pb-8 space-y-4">
+          {/* 과목명 */}
           <div>
             <label className="text-sm font-bold text-muted-foreground block mb-1">과목명 *</label>
             <input
@@ -1079,7 +1132,8 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* 교수명 + 강의실 */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-bold text-muted-foreground block mb-1">교수명</label>
               <input
@@ -1100,17 +1154,58 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
             </div>
           </div>
 
+          {/* 이수구분 + 학점 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-bold text-muted-foreground block mb-1">이수구분</label>
+              <select
+                value={formData.category}
+                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-3 py-3 rounded-xl transition-all outline-none text-sm font-semibold"
+              >
+                {GRAD_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{catLabel(curriculum, cat)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-bold text-muted-foreground block mb-1">학점</label>
+              <div className="flex gap-1.5">
+                {[1, 2, 3, 4].map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, credits: c })}
+                    className={cn(
+                      "flex-1 py-3 rounded-xl text-sm font-bold border transition-all",
+                      formData.credits === c
+                        ? "bg-primary text-primary-foreground border-transparent"
+                        : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 요일 (다중 선택) */}
           <div>
-            <label className="text-sm font-bold text-muted-foreground block mb-1">요일</label>
-            <div className="flex gap-2">
+            <label className="text-sm font-bold text-muted-foreground block mb-1">
+              요일 <span className="font-normal text-xs text-muted-foreground">(복수 선택 가능)</span>
+            </label>
+            <div className="flex gap-1.5">
               {DAYS.map((day, i) => (
                 <button
                   key={day}
                   type="button"
-                  onClick={() => setFormData({ ...formData, dayOfWeek: i })}
+                  onClick={() => toggleDay(i)}
                   className={cn(
                     "flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors",
-                    formData.dayOfWeek === i ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    formData.selectedDays.includes(i)
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   )}
                 >
                   {day}
@@ -1119,18 +1214,21 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* 시작/종료 시간 */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-bold text-muted-foreground block mb-1">시작 시간</label>
               <input
                 type="time"
                 value={formData.startTime}
-                onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                onChange={e => handleStartTimeChange(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
               />
             </div>
             <div>
-              <label className="text-sm font-bold text-muted-foreground block mb-1">종료 시간</label>
+              <label className="text-sm font-bold text-muted-foreground block mb-1">
+                종료 시간 <span className="text-[10px] text-primary font-normal">+75분 자동</span>
+              </label>
               <input
                 type="time"
                 value={formData.endTime}
@@ -1140,6 +1238,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
             </div>
           </div>
 
+          {/* 색상 */}
           <div>
             <label className="text-sm font-bold text-muted-foreground block mb-2">색상</label>
             <div className="flex gap-2 flex-wrap">
@@ -1160,10 +1259,14 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
 
           <button
             type="submit"
-            disabled={createMutation.isPending}
+            disabled={saving}
             className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60"
           >
-            {createMutation.isPending ? "추가 중..." : "시간표 추가"}
+            {saving
+              ? "추가 중..."
+              : formData.selectedDays.length > 1
+                ? `시간표 추가 (${formData.selectedDays.length}일)`
+                : "시간표 추가"}
           </button>
         </form>
       </div>

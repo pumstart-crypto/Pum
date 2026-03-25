@@ -14,4 +14,8 @@ export interface CreateScheduleRequest {
   startTime: string;
   endTime: string;
   color: string;
+  year?: number;
+  semester?: string;
+  category?: string;
+  credits?: number;
 }

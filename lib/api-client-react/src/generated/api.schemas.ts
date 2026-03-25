@@ -25,6 +25,8 @@ export interface Schedule {
   /** HH:MM 형식 (예: 10:30) */
   endTime: string;
   color: string;
+  category?: string;
+  credits?: number;
   createdAt: string;
 }
 
@@ -36,6 +38,10 @@ export interface CreateScheduleRequest {
   startTime: string;
   endTime: string;
   color: string;
+  year?: number;
+  semester?: string;
+  category?: string;
+  credits?: number;
 }
 
 export type FinanceType = (typeof FinanceType)[keyof typeof FinanceType];

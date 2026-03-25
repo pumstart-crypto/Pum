@@ -13,6 +13,8 @@ export const schedulesTable = pgTable("schedules", {
   color: text("color").notNull().default("#4F86C6"),
   year: integer("year"),
   semester: text("semester"),
+  category: text("category"),
+  credits: integer("credits"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
