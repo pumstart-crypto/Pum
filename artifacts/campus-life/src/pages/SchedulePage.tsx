@@ -325,7 +325,7 @@ export function SchedulePage() {
 
       {/* Tab Switcher */}
       <div className="px-4 mb-4">
-        <div className="flex bg-secondary/60 rounded-2xl p-1 gap-1">
+        <div className="flex bg-slate-100 rounded-2xl p-1 gap-1">
           <button onClick={() => setActiveTab("timetable")}
             className={cn("flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all", activeTab === "timetable" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
             <BookOpen className="w-4 h-4" />시간표
@@ -430,7 +430,7 @@ function AddOptionDialog({ onBrowse, onManual, onClose }: { onBrowse: () => void
         <div className="space-y-3">
           <button
             onClick={onBrowse}
-            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-secondary/60 hover:bg-secondary active:scale-[0.98] transition-all text-left"
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:bg-slate-100 active:scale-[0.98] transition-all text-left"
           >
             <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <BookOpen className="w-6 h-6" />
@@ -443,7 +443,7 @@ function AddOptionDialog({ onBrowse, onManual, onClose }: { onBrowse: () => void
           </button>
           <button
             onClick={onManual}
-            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-secondary/60 hover:bg-secondary active:scale-[0.98] transition-all text-left"
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:bg-slate-100 active:scale-[0.98] transition-all text-left"
           >
             <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Pencil className="w-6 h-6" />
@@ -455,7 +455,7 @@ function AddOptionDialog({ onBrowse, onManual, onClose }: { onBrowse: () => void
             <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
           </button>
         </div>
-        <button onClick={onClose} className="mt-4 w-full py-3 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-secondary transition-colors">
+        <button onClick={onClose} className="mt-4 w-full py-3 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-slate-100 transition-colors">
           취소
         </button>
       </div>
@@ -527,14 +527,14 @@ function SemesterManagerDialog({
                 type="number"
                 value={newYear}
                 onChange={e => setNewYear(e.target.value)}
-                className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
                 placeholder="연도"
                 min="2020" max="2100"
               />
               <select
                 value={newSem}
                 onChange={e => setNewSem(e.target.value)}
-                className="flex-1 bg-secondary/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
               >
                 {SEMESTER_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -816,7 +816,7 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
               <div className="relative">
                 <button
                   onClick={() => setShowDeptDropdown(!showDeptDropdown)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-secondary/60 rounded-xl text-sm font-medium hover:bg-secondary transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
                 >
                   <span className={selectedDept ? "text-foreground" : "text-muted-foreground"}>
                     {isLoadingDepts ? "학과 목록 불러오는 중..." : (selectedDept || "학과/학부 선택")}
@@ -832,13 +832,13 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                         value={deptSearch}
                         onChange={e => setDeptSearch(e.target.value)}
                         placeholder="학과 검색..."
-                        className="w-full px-3 py-2 bg-secondary/60 rounded-lg text-sm outline-none"
+                        className="w-full px-3 py-2 bg-slate-100 rounded-lg text-sm outline-none"
                       />
                     </div>
                     <div className="overflow-y-auto">
                       <button
                         onClick={() => { setSelectedDept(""); setShowDeptDropdown(false); setDeptSearch(""); }}
-                        className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/60 transition-colors", !selectedDept && "text-primary font-semibold")}
+                        className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors", !selectedDept && "text-primary font-semibold")}
                       >
                         전체 학과
                       </button>
@@ -846,7 +846,7 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                         <button
                           key={dept}
                           onClick={() => { setSelectedDept(dept); setShowDeptDropdown(false); setDeptSearch(""); }}
-                          className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/60 transition-colors", selectedDept === dept && "text-primary font-semibold bg-primary/5")}
+                          className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors", selectedDept === dept && "text-primary font-semibold bg-primary/5")}
                         >
                           {dept}
                         </button>
@@ -870,7 +870,7 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                         "px-2.5 py-2 rounded-lg text-sm font-medium transition-colors",
                         selectedYear === y
                           ? "bg-primary text-primary-foreground"
-                          : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                       )}
                     >
                       {y === "전체" ? "전체" : `${y}학년`}
@@ -883,7 +883,7 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="과목명, 교수명 검색"
-                    className="w-full pl-9 pr-3 py-2 bg-secondary/60 rounded-lg text-sm outline-none focus:bg-white dark:focus:bg-muted focus:ring-2 ring-primary/20 transition-all"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:bg-white focus:border-primary focus:ring-2 ring-primary/20 transition-all"
                   />
                 </div>
               </div>
@@ -1045,7 +1045,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
               required
               value={formData.subjectName}
               onChange={e => setFormData({ ...formData, subjectName: e.target.value })}
-              className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+              className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
               placeholder="예: 기초프로그래밍"
             />
           </div>
@@ -1056,7 +1056,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
               <input
                 value={formData.professor}
                 onChange={e => setFormData({ ...formData, professor: e.target.value })}
-                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
                 placeholder="홍길동"
               />
             </div>
@@ -1065,7 +1065,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
               <input
                 value={formData.location}
                 onChange={e => setFormData({ ...formData, location: e.target.value })}
-                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
                 placeholder="308호"
               />
             </div>
@@ -1081,7 +1081,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
                   onClick={() => setFormData({ ...formData, dayOfWeek: i })}
                   className={cn(
                     "flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors",
-                    formData.dayOfWeek === i ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    formData.dayOfWeek === i ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   )}
                 >
                   {day}
@@ -1097,7 +1097,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
                 type="time"
                 value={formData.startTime}
                 onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
               />
             </div>
             <div>
@@ -1106,7 +1106,7 @@ function AddScheduleDialog({ year, semester, onClose }: { year: number; semester
                 type="time"
                 value={formData.endTime}
                 onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                className="w-full bg-secondary/50 border border-transparent focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
+                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary px-4 py-3 rounded-xl transition-all outline-none"
               />
             </div>
           </div>
