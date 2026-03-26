@@ -5,20 +5,17 @@ import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-const RESTAURANTS = [
-  { code: "PG002", name: "금정회관\n학생식당" },
-  { code: "PH002", name: "학생회관\n식당" },
-  { code: "PM002", name: "문창회관\n식당" },
-  { code: "PS001", name: "샛벌회관\n식당" },
-  { code: "PG001", name: "금정회관\n교직원식당" },
-];
+interface SubMenu {
+  name: string;
+  price: string;
+  items: string[];
+  isCheapBreakfast: boolean;
+}
 
 interface DayMenu {
   date: string;
   day: string;
-  items: string[];
-  menuName: string;
-  price: string;
+  subMenus: SubMenu[];
 }
 
 interface MealRow {
@@ -30,6 +27,8 @@ interface MealRow {
 interface WeekMeals {
   restaurantCode: string;
   restaurantName: string;
+  campus: string;
+  campusLabel: string;
   weekLabel: string;
   dates: string[];
   days: string[];
@@ -37,13 +36,45 @@ interface WeekMeals {
   prevDate: string;
   nextDate: string;
   fetchedAt: string;
-  error?: string;
 }
 
-const MEAL_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  조식: { bg: "bg-orange-50", text: "text-orange-600", dot: "bg-orange-400" },
-  중식: { bg: "bg-blue-50",   text: "text-blue-600",   dot: "bg-blue-400" },
-  석식: { bg: "bg-purple-50", text: "text-purple-600", dot: "bg-purple-400" },
+const CAMPUSES = [
+  { id: "PUSAN",   label: "부산" },
+  { id: "MIRYANG", label: "밀양" },
+  { id: "YANGSAN", label: "양산" },
+];
+
+const CAMPUS_RESTAURANTS: Record<string, { code: string; name: string }[]> = {
+  PUSAN:   [
+    { code: "PG002", name: "금정회관\n학생식당" },
+    { code: "PH002", name: "학생회관\n식당" },
+    { code: "PG001", name: "금정회관\n교직원식당" },
+  ],
+  MIRYANG: [
+    { code: "M001", name: "학생회관\n학생식당" },
+    { code: "M002", name: "학생회관\n교직원식당" },
+  ],
+  YANGSAN: [
+    { code: "Y001", name: "편의동\n식당" },
+  ],
+};
+
+const SUBMENU_STYLES: Record<string, { border: string; badge: string; text: string; dot: string }> = {
+  "천원의아침":  { border: "border-l-amber-400",  badge: "bg-amber-50 text-amber-700",   text: "text-amber-700",   dot: "bg-amber-400" },
+  "천원의아침&정식": { border: "border-l-amber-400", badge: "bg-amber-50 text-amber-700", text: "text-amber-700", dot: "bg-amber-400" },
+  "정식":        { border: "border-l-blue-400",   badge: "bg-blue-50 text-blue-700",    text: "text-blue-700",    dot: "bg-blue-400" },
+  "특정식":      { border: "border-l-blue-400",   badge: "bg-blue-50 text-blue-700",    text: "text-blue-700",    dot: "bg-blue-400" },
+  "일품":        { border: "border-l-violet-400", badge: "bg-violet-50 text-violet-700", text: "text-violet-700", dot: "bg-violet-400" },
+};
+
+function getSubMenuStyle(name: string) {
+  return SUBMENU_STYLES[name] ?? { border: "border-l-slate-300", badge: "bg-slate-50 text-slate-600", text: "text-slate-600", dot: "bg-slate-400" };
+}
+
+const MEAL_COLORS: Record<string, { accent: string; label: string }> = {
+  "조식": { accent: "text-orange-500", label: "조식" },
+  "중식": { accent: "text-blue-500",   label: "중식" },
+  "석식": { accent: "text-purple-500", label: "석식" },
 };
 
 function getTodayStr() {
@@ -52,6 +83,7 @@ function getTodayStr() {
 }
 
 export function MealsPage() {
+  const [campus, setCampus] = useState("PUSAN");
   const [restaurant, setRestaurant] = useState("PG002");
   const [queryDate, setQueryDate] = useState(getTodayStr());
   const [data, setData] = useState<WeekMeals | null>(null);
@@ -66,7 +98,7 @@ export function MealsPage() {
       const res = await fetch(`${BASE}/api/meals?restaurant=${rest}&date=${date}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: WeekMeals = await res.json();
-      if (json.error) throw new Error(json.error);
+      if ((json as any).error) throw new Error((json as any).error);
       setData(json);
       const today = getTodayStr();
       const todayIdx = json.dates.findIndex(d => d === today);
@@ -84,7 +116,7 @@ export function MealsPage() {
     const interval = setInterval(() => {
       const now = getTodayStr();
       if (now !== queryDate) setQueryDate(now);
-    }, 60 * 1000);
+    }, 60_000);
     return () => clearInterval(interval);
   }, [queryDate]);
 
@@ -94,6 +126,12 @@ export function MealsPage() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [restaurant, queryDate, fetchMeals]);
 
+  function handleCampusChange(campusId: string) {
+    setCampus(campusId);
+    const firstRest = CAMPUS_RESTAURANTS[campusId]?.[0]?.code ?? "PG002";
+    setRestaurant(firstRest);
+  }
+
   const today = getTodayStr();
   const effDayIdx = selectedDayIdx ?? 0;
   const selectedDate = data?.dates[effDayIdx] ?? "";
@@ -101,6 +139,7 @@ export function MealsPage() {
   return (
     <Layout hideTopBar>
       <div className="pb-32">
+
         {/* Header */}
         <div className="px-5 pt-14 pb-5">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1.5">부산대학교</p>
@@ -120,16 +159,34 @@ export function MealsPage() {
           </div>
         </div>
 
+        {/* Campus Tabs */}
+        <div className="flex px-5 mb-4 bg-slate-100 mx-5 rounded-2xl p-1 gap-1">
+          {CAMPUSES.map(c => (
+            <button
+              key={c.id}
+              onClick={() => handleCampusChange(c.id)}
+              className={cn(
+                "flex-1 py-2 text-[13px] font-bold rounded-xl transition-all",
+                campus === c.id
+                  ? "bg-white text-primary shadow-sm"
+                  : "text-muted-foreground"
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+
         {/* Restaurant Tabs */}
-        <div className="flex gap-2.5 px-5 mb-5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {RESTAURANTS.map(r => (
+        <div className="flex gap-2 px-5 mb-5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
             <button
               key={r.code}
               onClick={() => setRestaurant(r.code)}
               className={cn(
-                "shrink-0 px-3.5 py-2.5 rounded-2xl text-[11px] font-bold leading-tight whitespace-pre-line text-center transition-all",
+                "shrink-0 px-4 py-2.5 rounded-2xl text-[11px] font-bold leading-tight whitespace-pre-line text-center transition-all",
                 restaurant === r.code
-                  ? "bg-primary text-white shadow-[0_4px_12px_rgba(0,66,125,0.25)]"
+                  ? "bg-primary text-white shadow-[0_4px_12px_rgba(0,66,125,0.22)]"
                   : "bg-white text-muted-foreground border border-border/40"
               )}
             >
@@ -179,7 +236,7 @@ export function MealsPage() {
                   )}
                 >
                   <span className="text-[10px] font-bold">{data.days[idx]}</span>
-                  <span className="text-[13px] font-extrabold mt-0.5">{date.slice(8)}</span>
+                  <span className="text-[14px] font-extrabold mt-0.5">{date.slice(8)}</span>
                   {isToday && !isSelected && <span className="w-1 h-1 rounded-full bg-primary mt-1" />}
                 </button>
               );
@@ -188,7 +245,7 @@ export function MealsPage() {
         )}
 
         {/* Content */}
-        <div className="px-5">
+        <div className="px-5 space-y-3">
           {isLoading ? (
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -207,61 +264,78 @@ export function MealsPage() {
               <p className="text-sm font-medium text-muted-foreground">식단 정보가 없습니다.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <>
               {data.mealRows.map((row, ri) => {
                 const dayMenu = row.days[effDayIdx];
-                const hasItems = dayMenu && dayMenu.items.length > 0;
-                const colors = MEAL_COLORS[row.type] ?? MEAL_COLORS["중식"];
+                const hasMenus = dayMenu && dayMenu.subMenus.length > 0;
+                const mealColor = MEAL_COLORS[row.type] ?? MEAL_COLORS["중식"];
+
                 return (
                   <div
                     key={ri}
-                    className={cn(
-                      "rounded-3xl overflow-hidden border",
-                      hasItems
-                        ? "bg-white border-border/30 shadow-[0_2px_16px_rgba(0,0,0,0.04)]"
-                        : "bg-slate-50 border-border/20"
-                    )}
+                    className="bg-white rounded-3xl overflow-hidden border border-border/20 shadow-[0_2px_16px_rgba(0,0,0,0.04)]"
                   >
-                    <div className={cn("flex items-center justify-between px-5 py-3.5", hasItems ? colors.bg : "")}>
-                      <div className="flex items-center gap-2.5">
-                        <span className={cn("w-2 h-2 rounded-full shrink-0", hasItems ? colors.dot : "bg-slate-300")} />
-                        <span className={cn("text-sm font-extrabold", hasItems ? colors.text : "text-muted-foreground/40")}>
+                    {/* Meal type header */}
+                    <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-sm font-extrabold", hasMenus ? mealColor.accent : "text-muted-foreground/30")}>
                           {row.type}
                         </span>
                         {row.hours && (
-                          <span className={cn("text-[10px] font-medium opacity-70", hasItems ? colors.text : "text-muted-foreground/40")}>
-                            {row.hours}
-                          </span>
+                          <span className="text-[10px] font-medium text-muted-foreground/50">{row.hours}</span>
                         )}
                       </div>
-                      {hasItems && dayMenu.price && (
-                        <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full", colors.bg, colors.text)}>
-                          {dayMenu.menuName} {dayMenu.price && `· ${dayMenu.price}`}
-                        </span>
+                      {!hasMenus && (
+                        <span className="text-[11px] text-muted-foreground/30 font-medium">미운영</span>
                       )}
                     </div>
-                    {hasItems ? (
-                      <div className="px-5 py-4">
-                        <div className="flex flex-wrap gap-x-3 gap-y-1.5">
-                          {dayMenu.items.map((item, ii) => (
-                            <span key={ii} className="text-sm text-foreground font-medium leading-snug">
-                              {item}
-                            </span>
-                          ))}
-                        </div>
+
+                    {hasMenus ? (
+                      <div className="px-5 pb-4 space-y-3">
+                        {dayMenu.subMenus.map((sub, si) => {
+                          const style = getSubMenuStyle(sub.name);
+                          return (
+                            <div
+                              key={si}
+                              className={cn(
+                                "border-l-2 pl-3",
+                                style.border
+                              )}
+                            >
+                              {/* Sub-menu name + price */}
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", style.badge)}>
+                                  {sub.isCheapBreakfast ? "천원의아침" : sub.name}
+                                </span>
+                                {sub.price && (
+                                  <span className="text-[11px] text-muted-foreground font-medium">{sub.price}</span>
+                                )}
+                              </div>
+                              {/* Items */}
+                              <div className="flex flex-wrap gap-x-2 gap-y-1">
+                                {sub.items.map((item, ii) => (
+                                  <span key={ii} className="text-[13px] text-foreground font-medium leading-snug">
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
-                      <div className="px-5 py-3 text-xs text-muted-foreground/40 font-medium">미운영</div>
+                      <div className="h-2" />
                     )}
                   </div>
                 );
               })}
+
               {data.restaurantName && (
-                <p className="text-center text-[11px] text-muted-foreground/50 font-medium pt-1 pb-2">
+                <p className="text-center text-[11px] text-muted-foreground/40 font-medium pt-0.5 pb-2">
                   {data.restaurantName} · {selectedDate.replace(/-/g, ".")}
                 </p>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>

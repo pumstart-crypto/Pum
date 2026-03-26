@@ -16,23 +16,30 @@ export interface Restaurant {
   code: string;
   building: string;
   campus: string;
+  campusLabel: string;
   name: string;
 }
 
 export const RESTAURANTS: Restaurant[] = [
-  { code: "PG002", building: "R001", campus: "PUSAN", name: "금정회관 학생식당" },
-  { code: "PH002", building: "R004", campus: "PUSAN", name: "학생회관 식당" },
-  { code: "PM002", building: "R002", campus: "PUSAN", name: "문창회관 식당" },
-  { code: "PS001", building: "R003", campus: "PUSAN", name: "샛벌회관 식당" },
-  { code: "PG001", building: "R001", campus: "PUSAN", name: "금정회관 교직원식당" },
+  { code: "PG002", building: "R001", campus: "PUSAN",   campusLabel: "부산", name: "금정회관 학생식당" },
+  { code: "PH002", building: "R004", campus: "PUSAN",   campusLabel: "부산", name: "학생회관 식당" },
+  { code: "PG001", building: "R001", campus: "PUSAN",   campusLabel: "부산", name: "금정회관 교직원식당" },
+  { code: "M001",  building: "R005", campus: "MIRYANG", campusLabel: "밀양", name: "학생회관 학생식당" },
+  { code: "M002",  building: "R005", campus: "MIRYANG", campusLabel: "밀양", name: "학생회관 교직원식당" },
+  { code: "Y001",  building: "R006", campus: "YANGSAN", campusLabel: "양산", name: "편의동 식당" },
 ];
+
+export interface SubMenu {
+  name: string;
+  price: string;
+  items: string[];
+  isCheapBreakfast: boolean;
+}
 
 export interface DayMenu {
   date: string;
   day: string;
-  items: string[];
-  menuName: string;
-  price: string;
+  subMenus: SubMenu[];
 }
 
 export interface MealRow {
@@ -44,6 +51,8 @@ export interface MealRow {
 export interface WeekMeals {
   restaurantCode: string;
   restaurantName: string;
+  campus: string;
+  campusLabel: string;
   weekLabel: string;
   dates: string[];
   days: string[];
@@ -59,21 +68,19 @@ interface CacheEntry {
 }
 
 const cache: Record<string, CacheEntry> = {};
-const CACHE_TTL = 3 * 60 * 60 * 1000; // 3 hours
+const CACHE_TTL = 3 * 60 * 60 * 1000;
 
-function extractMenuItems(li: ReturnType<typeof parse>["childNodes"][number]): { name: string; price: string; items: string[] } {
-  const el = li as ReturnType<typeof parse>;
-  const h3 = (el as any).querySelector?.("h3.menu-tit01");
-  if (!h3) return { name: "", price: "", items: [] };
+function parseMenuTitle(titleText: string): { name: string; price: string; isCheapBreakfast: boolean } {
+  const text = titleText.replace(/\s+/g, " ").trim();
+  const lastDash = text.lastIndexOf("-");
+  const name = lastDash > 0 ? text.slice(0, lastDash).trim() : text;
+  const price = lastDash > 0 ? text.slice(lastDash + 1).trim() : "";
+  const isCheapBreakfast = text.includes("천원의아침") || text.includes("천원의 아침");
+  return { name, price, isCheapBreakfast };
+}
 
-  const titleText = h3.text.replace(/\s+/g, " ").trim();
-  const dashIdx = titleText.lastIndexOf("-");
-  const name = dashIdx > 0 ? titleText.slice(0, dashIdx).trim() : titleText;
-  const price = dashIdx > 0 ? titleText.slice(dashIdx + 1).trim() : "";
-
-  const fullText = (el as any).innerHTML ?? "";
-  const afterH3 = fullText.replace(/<h3[^>]*>.*?<\/h3>/is, "");
-  const cleaned = afterH3
+function htmlToText(html: string): string {
+  return html
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<p[^>]*>/gi, "")
@@ -81,11 +88,21 @@ function extractMenuItems(li: ReturnType<typeof parse>["childNodes"][number]): {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ");
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#\d+;/g, "");
+}
 
-  const items = cleaned.split("\n").map(s => s.trim()).filter(Boolean);
+function parseLiElement(liEl: any): SubMenu | null {
+  const h3 = liEl.querySelector?.("h3.menu-tit01, h3.menu-tit03");
+  if (!h3) return null;
 
-  return { name, price, items };
+  const { name, price, isCheapBreakfast } = parseMenuTitle(h3.text);
+  const fullHtml: string = liEl.innerHTML ?? "";
+  const afterH3 = fullHtml.replace(/<h3[^>]*>[\s\S]*?<\/h3>/i, "");
+  const rawText = htmlToText(afterH3);
+  const items = rawText.split("\n").map((s: string) => s.trim()).filter(Boolean);
+
+  return { name, price, items, isCheapBreakfast };
 }
 
 async function fetchWeekMeals(restaurant: Restaurant, date: string): Promise<WeekMeals> {
@@ -107,10 +124,8 @@ async function fetchWeekMeals(restaurant: Restaurant, date: string): Promise<Wee
 
   const prevBtn = navi?.querySelector("button.prev");
   const nextBtn = navi?.querySelector("button.next");
-  const prevOnclick = prevBtn?.getAttribute("onclick") ?? "";
-  const nextOnclick = nextBtn?.getAttribute("onclick") ?? "";
-  const prevDate = prevOnclick.match(/'(\d{4}-\d{2}-\d{2})'/)?.[1] ?? "";
-  const nextDate = nextOnclick.match(/'(\d{4}-\d{2}-\d{2})'/)?.[1] ?? "";
+  const prevDate = (prevBtn?.getAttribute("onclick") ?? "").match(/'(\d{4}-\d{2}-\d{2})'/)?.[1] ?? "";
+  const nextDate = (nextBtn?.getAttribute("onclick") ?? "").match(/'(\d{4}-\d{2}-\d{2})'/)?.[1] ?? "";
 
   const table = root.querySelector("table.menu-tbl");
   if (!table) throw new Error("메뉴 테이블을 찾을 수 없습니다");
@@ -123,7 +138,8 @@ async function fetchWeekMeals(restaurant: Restaurant, date: string): Promise<Wee
     const dateDiv = th.querySelector("div.date");
     if (dayDiv && dateDiv) {
       days.push(dayDiv.text.trim());
-      dates.push(dateDiv.text.trim().replace(/\./g, "-").replace(/-$/, ""));
+      const rawDate = dateDiv.text.trim().replace(/\./g, "-").replace(/-$/, "");
+      dates.push(rawDate);
     }
   }
 
@@ -145,22 +161,17 @@ async function fetchWeekMeals(restaurant: Restaurant, date: string): Promise<Wee
     for (let di = 0; di < tds.length; di++) {
       const td = tds[di];
       const liEls = td.querySelectorAll("li");
-      const allItems: string[] = [];
-      let menuName = "";
-      let price = "";
+      const subMenus: SubMenu[] = [];
 
       for (const li of liEls) {
-        const { name, price: p, items } = extractMenuItems(li as any);
-        if (!menuName && name) { menuName = name; price = p; }
-        allItems.push(...items);
+        const subMenu = parseLiElement(li as any);
+        if (subMenu) subMenus.push(subMenu);
       }
 
       dayMenus.push({
         date: dates[di] ?? "",
         day: days[di] ?? "",
-        items: allItems,
-        menuName,
-        price,
+        subMenus,
       });
     }
 
@@ -169,7 +180,9 @@ async function fetchWeekMeals(restaurant: Restaurant, date: string): Promise<Wee
 
   return {
     restaurantCode: restaurant.code,
-    restaurantName,
+    restaurantName: restaurantName.trim(),
+    campus: restaurant.campus,
+    campusLabel: restaurant.campusLabel,
     weekLabel,
     dates,
     days,
@@ -186,7 +199,6 @@ router.get("/meals", async (req, res) => {
 
   const restaurant = RESTAURANTS.find(r => r.code === restaurantCode) ?? RESTAURANTS[0];
 
-  // Cache key: restaurant + week (use the date as-is, server returns the week containing it)
   const cacheKey = `${restaurantCode}_${date}`;
   const now = Date.now();
   const cached = cache[cacheKey];
