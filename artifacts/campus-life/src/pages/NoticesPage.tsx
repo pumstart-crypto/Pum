@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
-import { Bell, School, BookOpen, Briefcase, RefreshCw, AlertCircle, ExternalLink, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bell, School, BookOpen, Briefcase, AlertCircle, ExternalLink, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -91,29 +91,21 @@ function Pagination({ current, total, onChange }: { current: number; total: numb
 
   return (
     <div className="flex items-center justify-center gap-1 pt-4 pb-2">
-      {/* 첫 페이지 */}
       <button onClick={() => onChange(1)} disabled={current === 1} className={navBtn} title="첫 페이지">
         <ChevronLeft className="w-3 h-3 text-foreground inline" />
         <ChevronLeft className="w-3 h-3 text-foreground inline -ml-1.5" />
       </button>
-      {/* 이전 */}
       <button onClick={() => onChange(current - 1)} disabled={current === 1} className={navBtn}>
         <ChevronLeft className="w-4 h-4 text-foreground" />
       </button>
-
       {start > 1 && <span className="text-muted-foreground text-xs px-0.5">…</span>}
-
       {pages.map((page) => (
         <button key={page} onClick={() => onChange(page)} className={numBtn(page)}>{page}</button>
       ))}
-
       {end < total && <span className="text-muted-foreground text-xs px-0.5">…</span>}
-
-      {/* 다음 */}
       <button onClick={() => onChange(current + 1)} disabled={current === total} className={navBtn}>
         <ChevronRight className="w-4 h-4 text-foreground" />
       </button>
-      {/* 마지막 페이지 */}
       <button onClick={() => onChange(total)} disabled={current === total} className={navBtn} title="마지막 페이지">
         <ChevronRight className="w-3 h-3 text-foreground inline" />
         <ChevronRight className="w-3 h-3 text-foreground inline -ml-1.5" />
@@ -122,34 +114,13 @@ function Pagination({ current, total, onChange }: { current: number; total: numb
   );
 }
 
-/* ── Search bar ── */
-function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="px-4 mb-3">
-      <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-3 py-2.5">
-        <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-        <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
-          placeholder="공지 제목 검색..."
-          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-        {value && (
-          <button onClick={() => onChange("")}><X className="w-4 h-4 text-muted-foreground" /></button>
-        )}
-      </div>
-      {value.trim() && (
-        <p className="text-xs text-muted-foreground mt-2 px-1">"{value.trim()}" 검색 중</p>
-      )}
-    </div>
-  );
-}
-
 /* ══════════════════════════════
-   School Notices Tab
+   School Notices List (no header)
 ══════════════════════════════ */
-function SchoolNoticesTab() {
+function SchoolNoticesList({ query }: { query: string }) {
   const [data, setData] = useState<NoticesResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchNotices = async () => {
@@ -163,6 +134,7 @@ function SchoolNoticesTab() {
   };
 
   useEffect(() => { fetchNotices(); }, []);
+  useEffect(() => { setCurrentPage(1); }, [query]);
 
   const all = data?.notices ?? [];
   const pinned = all.filter((n) => n.isPinned);
@@ -175,70 +147,60 @@ function SchoolNoticesTab() {
   const totalPages = Math.ceil(filteredRegular.length / PAGE_SIZE);
   const pagedRegular = isSearching ? filteredRegular : filteredRegular.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const handleSearch = (v: string) => { setQuery(v); setCurrentPage(1); };
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <p className="text-sm text-muted-foreground">불러오는 중...</p>
+    </div>
+  );
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+      <AlertCircle className="w-10 h-10 text-destructive/50" />
+      <p className="text-sm text-muted-foreground">{error}</p>
+      <button onClick={fetchNotices} className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-semibold">다시 시도</button>
+    </div>
+  );
+  if ((filteredPinned.length + filteredRegular.length) === 0 && isSearching) return (
+    <div className="flex flex-col items-center justify-center h-48 gap-3">
+      <Search className="w-10 h-10 text-muted-foreground/30" />
+      <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
+    </div>
+  );
 
   return (
-    <>
-      <SearchBar value={query} onChange={handleSearch} />
-      <div className="px-4 pb-28 space-y-2">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-muted-foreground">불러오는 중...</p>
+    <div className="space-y-2">
+      {filteredPinned.length > 0 && (
+        <>
+          <div className="flex items-center gap-2 px-1 pt-2 pb-1">
+            <Bell className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-bold text-primary tracking-wide">고정 공지</span>
           </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-            <AlertCircle className="w-10 h-10 text-destructive/50" />
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <button onClick={fetchNotices} className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-semibold">다시 시도</button>
-          </div>
-        ) : (filteredPinned.length + filteredRegular.length) === 0 && isSearching ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-3">
-            <Search className="w-10 h-10 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
-          </div>
-        ) : (
-          <>
-            {filteredPinned.length > 0 && (
-              <>
-                <div className="flex items-center gap-2 px-1 pt-2 pb-1">
-                  <Bell className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-xs font-bold text-primary tracking-wide">고정 공지</span>
-                </div>
-                {filteredPinned.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
-              </>
-            )}
-            {pagedRegular.length > 0 && (
-              <div className="flex items-center gap-2 px-1 pt-3 pb-1">
-                <School className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-bold text-muted-foreground tracking-wide">
-                  일반 공지 {isSearching ? `(${filteredRegular.length}건)` : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredRegular.length)} / ${filteredRegular.length}건`}
-                </span>
-              </div>
-            )}
-            {pagedRegular.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
-            {!isSearching && <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />}
-          </>
-        )}
-      </div>
-    </>
+          {filteredPinned.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
+        </>
+      )}
+      {pagedRegular.length > 0 && (
+        <div className="flex items-center gap-2 px-1 pt-3 pb-1">
+          <School className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-bold text-muted-foreground tracking-wide">
+            일반 공지 {isSearching
+              ? `(${filteredRegular.length}건)`
+              : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredRegular.length)} / ${filteredRegular.length}건`}
+          </span>
+        </div>
+      )}
+      {pagedRegular.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
+      {!isSearching && <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />}
+    </div>
   );
 }
 
 /* ══════════════════════════════
-   Dept Notices Tab
+   Dept Notices List (no header)
 ══════════════════════════════ */
-const DEPT_SUB_TABS = [
-  { key: "notice", label: "공지사항", icon: BookOpen },
-  { key: "jobs",   label: "취업정보",  icon: Briefcase },
-] as const;
-
-function DeptNoticesTab() {
-  const [subTab, setSubTab] = useState<"notice" | "jobs">("notice");
+function DeptNoticesList({ subTab, query }: { subTab: "notice" | "jobs"; query: string }) {
   const [dataMap, setDataMap] = useState<Record<string, NoticesResponse>>({});
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
-  const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchDept = async (type: "notice" | "jobs") => {
@@ -260,13 +222,7 @@ function DeptNoticesTab() {
   };
 
   useEffect(() => { fetchDept(subTab); }, [subTab]);
-
-  const handleSubTab = (t: "notice" | "jobs") => {
-    setSubTab(t);
-    setQuery("");
-    setCurrentPage(1);
-    fetchDept(t);
-  };
+  useEffect(() => { setCurrentPage(1); }, [subTab, query]);
 
   const data = dataMap[subTab];
   const isLoading = loadingMap[subTab] ?? false;
@@ -279,65 +235,48 @@ function DeptNoticesTab() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = isSearching ? filtered : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const handleSearch = (v: string) => { setQuery(v); setCurrentPage(1); };
+  const subLabel = subTab === "notice" ? "공지사항" : "취업정보";
+
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <p className="text-sm text-muted-foreground">불러오는 중...</p>
+    </div>
+  );
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+      <AlertCircle className="w-10 h-10 text-destructive/50" />
+      <p className="text-sm text-muted-foreground">{error}</p>
+      <button onClick={() => refetch(subTab)} className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-semibold">다시 시도</button>
+    </div>
+  );
+  if (filtered.length === 0 && isSearching) return (
+    <div className="flex flex-col items-center justify-center h-48 gap-3">
+      <Search className="w-10 h-10 text-muted-foreground/30" />
+      <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
+    </div>
+  );
+  if (all.length === 0) return (
+    <div className="flex flex-col items-center justify-center h-48 gap-3">
+      <BookOpen className="w-10 h-10 text-muted-foreground/30" />
+      <p className="text-sm text-muted-foreground">게시물이 없습니다.</p>
+    </div>
+  );
 
   return (
-    <>
-      {/* Sub-tabs */}
-      <div className="px-4 mb-3">
-        <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
-          {DEPT_SUB_TABS.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => handleSubTab(key)}
-              className={cn("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all",
-                subTab === key ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-              <Icon className="w-3.5 h-3.5" />{label}
-            </button>
-          ))}
+    <div className="space-y-2">
+      {paged.length > 0 && (
+        <div className="flex items-center gap-2 px-1 pt-2 pb-1">
+          <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-bold text-muted-foreground tracking-wide">
+            산업공학과 {subLabel}
+            {isSearching ? ` (${filtered.length}건)` : ` ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} / ${filtered.length}건`}
+          </span>
         </div>
-      </div>
-
-      <SearchBar value={query} onChange={handleSearch} />
-
-      <div className="px-4 pb-28 space-y-2">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-muted-foreground">불러오는 중...</p>
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-            <AlertCircle className="w-10 h-10 text-destructive/50" />
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <button onClick={() => refetch(subTab)} className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-semibold">다시 시도</button>
-          </div>
-        ) : filtered.length === 0 && isSearching ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-3">
-            <Search className="w-10 h-10 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
-          </div>
-        ) : (
-          <>
-            {paged.length > 0 && (
-              <div className="flex items-center gap-2 px-1 pt-2 pb-1">
-                <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-bold text-muted-foreground tracking-wide">
-                  산업공학과 {DEPT_SUB_TABS.find((t) => t.key === subTab)?.label}
-                  {isSearching ? ` (${filtered.length}건)` : ` ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} / ${filtered.length}건`}
-                </span>
-              </div>
-            )}
-            {paged.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
-            {!isSearching && <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />}
-            {all.length === 0 && !isLoading && (
-              <div className="flex flex-col items-center justify-center h-48 gap-3">
-                <BookOpen className="w-10 h-10 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">게시물이 없습니다.</p>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </>
+      )}
+      {paged.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
+      {!isSearching && <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />}
+    </div>
   );
 }
 
@@ -349,32 +288,90 @@ const TOP_TABS = [
   { key: "dept",   label: "학과 공지" },
 ] as const;
 
+const DEPT_SUB_TABS = [
+  { key: "notice", label: "공지사항", icon: BookOpen },
+  { key: "jobs",   label: "취업정보",  icon: Briefcase },
+] as const;
+
 export function NoticesPage() {
   const [tab, setTab] = useState<"school" | "dept">("school");
+  const [subTab, setSubTab] = useState<"notice" | "jobs">("notice");
+  const [query, setQuery] = useState("");
+
+  const handleTabChange = (t: "school" | "dept") => {
+    setTab(t);
+    setQuery("");
+  };
+
+  const handleSubTabChange = (t: "notice" | "jobs") => {
+    setSubTab(t);
+    setQuery("");
+  };
 
   return (
-    <Layout>
-      <div className="p-6 pt-12 pb-4">
-        <p className="text-muted-foreground font-medium mb-1">부산대학교</p>
-        <h1 className="text-3xl text-foreground">
-          공지 <span className="text-primary">사항</span>
-        </h1>
-      </div>
+    <Layout hideTopBar>
+      {/* ── Sticky Header ── */}
+      <div className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/30">
+        {/* Title row */}
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-xs font-semibold text-muted-foreground mb-0.5 tracking-wide">부산대학교</p>
+          <h1 className="text-2xl font-bold text-foreground leading-tight">
+            공지 <span className="text-primary font-extrabold">사항</span>
+          </h1>
+        </div>
 
-      {/* Top tab switcher */}
-      <div className="px-4 mb-3">
-        <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
-          {TOP_TABS.map(({ key, label }) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold transition-all",
-                tab === key ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-              {label}
-            </button>
-          ))}
+        {/* Top tabs: 학교공지 / 학과공지 */}
+        <div className="px-4 pb-2">
+          <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
+            {TOP_TABS.map(({ key, label }) => (
+              <button key={key} onClick={() => handleTabChange(key)}
+                className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold transition-all",
+                  tab === key ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sub-tabs (dept only) */}
+        {tab === "dept" && (
+          <div className="px-4 pb-2">
+            <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
+              {DEPT_SUB_TABS.map(({ key, label, icon: Icon }) => (
+                <button key={key} onClick={() => handleSubTabChange(key)}
+                  className={cn("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all",
+                    subTab === key ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  <Icon className="w-3.5 h-3.5" />{label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Search bar */}
+        <div className="px-4 pb-3">
+          <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-3 py-2.5">
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="공지 제목 검색..."
+              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
+            {query && (
+              <button onClick={() => setQuery("")}><X className="w-4 h-4 text-muted-foreground" /></button>
+            )}
+          </div>
+          {query.trim() && (
+            <p className="text-xs text-muted-foreground mt-2 px-1">"{query.trim()}" 검색 중</p>
+          )}
         </div>
       </div>
 
-      {tab === "school" ? <SchoolNoticesTab /> : <DeptNoticesTab />}
+      {/* ── Scrollable Content ── */}
+      <div className="px-4 pt-3 pb-28">
+        {tab === "school"
+          ? <SchoolNoticesList query={query} />
+          : <DeptNoticesList subTab={subTab} query={query} />
+        }
+      </div>
     </Layout>
   );
 }

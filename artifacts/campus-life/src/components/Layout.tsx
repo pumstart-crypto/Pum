@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
-export function Layout({ children }: { children: ReactNode }) {
+export function Layout({ children, hideTopBar }: { children: ReactNode; hideTopBar?: boolean }) {
   const [location] = useLocation();
 
   const navItems = [
@@ -18,19 +18,21 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="w-full max-w-md bg-card h-full shadow-2xl relative flex flex-col overflow-hidden">
 
         {/* ── Sticky Top App Bar ── */}
-        <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-4 bg-card/90 backdrop-blur-xl border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-white" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>school</span>
+        {!hideTopBar && (
+          <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-4 bg-card/90 backdrop-blur-xl border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-white" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>school</span>
+              </div>
+              <h1 className="text-base font-extrabold text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.02em" }}>
+                캠퍼스라이프
+              </h1>
             </div>
-            <h1 className="text-base font-extrabold text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.02em" }}>
-              캠퍼스라이프
-            </h1>
-          </div>
-          <button className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
-          </button>
-        </header>
+            <button className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
+            </button>
+          </header>
+        )}
 
         {/* ── Main Content ── */}
         <main className="flex-1 overflow-y-auto scroll-smooth">
