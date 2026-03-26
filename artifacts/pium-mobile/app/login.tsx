@@ -64,12 +64,14 @@ export default function LoginScreen() {
       >
         <View style={styles.logoContainer}>
           <View style={styles.logoBox}>
-            <View style={[styles.logoBadge, { backgroundColor: C.primary }]}>
-              <Text style={styles.logoText}>P:um</Text>
-            </View>
+            <Image
+              source={require("@/assets/logo.png")}
+              style={styles.logoImage}
+              resizeMode="cover"
+            />
           </View>
-          <Text style={styles.title}>피움에 오신 것을 환영해요</Text>
-          <Text style={styles.subtitle}>부산대학교 학생 생활 앱</Text>
+          <Text style={styles.title}>P:um</Text>
+          <Text style={styles.subtitle}>피움 · 부산대학교 학생 생활 앱</Text>
         </View>
 
         <View style={styles.form}>
@@ -166,29 +168,22 @@ const styles = StyleSheet.create({
   logoBox: {
     marginBottom: 8,
   },
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    color: "#fff",
-    letterSpacing: -0.5,
+  logoImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
   },
   title: {
     fontFamily: "Inter_700Bold",
-    fontSize: 24,
-    color: "#111827",
+    fontSize: 28,
+    color: "#00427d",
     textAlign: "center",
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
-    color: "#6B7280",
+    color: "#627080",
     textAlign: "center",
   },
   form: {

@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -20,7 +21,7 @@ const C = Colors.light;
 
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const SUBJECT_COLORS = [
-  "#2563EB", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+  "#00427d", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
   "#EC4899", "#14B8A6", "#F97316",
 ];
 
@@ -131,18 +132,29 @@ export default function HomeScreen() {
       }
       showsVerticalScrollIndicator={false}
     >
+      {/* Top App Bar (matches web app) */}
+      <View style={[styles.topBar, { paddingTop: topPadding + 8 }]}>
+        <View style={styles.topBarBrand}>
+          <View style={styles.topBarLogoWrap}>
+            <Image
+              source={require("@/assets/logo.png")}
+              style={styles.topBarLogo}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={styles.topBarTitle}>P:um</Text>
+        </View>
+        <Pressable style={styles.notifBtn} onPress={() => router.push("/notices")}>
+          <Feather name="bell" size={22} color={C.text} />
+        </Pressable>
+      </View>
+
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
+      <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>{getGreeting()},</Text>
           <Text style={styles.userName}>{user?.name || user?.username} 님</Text>
         </View>
-        <Pressable
-          style={styles.notifBtn}
-          onPress={() => router.push("/notices")}
-        >
-          <Feather name="bell" size={22} color={C.text} />
-        </Pressable>
       </View>
 
       {/* Date */}
@@ -271,11 +283,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: C.surface,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.border,
+  },
+  topBarBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  topBarLogoWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: C.borderLight,
+  },
+  topBarLogo: {
+    width: 32,
+    height: 32,
+  },
+  topBarTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 17,
+    color: C.primary,
+    letterSpacing: -0.3,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 4,
     backgroundColor: C.background,
   },
