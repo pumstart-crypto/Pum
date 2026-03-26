@@ -989,7 +989,12 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-1">
-                              <span className="font-semibold text-sm text-foreground leading-tight">{course.subjectName}</span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-semibold text-sm text-foreground leading-tight">{course.subjectName}</span>
+                                {course.section && (
+                                  <span className="shrink-0 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{course.section}분반</span>
+                                )}
+                              </div>
                               {course.credits && (
                                 <span className="shrink-0 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{course.credits}학점</span>
                               )}
