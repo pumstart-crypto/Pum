@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
 
@@ -105,6 +106,9 @@ export default function BusScreen() {
 
         {/* Header */}
         <View style={styles.headerSection}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="chevron-left" size={24} color="#374151" />
+          </TouchableOpacity>
           <Text style={styles.universityLabel}>부산대학교 교내 순환버스</Text>
           <View style={styles.headerRow}>
             <View>
@@ -310,6 +314,7 @@ export default function BusScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F9FAFB' },
 
+  backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
   headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 },
   universityLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },

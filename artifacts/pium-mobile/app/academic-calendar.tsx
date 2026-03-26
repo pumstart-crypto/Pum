@@ -152,6 +152,9 @@ export default function AcademicCalendarScreen() {
 
         {/* Header */}
         <View style={styles.headerSection}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="chevron-left" size={24} color="#374151" />
+          </TouchableOpacity>
           <Text style={styles.universityLabel}>부산대학교</Text>
           <Text style={styles.pageTitle}>학사일정</Text>
           <Text style={styles.pageSubtitle}>2025~2026학년도 1학기</Text>
@@ -250,6 +253,7 @@ export default function AcademicCalendarScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F9FAFB' },
 
+  backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
   headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
   universityLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
   pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1, lineHeight: 42 },
