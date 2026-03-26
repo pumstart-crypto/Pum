@@ -32,11 +32,9 @@ export function LoginPage() {
     <div className="min-h-screen bg-white flex flex-col">
       {/* Top branding area */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
-        <img
-          src="/logo.jpeg"
-          alt="P:um 로고"
-          className="w-24 h-24 rounded-[28px] object-cover mb-5 shadow-xl shadow-[#04346E]/30"
-        />
+        <div className="w-24 h-24 rounded-[28px] overflow-hidden mb-5 shadow-xl shadow-[#04346E]/30 bg-[#04346E]">
+          <img src="/logo.png" alt="P:um 로고" className="w-full h-full object-cover scale-[2.0]" />
+        </div>
         <h1 className="text-[26px] font-black text-gray-900 tracking-tight">P:um</h1>
         <p className="text-sm text-gray-500 mt-0.5 font-medium">피움 · 부산대학교 학생 생활 앱</p>
       </div>

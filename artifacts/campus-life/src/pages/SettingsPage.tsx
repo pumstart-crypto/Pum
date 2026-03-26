@@ -30,7 +30,7 @@ const SETTINGS_SECTIONS = [
     title: "지원",
     items: [
       { icon: HelpCircle, label: "도움말 & FAQ", desc: "자주 묻는 질문", color: "#06B6D4", route: null },
-      { icon: Info, label: "앱 정보", desc: "P:um 피움 by PNU", color: "#8B5CF6", route: null },
+      { icon: Info, label: "앱 정보", desc: "P:um 피움", color: "#8B5CF6", route: null },
     ],
   },
 ];
