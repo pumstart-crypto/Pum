@@ -158,7 +158,7 @@ export default function ScheduleScreen() {
   const [csKeyword, setCsKeyword] = useState('');
   const [csResults, setCsResults] = useState<any[]>([]);
   const [csLoading, setCsLoading] = useState(false);
-  const [csSelected, setCsSelected] = useState<any>(null);
+  const [csSelected, setCsSelected] = useState<any[]>([]);
   const [showDeptPicker, setShowDeptPicker] = useState(false);
   const [deptList, setDeptList] = useState<string[]>([]);
   const [deptsLoading, setDeptsLoading] = useState(false);
@@ -263,7 +263,7 @@ export default function ScheduleScreen() {
   const searchCourses = async () => {
     if (!csDept && !csKeyword && csCategory === '전체' && csYear === '전체') return;
     setCsLoading(true);
-    setCsSelected(null);
+    setCsSelected([]);
     try {
       const params = new URLSearchParams();
       params.set('catalogYear', String(currentSem.year));
@@ -282,31 +282,36 @@ export default function ScheduleScreen() {
   };
 
   const addCourseFromSearch = async () => {
-    if (!csSelected) return;
-    const slots = parseTimeRoom(csSelected.timeRoom || '', addMinutes);
-    if (slots.length === 0) {
-      Alert.alert('시간 정보 없음', '이 강의는 시간표 정보가 없습니다.\n직접 추가를 이용해 주세요.');
+    if (csSelected.length === 0) return;
+    const validCourses = csSelected.filter(c => parseTimeRoom(c.timeRoom || '', addMinutes).length > 0);
+    const noTime = csSelected.filter(c => parseTimeRoom(c.timeRoom || '', addMinutes).length === 0);
+    if (noTime.length > 0 && validCourses.length === 0) {
+      Alert.alert('시간 정보 없음', '선택한 강의에 시간표 정보가 없습니다.\n직접 추가를 이용해 주세요.');
       return;
     }
     try {
-      await Promise.all(slots.map(slot =>
-        fetch(`${API}/schedules`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subjectName: csSelected.subjectName,
-            professor: csSelected.professor || '',
-            location: slot.location || '',
-            dayOfWeek: slot.dayOfWeek,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            credit: csSelected.credits || 0,
-          }),
-        })
-      ));
+      await Promise.all(validCourses.flatMap(course => {
+        const slots = parseTimeRoom(course.timeRoom || '', addMinutes);
+        return slots.map(slot =>
+          fetch(`${API}/schedules`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subjectName: course.subjectName,
+              professor: course.professor || '',
+              location: slot.location || '',
+              dayOfWeek: slot.dayOfWeek,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              credit: course.credits || 0,
+            }),
+          })
+        );
+      }));
       await refetch();
       setShowCourseSearch(false);
-      setCsSelected(null);
+      setCsSelected([]);
+      if (noTime.length > 0) Alert.alert('일부 추가됨', `시간 정보 없는 ${noTime.map(c => c.subjectName).join(', ')} 은(는) 제외됐습니다.`);
     } catch { Alert.alert('오류', '수업 추가 실패'); }
   };
 
@@ -721,34 +726,45 @@ export default function ScheduleScreen() {
                   <Text style={styles.csEmptyText}>학과 선택, 학년/이수구분 필터 또는 과목명으로 검색하세요.</Text>
                 </View>
               ) : (
-                csResults.map((course, i) => (
-                  <TouchableOpacity key={i} style={[styles.courseRow, csSelected?.id === course.id && styles.courseRowSelected]}
-                    onPress={() => setCsSelected(course)}>
+                csResults.map((course, i) => {
+                  const isSelected = csSelected.some(c => c.id === course.id);
+                  return (
+                  <TouchableOpacity key={i} style={[styles.courseRow, isSelected && styles.courseRowSelected]}
+                    onPress={() => setCsSelected(prev => isSelected ? prev.filter(c => c.id !== course.id) : [...prev, course])}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <Text style={[styles.courseName, { flex: 1 }]} numberOfLines={2}>{course.subjectName}</Text>
-                      <Text style={[styles.courseMeta, { marginLeft: 8 }]}>{course.credits}학점</Text>
+                      <Text style={[styles.courseName, { flex: 1 }, isSelected && { color: C.primary }]} numberOfLines={2}>{course.subjectName}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.courseMeta, { marginLeft: 8 }]}>{course.credits}학점</Text>
+                        {isSelected && <Feather name="check-circle" size={16} color={C.primary} />}
+                      </View>
                     </View>
                     <Text style={styles.courseMeta}>{[course.professor, course.offeringDept, course.category].filter(Boolean).join(' · ')}</Text>
                     {course.timeRoom ? <Text style={[styles.courseMeta, { color: '#9CA3AF', fontSize: 11 }]} numberOfLines={1}>{course.timeRoom}</Text> : null}
                   </TouchableOpacity>
-                ))
+                  );
+                })
               )}
             </ScrollView>
 
-            {csSelected && (
+            {csSelected.length > 0 && (
               <View style={{ backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginBottom: 8 }}>
-                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.primary }} numberOfLines={1}>{csSelected.subjectName}</Text>
-                <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
-                  {csSelected.timeRoom || '시간 미정'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.primary }}>{csSelected.length}개 선택됨</Text>
+                  <TouchableOpacity onPress={() => setCsSelected([])}>
+                    <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }}>초기화</Text>
+                  </TouchableOpacity>
+                </View>
+                {csSelected.map((c, i) => (
+                  <Text key={i} style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#374151' }} numberOfLines={1}>· {c.subjectName}</Text>
+                ))}
               </View>
             )}
             <TouchableOpacity
-              style={[styles.btn, { marginHorizontal: 0, opacity: csSelected ? 1 : 0.5 }]}
+              style={[styles.btn, { marginHorizontal: 0, opacity: csSelected.length > 0 ? 1 : 0.5 }]}
               onPress={addCourseFromSearch}
-              disabled={!csSelected}
+              disabled={csSelected.length === 0}
             >
-              <Text style={styles.btnText}>{csSelected ? '시간표에 추가' : '수업을 선택하세요'}</Text>
+              <Text style={styles.btnText}>{csSelected.length > 0 ? `${csSelected.length}개 시간표에 추가` : '수업을 선택하세요'}</Text>
             </TouchableOpacity>
           </View>
         </View>
