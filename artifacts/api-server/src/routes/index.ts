@@ -7,6 +7,7 @@ import coursesRouter from "./courses";
 import mealsRouter from "./meals";
 import todosRouter from "./todos";
 import gradesRouter from "./grades";
+import noticesRouter from "./notices";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(coursesRouter);
 router.use(mealsRouter);
 router.use(todosRouter);
 router.use(gradesRouter);
+router.use(noticesRouter);
 
 export default router;
