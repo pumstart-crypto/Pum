@@ -46,6 +46,7 @@ interface ApiCourse {
   credits: number | null;
   isOnline: boolean | null;
   isForeign: boolean | null;
+  enrollmentLimit: number | null;
 }
 
 interface ParsedSlot {
@@ -989,10 +990,16 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                                 <span className="font-semibold text-sm text-foreground leading-tight">{course.subjectName}</span>
                                 {course.section && (
                                   <span className="shrink-0 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{course.section}분반</span>
+                                )}
+                                {course.isForeign && (
+                                  <span className="shrink-0 text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded font-bold">원어</span>
+                                )}
+                                {course.isOnline && (
+                                  <span className="shrink-0 text-[10px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded font-bold">원격</span>
                                 )}
                               </div>
                               {course.credits && (
@@ -1006,6 +1013,14 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
                                 )}
                                 {course.professor && <span>{course.professor} 교수</span>}
                                 {course.offeringDept && <span className="text-muted-foreground/60 truncate max-w-[120px]">{course.offeringDept}</span>}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {course.subjectCode && (
+                                  <span className="text-[10px] text-muted-foreground/50 font-mono">{course.subjectCode}</span>
+                                )}
+                                {course.enrollmentLimit && (
+                                  <span className="text-[10px] text-muted-foreground/70">정원 {course.enrollmentLimit}명</span>
+                                )}
                               </div>
                               {course.timeRoom && (
                                 <div className="text-primary/80 font-medium truncate">{course.timeRoom.replace(/<br\s*\/?>/gi, " / ")}</div>

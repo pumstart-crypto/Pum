@@ -17,6 +17,7 @@ export const coursesTable = pgTable("courses", {
   credits: integer("credits"),
   isOnline: boolean("is_online").default(false),
   isForeign: boolean("is_foreign").default(false),
+  enrollmentLimit: integer("enrollment_limit"),
 });
 
 export const insertCourseSchema = createInsertSchema(coursesTable).omit({ id: true });
