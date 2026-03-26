@@ -65,7 +65,6 @@ Expo React Native app (expo-router v6, path `/pium-mobile/`). Same features as t
 - `(tabs)/settings.tsx` — 프로필 + 설정
 - `meals.tsx` — 식단 (캠퍼스별/식당별, 주간 네비)
 - `bus.tsx` — 순환버스 시간표
-- `finance.tsx` — 가계부
 - `profile-edit.tsx` — 프로필 편집
 - `academic-calendar.tsx` — 학사일정
 - `campus-map.tsx` — 캠퍼스 지도
@@ -92,24 +91,22 @@ Expo React Native app (expo-router v6, path `/pium-mobile/`). Same features as t
 ## CampusLife App — Feature Summary
 
 ### 캠퍼스라이프 Web App (`artifacts/campus-life`)
-React + Vite app for 부산대학교 students. Bottom nav: **홈 / 게시판 / 가계부 / 설정**
+React + Vite app for 부산대학교 students. Bottom nav: **홈 / 게시판 / 설정**
 
 **Pages:**
 - `HomePage.tsx` — Date + 5 quick links (홈페이지/PLATO/도서관/식단/수강신청), weekly timetable (editable, import from 수강편람), To-do list (과제/팀플/동영상시청/기타 categories with D-day)
 - `BoardPage.tsx` — 학과 게시판 with sample posts (category tabs: 전체/공지/자유/질문/거래)
-- `FinancePage.tsx` — Income/expense tracker with monthly summary
 - `MealsPage.tsx` — Real-time cafeteria meals (POST to pusan.ac.kr PC site); campus tabs (부산/밀양/양산), restaurant tabs per campus; week navigation; 정식/일품 subMenu separation; 천원의아침(menu-tit03) support; auto-refresh
 - `SettingsPage.tsx` — Profile card + settings sections (계정/앱 설정/지원)
 
 **API Routes (api-server):**
 - `GET/POST /api/todos`, `PATCH/DELETE /api/todos/:id` — Todo CRUD
 - `GET /api/schedule`, `POST /api/schedule`, `DELETE /api/schedule/:id` — Timetable (with year/semester columns)
-- `GET /api/finance`, `POST /api/finance`, `DELETE /api/finance/:id`, `GET /api/finance/summary` — Finance
 - `GET /api/meals?restaurant=PG002&date=YYYY-MM-DD` — Weekly cafeteria meals; subMenus array per day (정식/일품/천원의아침); 3h cache; campuses: PUSAN(PG002/PH002/PG001), MIRYANG(M001/M002), YANGSAN(Y001)
 - `GET /api/courses/departments`, `GET /api/courses` — 수강편람 (4,312 courses from 13 xlsx files)
 - `GET/POST /api/grades`, `PATCH/DELETE /api/grades/:id` — Grade management CRUD
 
-**DB Tables:** `schedules` (with year/semester), `finance_entries`, `restaurant`, `courses`, `todos`, `grades` (year, semester, subjectName, credits, grade, category)
+**DB Tables:** `schedules` (with year/semester), `restaurant`, `courses`, `todos`, `grades` (year, semester, subjectName, credits, grade, category)
 
 **Note:** API routes should NOT import `zod` directly — use `@workspace/db` re-exports only (esbuild bundling limitation).
 

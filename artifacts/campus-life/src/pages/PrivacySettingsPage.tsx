@@ -342,7 +342,7 @@ export function PrivacySettingsPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
               <p className="text-xs text-red-800 leading-relaxed">
-                탈퇴 시 <strong>프로필, 시간표, 성적, 가계부, 커뮤니티 기록</strong> 등 모든 데이터가 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                탈퇴 시 <strong>프로필, 시간표, 성적, 커뮤니티 기록</strong> 등 모든 데이터가 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
               </p>
             </div>
             <button

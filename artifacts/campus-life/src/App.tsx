@@ -9,7 +9,6 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { HomePage } from "./pages/HomePage";
 import { BoardPage } from "./pages/BoardPage";
 import { SchedulePage } from "./pages/SchedulePage";
-import { FinancePage } from "./pages/FinancePage";
 import { MealsPage } from "./pages/MealsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { NoticesPage } from "./pages/NoticesPage";
@@ -86,9 +85,6 @@ function Router() {
       </Route>
       <Route path="/board/:id">
         {user ? <PostDetailPage /> : <Redirect to="/login" />}
-      </Route>
-      <Route path="/finance">
-        {user ? <FinancePage /> : <Redirect to="/login" />}
       </Route>
       <Route path="/meals">
         {user ? <MealsPage /> : <Redirect to="/login" />}

@@ -202,15 +202,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Finance shortcut */}
-        <TouchableOpacity style={styles.financeCard} onPress={() => router.push('/finance')}>
-          <View>
-            <Text style={styles.financeLabel}>가계부</Text>
-            <Text style={styles.financeDesc}>이번 달 수입·지출 현황</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.8)" />
-        </TouchableOpacity>
-
         {/* Todo */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -323,13 +314,6 @@ const styles = StyleSheet.create({
   quickItem: { width: '22%', alignItems: 'center', gap: 6 },
   quickIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#EEF4FF', justifyContent: 'center', alignItems: 'center' },
   quickLabel: { fontSize: 11, color: '#374151', fontFamily: 'Inter_500Medium', textAlign: 'center' },
-  financeCard: {
-    backgroundColor: C.primary, borderRadius: 20, padding: 20, marginBottom: 12,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 4,
-  },
-  financeLabel: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#fff' },
-  financeDesc: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2, fontFamily: 'Inter_400Regular' },
   addBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EEF4FF', justifyContent: 'center', alignItems: 'center' },
   todoItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   todoCheck: { padding: 2 },

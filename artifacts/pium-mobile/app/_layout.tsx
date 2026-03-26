@@ -49,7 +49,6 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="meals" options={{ presentation: 'card' }} />
       <Stack.Screen name="bus" options={{ presentation: 'card' }} />
-      <Stack.Screen name="finance" options={{ presentation: 'card' }} />
       <Stack.Screen name="academic-calendar" options={{ presentation: 'card' }} />
       <Stack.Screen name="campus-map" options={{ presentation: 'card' }} />
       <Stack.Screen name="profile-edit" options={{ presentation: 'card' }} />
