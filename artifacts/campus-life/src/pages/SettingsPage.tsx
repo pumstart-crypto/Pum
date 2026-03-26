@@ -10,23 +10,23 @@ const SETTINGS_SECTIONS = [
   {
     title: "계정",
     items: [
-      { icon: Bell, label: "알림 설정", desc: "푸시 알림 및 리마인더", color: "#2563EB" },
-      { icon: Shield, label: "개인정보 보호", desc: "데이터 및 보안 설정", color: "#7C3AED" },
+      { icon: Bell, label: "알림 설정", desc: "푸시 알림 및 리마인더", color: "#2563EB", route: "/settings/notifications" },
+      { icon: Shield, label: "개인정보 보호", desc: "데이터 및 보안 설정", color: "#7C3AED", route: null },
     ],
   },
   {
     title: "앱 설정",
     items: [
-      { icon: Moon, label: "다크 모드", desc: "화면 테마 설정", color: "#374151" },
-      { icon: Globe, label: "언어", desc: "한국어", color: "#059669" },
-      { icon: Smartphone, label: "앱 버전", desc: "v1.0.0 (최신)", color: "#D97706" },
+      { icon: Moon, label: "다크 모드", desc: "화면 테마 설정", color: "#374151", route: null },
+      { icon: Globe, label: "언어", desc: "한국어", color: "#059669", route: null },
+      { icon: Smartphone, label: "앱 버전", desc: "v1.0.0 (최신)", color: "#D97706", route: null },
     ],
   },
   {
     title: "지원",
     items: [
-      { icon: HelpCircle, label: "도움말 & FAQ", desc: "자주 묻는 질문", color: "#06B6D4" },
-      { icon: Info, label: "앱 정보", desc: "캠퍼스라이프 by PNU", color: "#8B5CF6" },
+      { icon: HelpCircle, label: "도움말 & FAQ", desc: "자주 묻는 질문", color: "#06B6D4", route: null },
+      { icon: Info, label: "앱 정보", desc: "캠퍼스라이프 by PNU", color: "#8B5CF6", route: null },
     ],
   },
 ];
@@ -92,6 +92,7 @@ export function SettingsPage() {
               {section.items.map((item) => (
                 <button
                   key={item.label}
+                  onClick={() => item.route && navigate(item.route)}
                   className="w-full flex items-center gap-3 p-4 hover:bg-secondary/30 transition-colors text-left"
                 >
                   <div
