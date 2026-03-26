@@ -17,8 +17,10 @@ interface Notice {
 
 interface NoticesResponse {
   notices: Notice[];
+  total: number;
   fetchedAt: string;
   cached: boolean;
+  stale?: boolean;
 }
 
 export function NoticesPage() {
@@ -70,7 +72,9 @@ export function NoticesPage() {
         </div>
         {fetchedTime && (
           <p className="text-xs text-muted-foreground mt-1">
-            {data?.cached ? "캐시됨" : "방금 업데이트"} · {fetchedTime} 기준
+            총 {data?.total ?? 0}건
+            {data?.stale ? " · 임시 캐시" : data?.cached ? " · 캐시됨" : " · 방금 업데이트"}
+            {" · "}{fetchedTime} 기준
           </p>
         )}
       </div>
