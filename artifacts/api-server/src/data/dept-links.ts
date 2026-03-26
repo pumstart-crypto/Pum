@@ -1,0 +1,60 @@
+export interface DeptLinks {
+  notice?: string;
+  jobs?: string;
+}
+
+export const DEPT_LINKS: Record<string, DeptLinks> = {
+  "국어국문학과": { notice: "https://bkorea.pusan.ac.kr/bkorea/3346/subview.do" },
+  "중어중문학과": { notice: "https://china.pusan.ac.kr/china/2652/subview.do" },
+  "일어일문학과": { notice: "https://japan.pusan.ac.kr/japan/8796/subview.do", jobs: "https://japan.pusan.ac.kr/japan/8799/subview.do" },
+  "영어영문학과": { notice: "https://pnuenglish.pusan.ac.kr/pnuenglish/8177/subview.do", jobs: "https://pnuenglish.pusan.ac.kr/pnuenglish/8313/subview.do" },
+  "불어불문학과": { notice: "https://french.pusan.ac.kr/french/5580/subview.do" },
+  "독어독문학과": { notice: "https://german.pusan.ac.kr/german/3600/subview.do", jobs: "https://german.pusan.ac.kr/german/3603/subview.do" },
+  "노어노문학과": { notice: "https://russia.pusan.ac.kr/russia/2316/subview.do", jobs: "https://russia.pusan.ac.kr/russia/3002/subview.do" },
+  "한문학과": { notice: "https://hanmun.pusan.ac.kr/hanmun/6062/subview.do" },
+  "언어정보학과": { notice: "https://linguistics.pusan.ac.kr/linguistics/8764/subview.do", jobs: "https://linguistics.pusan.ac.kr/linguistics/8765/subview.do" },
+  "사학과": { notice: "https://history.pusan.ac.kr/history/6500/subview.do" },
+  "철학과": { notice: "https://philosophy.pusan.ac.kr/philosophy/11291/subview.do" },
+  "고고학과": { notice: "https://archaeology.pusan.ac.kr/archaeology/3497/subview.do" },
+  "행정학과": { notice: "https://pub-adm.pusan.ac.kr/pub-adm/13892/subview.do", jobs: "https://pub-adm.pusan.ac.kr/pub-adm/13896/subview.do" },
+  "정치외교학과": { notice: "https://polsci.pusan.ac.kr/polsci/7498/subview.do" },
+  "사회복지학과": { notice: "https://swf.pusan.ac.kr/swf/13623/subview.do" },
+  "사회학과": { notice: "https://soc.pusan.ac.kr/soc/9355/subview.do" },
+  "심리학과": { notice: "https://psy.pusan.ac.kr/psy/2366/subview.do", jobs: "https://psy.pusan.ac.kr/psy/3173/subview.do" },
+  "문헌정보학과": { notice: "https://lais.pusan.ac.kr/lais/9201/subview.do", jobs: "https://lais.pusan.ac.kr/lais/9205/subview.do" },
+  "미디어커뮤니케이션학과": { notice: "https://comm.pusan.ac.kr/comm/12531/subview.do", jobs: "https://comm.pusan.ac.kr/comm/12533/subview.do" },
+  "수학과": { notice: "https://math.pusan.ac.kr/math/11218/subview.do", jobs: "https://math.pusan.ac.kr/math/11232/subview.do" },
+  "통계학과": { notice: "https://stat.pusan.ac.kr/stat/4227/subview.do", jobs: "https://stat.pusan.ac.kr/stat/4807/subview.do" },
+  "물리학과": { notice: "https://phys.pusan.ac.kr/phys/12920/subview.do", jobs: "https://phys.pusan.ac.kr/phys/12922/subview.do" },
+  "화학과": { notice: "https://chem.pusan.ac.kr/chem/6291/subview.do", jobs: "https://chem.pusan.ac.kr/chem/6292/subview.do" },
+  "생명과학과": { notice: "https://biology.pusan.ac.kr/biology/5536/subview.do", jobs: "https://biology.pusan.ac.kr/biology/5547/subview.do" },
+  "분자생물학과": { notice: "https://molbiology.pusan.ac.kr/molbiology/6788/subview.do" },
+  "미생물학과": { notice: "https://microbio.pusan.ac.kr/microbio/10800/subview.do", jobs: "https://microbio.pusan.ac.kr/microbio/10802/subview.do" },
+  "지질환경과학과": { notice: "https://geology.pusan.ac.kr/geology/3212/subview.do", jobs: "https://geology.pusan.ac.kr/geology/3225/subview.do" },
+  "대기환경과학과": { notice: "https://atmos.pusan.ac.kr/atmos/4950/subview.do", jobs: "https://atmos.pusan.ac.kr/atmos/14788/subview.do" },
+  "해양학과": { notice: "https://ocean.pusan.ac.kr/ocean/12798/subview.do", jobs: "https://ocean.pusan.ac.kr/ocean/12799/subview.do" },
+  "기계공학부": { notice: "https://me.pusan.ac.kr/new/sub05/sub01_01.php", jobs: "https://me.pusan.ac.kr/new/sub05/sub05.php" },
+  "고분자공학과": { notice: "https://polymer.pusan.ac.kr/polymer/3892/subview.do", jobs: "https://polymer.pusan.ac.kr/polymer/5490/subview.do" },
+  "유기소재시스템공학과": { notice: "https://omse.pusan.ac.kr/omse/9153/subview.do", jobs: "https://omse.pusan.ac.kr/omse/9154/subview.do" },
+  "화공생명공학과": { notice: "https://chemeng.pusan.ac.kr/chemeng/6432/subview.do", jobs: "https://chemeng.pusan.ac.kr/chemeng/6433/subview.do" },
+  "환경공학과": { notice: "https://pnuenv.pusan.ac.kr/pnuenv/5930/subview.do", jobs: "https://pnuenv.pusan.ac.kr/pnuenv/5932/subview.do" },
+  "전자공학전공": { notice: "https://ee.pusan.ac.kr/ee/5204/subview.do", jobs: "https://ee.pusan.ac.kr/ee/5185/subview.do" },
+  "전기공학전공": { notice: "https://eec.pusan.ac.kr/eehome/3028/subview.do", jobs: "https://eec.pusan.ac.kr/eehome/3030/subview.do" },
+  "반도체공학전공": { notice: "https://semi.pusan.ac.kr/semi/2869/subview.do", jobs: "https://semi.pusan.ac.kr/semi/2857/subview.do" },
+  "조선해양공학과": { notice: "https://naoe.pusan.ac.kr/naoe/14346/subview.do", jobs: "https://naoe.pusan.ac.kr/naoe/14348/subview.do" },
+  "재료공학부": { notice: "https://mse.pusan.ac.kr/mse/38585/subview.do", jobs: "https://mse.pusan.ac.kr/mse/38587/subview.do" },
+  "산업공학과": { notice: "https://ie.pusan.ac.kr/ie/5850/subview.do", jobs: "https://ie.pusan.ac.kr/ie/5853/subview.do" },
+  "항공우주공학과": { notice: "https://aerospace.pusan.ac.kr/aerospace/1455/subview.do", jobs: "https://aerospace.pusan.ac.kr/aerospace/1450/subview.do" },
+  "건축공학과": { notice: "https://archieng.pusan.ac.kr/archieng/8424/subview.do", jobs: "https://archieng.pusan.ac.kr/archieng/8426/subview.do" },
+  "건축학과": { notice: "https://archi.pusan.ac.kr/archi/6175/subview.do", jobs: "https://archi.pusan.ac.kr/archi/6181/subview.do" },
+  "도시공학과": { notice: "https://urban.pusan.ac.kr/urban/4184/subview.do", jobs: "https://urban.pusan.ac.kr/urban/4852/subview.do" },
+  "사회기반시스템공학과": { notice: "https://civil.pusan.ac.kr/civil/10880/subview.do" },
+  "미래도시건축환경융합전공": { notice: "https://fu.pusan.ac.kr/fu/4474/subview.do" },
+  "첨단IT자율전공": { notice: "https://it.pusan.ac.kr/it/4402/subview.do" },
+  "첨단모빌리티자율전공": { notice: "https://mo.pusan.ac.kr/mo/4426/subview.do" },
+  "첨단소재자율전공": { notice: "https://am.pusan.ac.kr/am/4498/subview.do" },
+};
+
+export function getSupportedDepts(): string[] {
+  return Object.keys(DEPT_LINKS);
+}

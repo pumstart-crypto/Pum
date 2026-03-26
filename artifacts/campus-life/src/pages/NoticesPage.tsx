@@ -3,12 +3,12 @@ import { Layout } from "@/components/Layout";
 import { Bell, School, BookOpen, Briefcase, AlertCircle, ExternalLink, Search, X,
          ChevronLeft, ChevronRight, List, Check, Construction } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DEPT_BY_COLLEGE } from "@/lib/departments";
+import { DEPT_BY_COLLEGE, SUPPORTED_DEPTS } from "@/lib/departments";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const PAGE_SIZE = 10;
 const DEPT_PREF_KEY = "campus_life_notice_dept";
-const SUPPORTED_DEPT = "산업공학과";
+const DEFAULT_DEPT = "산업공학과";
 
 /* ── Types ── */
 interface Notice {
@@ -27,12 +27,12 @@ interface NoticesResponse {
   fetchedAt: string;
   cached: boolean;
   stale?: boolean;
-  supported?: boolean;
+  noJobsBoard?: boolean;
 }
 
 /* ── localStorage helpers ── */
 function loadDept(): string {
-  try { return localStorage.getItem(DEPT_PREF_KEY) || SUPPORTED_DEPT; } catch { return SUPPORTED_DEPT; }
+  try { return localStorage.getItem(DEPT_PREF_KEY) || DEFAULT_DEPT; } catch { return DEFAULT_DEPT; }
 }
 function saveDept(d: string) {
   try { localStorage.setItem(DEPT_PREF_KEY, d); } catch { /* ignore */ }
@@ -174,7 +174,7 @@ function DeptSelectPanel({ selected, onSelect, onClose }: {
                 <div className="bg-white rounded-2xl border border-border/50 overflow-hidden divide-y divide-border/30 shadow-sm">
                   {depts.map((dept) => {
                     const isSelected = dept === selected;
-                    const isSupported = dept === SUPPORTED_DEPT;
+                    const isSupported = SUPPORTED_DEPTS.has(dept);
                     return (
                       <button
                         key={dept}
@@ -293,13 +293,20 @@ function DeptNoticesList({ subTab, query, dept }: { subTab: "notice" | "jobs"; q
   const data = dataMap[cacheKey];
   const isLoading = loadingMap[cacheKey] ?? false;
   const error = errorMap[cacheKey] ?? "";
-  const isSupported = dept === SUPPORTED_DEPT;
+  const isSupported = SUPPORTED_DEPTS.has(dept);
 
   if (!isSupported) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-4">
       <Construction className="w-12 h-12 text-muted-foreground/30" />
       <p className="text-base font-bold text-foreground">{dept}</p>
       <p className="text-sm text-muted-foreground">해당 학과 공지는 아직 준비 중입니다.<br/>더 많은 학과가 순차적으로 추가됩니다.</p>
+    </div>
+  );
+
+  if (data?.noJobsBoard) return (
+    <div className="flex flex-col items-center justify-center h-48 gap-3 text-center px-4">
+      <Briefcase className="w-10 h-10 text-muted-foreground/30" />
+      <p className="text-sm text-muted-foreground">{dept}는 별도 취업정보 게시판이 없습니다.</p>
     </div>
   );
 
@@ -405,7 +412,7 @@ export function NoticesPage() {
               </div>
             </div>
             <div className="px-5 pb-2 flex items-center gap-1.5">
-              <div className={cn("w-2 h-2 rounded-full shrink-0", selectedDept === SUPPORTED_DEPT ? "bg-green-500" : "bg-amber-400")} />
+              <div className={cn("w-2 h-2 rounded-full shrink-0", SUPPORTED_DEPTS.has(selectedDept) ? "bg-green-500" : "bg-amber-400")} />
               <span className="text-xs font-semibold text-muted-foreground">{selectedDept}</span>
               <button onClick={() => setShowDeptPanel(true)} className="text-xs text-primary font-semibold hover:underline ml-1">변경</button>
             </div>
