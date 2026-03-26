@@ -727,10 +727,10 @@ export default function ScheduleScreen() {
                 </View>
               ) : (
                 csResults.map((course, i) => {
-                  const isSelected = csSelected.some(c => c.id === course.id);
+                  const isSelected = (csSelected ?? []).some(c => c.id === course.id);
                   return (
                   <TouchableOpacity key={i} style={[styles.courseRow, isSelected && styles.courseRowSelected]}
-                    onPress={() => setCsSelected(prev => isSelected ? prev.filter(c => c.id !== course.id) : [...prev, course])}>
+                    onPress={() => setCsSelected(prev => (prev ?? []).filter(c => c.id !== course.id).concat(isSelected ? [] : [course]))}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <Text style={[styles.courseName, { flex: 1 }, isSelected && { color: C.primary }]} numberOfLines={2}>{course.subjectName}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -746,7 +746,7 @@ export default function ScheduleScreen() {
               )}
             </ScrollView>
 
-            {csSelected.length > 0 && (
+            {(csSelected?.length ?? 0) > 0 && (
               <View style={{ backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.primary }}>{csSelected.length}개 선택됨</Text>
@@ -760,11 +760,11 @@ export default function ScheduleScreen() {
               </View>
             )}
             <TouchableOpacity
-              style={[styles.btn, { marginHorizontal: 0, opacity: csSelected.length > 0 ? 1 : 0.5 }]}
+              style={[styles.btn, { marginHorizontal: 0, opacity: (csSelected?.length ?? 0) > 0 ? 1 : 0.5 }]}
               onPress={addCourseFromSearch}
-              disabled={csSelected.length === 0}
+              disabled={(csSelected?.length ?? 0) === 0}
             >
-              <Text style={styles.btnText}>{csSelected.length > 0 ? `${csSelected.length}개 시간표에 추가` : '수업을 선택하세요'}</Text>
+              <Text style={styles.btnText}>{(csSelected?.length ?? 0) > 0 ? `${csSelected.length}개 시간표에 추가` : '수업을 선택하세요'}</Text>
             </TouchableOpacity>
           </View>
         </View>
