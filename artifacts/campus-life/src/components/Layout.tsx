@@ -6,11 +6,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
 
   const navItems = [
-    { name: "홈", path: "/",        icon: "home" },
-    { name: "게시판", path: "/board",  icon: "group" },
-    { name: "시간표", path: "/schedule", icon: "calendar_view_week" },
-    { name: "가계부", path: "/finance", icon: "account_balance_wallet" },
-    { name: "설정",  path: "/settings", icon: "settings" },
+    { name: "홈",     path: "/",         icon: "home" },
+    { name: "공지",   path: "/notices",   icon: "notifications" },
+    { name: "시간표", path: "/schedule",  icon: "calendar_view_week" },
+    { name: "게시판", path: "/board",     icon: "group" },
+    { name: "설정",   path: "/settings",  icon: "settings" },
   ];
 
   return (

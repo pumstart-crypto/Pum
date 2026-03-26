@@ -10,6 +10,7 @@ import { SchedulePage } from "./pages/SchedulePage";
 import { FinancePage } from "./pages/FinancePage";
 import { MealsPage } from "./pages/MealsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { NoticesPage } from "./pages/NoticesPage";
 import { Layout } from "./components/Layout";
 
 const queryClient = new QueryClient({
@@ -40,8 +41,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
-      <Route path="/board" component={BoardPage} />
+      <Route path="/notices" component={NoticesPage} />
       <Route path="/schedule" component={SchedulePage} />
+      <Route path="/board" component={BoardPage} />
       <Route path="/finance" component={FinancePage} />
       <Route path="/meals" component={MealsPage} />
       <Route path="/settings" component={SettingsPage} />
