@@ -67,7 +67,11 @@ export function SettingsPage() {
           <div className="flex-1 min-w-0">
             <p className="font-bold text-lg text-foreground truncate">{displayName}</p>
             {displaySub && <p className="text-sm text-muted-foreground truncate">{displaySub}</p>}
-            {profile.bio && <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">"{profile.bio}"</p>}
+            {(profile.doubleMajor || profile.minor) && (
+              <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+                {[profile.doubleMajor && `복수전공 ${profile.doubleMajor}`, profile.minor && `부전공 ${profile.minor}`].filter(Boolean).join(" · ")}
+              </p>
+            )}
             <div className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-primary">
               <Edit3 className="w-3 h-3" />
               프로필 편집

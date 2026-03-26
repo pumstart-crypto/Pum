@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Check, User } from "lucide-react";
+import { ArrowLeft, Check, User, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProfile, UserProfile } from "@/hooks/useProfile";
 import { Layout } from "@/components/Layout";
@@ -21,6 +21,7 @@ const GRADE_OPTIONS = [
 ];
 
 const DEPT_OPTIONS = [
+  "없음",
   "산업공학과",
   "컴퓨터공학과",
   "전기공학과",
@@ -37,16 +38,31 @@ const DEPT_OPTIONS = [
   "기타",
 ];
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+/* ── 잠금 필드 (읽기 전용) ── */
+function LockedField({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
-        {label}{required && <span className="text-destructive ml-0.5">*</span>}
-      </label>
+      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">{label}</label>
+      <div className="flex items-center gap-2 bg-slate-100 border border-border/40 rounded-2xl px-4 py-3">
+        <span className="flex-1 text-sm text-muted-foreground">{value}</span>
+        <Lock className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+      </div>
+    </div>
+  );
+}
+
+/* ── 편집 가능 필드 ── */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">{label}</label>
       {children}
     </div>
   );
 }
+
+const inputCls = "w-full bg-slate-50 border border-border/60 rounded-2xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all";
+const selectCls = inputCls + " appearance-none cursor-pointer";
 
 export function ProfileEditPage() {
   const [, navigate] = useLocation();
@@ -55,22 +71,22 @@ export function ProfileEditPage() {
   const [form, setForm] = useState<UserProfile>({ ...profile });
   const [saved, setSaved] = useState(false);
 
-  const set = (k: keyof UserProfile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof UserProfile) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSave = () => {
-    updateProfile(form);
+    updateProfile({
+      grade: form.grade,
+      doubleMajor: form.doubleMajor,
+      minor: form.minor,
+      avatarColor: form.avatarColor,
+    });
     setSaved(true);
-    setTimeout(() => {
-      navigate("/settings");
-    }, 600);
+    setTimeout(() => navigate("/settings"), 600);
   };
 
-  const displayName = form.name.trim() || "학생";
-  const initial = displayName[0];
-
-  const inputCls = "w-full bg-slate-50 border border-border/60 rounded-2xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all";
-  const selectCls = inputCls + " appearance-none cursor-pointer";
+  const initial = profile.name.trim() ? profile.name[0] : "학";
 
   return (
     <Layout hideTopBar>
@@ -90,22 +106,18 @@ export function ProfileEditPage() {
                 ? "bg-green-500 text-white"
                 : "bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/30"
             )}>
-            {saved ? <Check className="w-4 h-4" /> : null}
+            {saved && <Check className="w-4 h-4" />}
             {saved ? "저장됨" : "저장"}
           </button>
         </div>
       </div>
 
       <div className="px-4 pb-28 space-y-6">
-        {/* ── Avatar Section ── */}
+        {/* ── Avatar ── */}
         <div className="flex flex-col items-center py-6 gap-4">
-          <div className="w-24 h-24 rounded-full flex items-center justify-center shadow-lg transition-all"
+          <div className="w-24 h-24 rounded-full flex items-center justify-center shadow-lg"
             style={{ backgroundColor: form.avatarColor }}>
-            {form.name.trim() ? (
-              <span className="text-4xl font-bold text-white">{initial}</span>
-            ) : (
-              <User className="w-10 h-10 text-white" />
-            )}
+            <span className="text-4xl font-bold text-white">{initial}</span>
           </div>
           <div>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider text-center mb-2">아바타 색상</p>
@@ -114,58 +126,36 @@ export function ProfileEditPage() {
                 <button key={color} onClick={() => setForm((f) => ({ ...f, avatarColor: color }))}
                   className="w-8 h-8 rounded-full transition-transform hover:scale-110 active:scale-95 flex items-center justify-center"
                   style={{ backgroundColor: color }}>
-                  {form.avatarColor === color && (
-                    <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                  )}
+                  {form.avatarColor === color && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ── Form Fields ── */}
-        <Field label="이름" required>
-          <input
-            type="text"
-            value={form.name}
-            onChange={set("name")}
-            placeholder="이름을 입력하세요"
-            maxLength={20}
-            className={inputCls}
-          />
-        </Field>
+        {/* ── 학생증 인증 안내 ── */}
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
+          <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-700 leading-relaxed">
+            이름, 학과, 전공, 학번은 회원가입 시 <span className="font-bold">학생증 인증</span>으로 확인된 정보입니다. 변경이 필요하면 학교 포털에 문의하세요.
+          </p>
+        </div>
 
-        <Field label="학과">
-          <select value={form.department} onChange={set("department")} className={selectCls}>
-            {DEPT_OPTIONS.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </Field>
+        {/* ── 잠긴 필드들 ── */}
+        <div className="space-y-4">
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">인증된 정보</p>
+          <LockedField label="이름" value={profile.name} />
+          <div className="grid grid-cols-2 gap-3">
+            <LockedField label="학과" value={profile.department} />
+            <LockedField label="학번" value={profile.studentId} />
+          </div>
+          <LockedField label="전공" value={profile.major} />
+        </div>
 
-        <Field label="전공">
-          <input
-            type="text"
-            value={form.major}
-            onChange={set("major")}
-            placeholder="전공을 입력하세요"
-            maxLength={30}
-            className={inputCls}
-          />
-        </Field>
+        {/* ── 편집 가능 필드들 ── */}
+        <div className="space-y-4">
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">수정 가능한 정보</p>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="학번">
-            <input
-              type="text"
-              value={form.studentId}
-              onChange={set("studentId")}
-              placeholder="202312345"
-              maxLength={10}
-              inputMode="numeric"
-              className={inputCls}
-            />
-          </Field>
           <Field label="학년">
             <select value={form.grade} onChange={set("grade")} className={selectCls}>
               {GRADE_OPTIONS.map(({ value, label }) => (
@@ -173,21 +163,25 @@ export function ProfileEditPage() {
               ))}
             </select>
           </Field>
+
+          <Field label="복수전공">
+            <select value={form.doubleMajor} onChange={set("doubleMajor")} className={selectCls}>
+              {DEPT_OPTIONS.map((d) => (
+                <option key={d} value={d === "없음" ? "" : d}>{d}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="부전공">
+            <select value={form.minor} onChange={set("minor")} className={selectCls}>
+              {DEPT_OPTIONS.map((d) => (
+                <option key={d} value={d === "없음" ? "" : d}>{d}</option>
+              ))}
+            </select>
+          </Field>
         </div>
 
-        <Field label="한줄 소개">
-          <textarea
-            value={form.bio}
-            onChange={set("bio")}
-            placeholder="자신을 한 문장으로 소개해 보세요"
-            maxLength={60}
-            rows={3}
-            className={inputCls + " resize-none"}
-          />
-          <p className="text-xs text-muted-foreground text-right px-1">{form.bio.length}/60</p>
-        </Field>
-
-        {/* ── Save Button (bottom) ── */}
+        {/* ── 저장 버튼 ── */}
         <button onClick={handleSave}
           className={cn(
             "w-full py-4 rounded-2xl text-sm font-bold transition-all shadow-sm",

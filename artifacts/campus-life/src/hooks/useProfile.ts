@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export interface UserProfile {
   name: string;
@@ -6,19 +6,21 @@ export interface UserProfile {
   major: string;
   studentId: string;
   grade: string;
-  bio: string;
+  doubleMajor: string;
+  minor: string;
   avatarColor: string;
 }
 
 const STORAGE_KEY = "campus_life_profile";
 
 const DEFAULT_PROFILE: UserProfile = {
-  name: "",
+  name: "홍길동",
   department: "산업공학과",
   major: "산업공학전공",
-  studentId: "",
+  studentId: "202312345",
   grade: "1",
-  bio: "",
+  doubleMajor: "",
+  minor: "",
   avatarColor: "#00427D",
 };
 
