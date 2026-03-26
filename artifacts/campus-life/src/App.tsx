@@ -12,6 +12,7 @@ import { MealsPage } from "./pages/MealsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { NoticesPage } from "./pages/NoticesPage";
 import { ProfileEditPage } from "./pages/ProfileEditPage";
+import { AcademicCalendarPage } from "./pages/AcademicCalendarPage";
 import { Layout } from "./components/Layout";
 
 const queryClient = new QueryClient({
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/meals" component={MealsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/settings/profile" component={ProfileEditPage} />
+      <Route path="/academic-calendar" component={AcademicCalendarPage} />
       <Route component={NotFound} />
     </Switch>
   );

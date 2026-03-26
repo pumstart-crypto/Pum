@@ -16,7 +16,7 @@ const QUICK_LINKS = [
   { label: "PLATO",    icon: "school",          href: "https://plato.pusan.ac.kr", external: true },
   { label: "도서관",   icon: "local_library",   href: "https://lib.pusan.ac.kr", external: true },
   { label: "식단",     icon: "restaurant",      href: "/meals", external: false },
-  { label: "학사일정", icon: "event_note",      href: "https://www.pusan.ac.kr/kor/CMS/UnivSchedule/listPage.do", external: true },
+  { label: "학사일정", icon: "event_note",      href: "/academic-calendar", external: false },
   { label: "학생지원", icon: "help_center",     href: "https://student.pusan.ac.kr", external: true },
 ];
 
