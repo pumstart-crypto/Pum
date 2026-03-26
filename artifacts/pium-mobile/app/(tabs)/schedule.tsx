@@ -293,7 +293,7 @@ export default function ScheduleScreen() {
       await Promise.all(validCourses.flatMap(course => {
         const slots = parseTimeRoom(course.timeRoom || '', addMinutes);
         return slots.map(slot =>
-          fetch(`${API}/schedules`, {
+          fetch(`${API}/schedule`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -303,7 +303,7 @@ export default function ScheduleScreen() {
               dayOfWeek: slot.dayOfWeek,
               startTime: slot.startTime,
               endTime: slot.endTime,
-              credit: course.credits || 0,
+              credits: course.credits || 0,
             }),
           })
         );
