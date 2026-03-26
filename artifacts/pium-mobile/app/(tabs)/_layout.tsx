@@ -10,11 +10,11 @@ const isIOS = Platform.OS === 'ios';
 const isWeb = Platform.OS === 'web';
 
 const TAB_ITEMS = [
-  { name: 'index',    label: '홈',     iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',        sfOutline: 'house' },
-  { name: 'notices',  label: '공지',   iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',         sfOutline: 'bell' },
-  { name: 'schedule', label: '시간표', iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
-  { name: 'board',    label: '커뮤니티', iconFill: 'people',      iconOutline: 'people-outline',        sfFill: 'person.2.fill',     sfOutline: 'person.2' },
-  { name: 'settings', label: '설정',   iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',    sfOutline: 'gearshape' },
+  { name: 'index',    label: '홈',      iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',           sfOutline: 'house' },
+  { name: 'notices',  label: '공지',    iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',            sfOutline: 'bell' },
+  { name: 'schedule', label: '시간표',  iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
+  { name: 'board',    label: '커뮤니티', iconFill: 'people',       iconOutline: 'people-outline',        sfFill: 'person.2.fill',        sfOutline: 'person.2' },
+  { name: 'settings', label: '설정',    iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',       sfOutline: 'gearshape' },
 ] as const;
 
 function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
@@ -29,9 +29,9 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
     return (
       <View style={styles.activePill}>
         {isIOS ? (
-          <SymbolView name={sfFill as any} tintColor="#fff" size={19} />
+          <SymbolView name={sfFill as any} tintColor="#fff" size={18} />
         ) : (
-          <Ionicons name={iconFill as any} size={19} color="#fff" />
+          <Ionicons name={iconFill as any} size={18} color="#fff" />
         )}
         <Text style={styles.activeLabel} numberOfLines={1}>{label}</Text>
       </View>
@@ -41,18 +41,16 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
   return (
     <View style={styles.inactiveItem}>
       {isIOS ? (
-        <SymbolView name={sfOutline as any} tintColor="#9CA3AF" size={22} />
+        <SymbolView name={sfOutline as any} tintColor="#9CA3AF" size={21} />
       ) : (
-        <Ionicons name={iconOutline as any} size={22} color="#9CA3AF" />
+        <Ionicons name={iconOutline as any} size={21} color="#9CA3AF" />
       )}
-      <Text style={styles.inactiveLabel}>{label}</Text>
+      <Text style={styles.inactiveLabel} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
 
 export default function TabLayout() {
-  const tabBarHeight = isWeb ? 84 : 72;
-
   return (
     <Tabs
       screenOptions={{
@@ -63,16 +61,22 @@ export default function TabLayout() {
           backgroundColor: 'transparent',
           borderTopWidth: 0,
           elevation: 0,
-          height: tabBarHeight,
-          paddingBottom: isWeb ? 16 : 8,
-          paddingTop: 8,
-          paddingHorizontal: 4,
+          height: isWeb ? 88 : 80,
+          paddingTop: 0,
+          paddingBottom: 0,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.07,
           shadowRadius: 20,
+        },
+        tabBarItemStyle: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 0,
+          height: '100%',
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -117,15 +121,14 @@ const styles = StyleSheet.create({
   },
 
   activePill: {
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
     backgroundColor: C.primary,
-    borderRadius: 16,
+    borderRadius: 14,
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    minWidth: 56,
+    paddingVertical: 7,
+    minWidth: 54,
   },
   activeLabel: {
     fontSize: 11,
@@ -135,8 +138,8 @@ const styles = StyleSheet.create({
 
   inactiveItem: {
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 3,
-    paddingTop: 2,
   },
   inactiveLabel: {
     fontSize: 10,
