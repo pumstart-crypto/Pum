@@ -682,7 +682,7 @@ export default function ScheduleScreen() {
             </View>
 
             {/* Year filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
               {YEAR_FILTERS.map(y => (
                 <TouchableOpacity key={y} style={[styles.filterChip, csYear === y && styles.filterChipActive]} onPress={() => setCsYear(y)}>
                   <Text style={[styles.filterChipText, csYear === y && styles.filterChipTextActive]}>{y}</Text>
@@ -691,7 +691,7 @@ export default function ScheduleScreen() {
             </ScrollView>
 
             {/* Category filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
               {CATEGORY_FILTERS.map(c => (
                 <TouchableOpacity key={c} style={[styles.filterChip, csCategory === c && styles.filterChipActive]} onPress={() => setCsCategory(c)}>
                   <Text style={[styles.filterChipText, csCategory === c && styles.filterChipTextActive]}>{c}</Text>
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
   csDropdownText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#111827' },
   csSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 },
   csSearchInput: { flex: 1, fontSize: 14, color: '#111827', fontFamily: 'Inter_400Regular', padding: 0 },
-  filterRow: { marginBottom: 8 },
+  filterRow: { marginBottom: 8, height: 26, overflow: 'hidden' },
   filterChip: { height: 26, paddingHorizontal: 12, paddingVertical: 0, borderRadius: 13, backgroundColor: '#F3F4F6', marginRight: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   filterChipActive: { backgroundColor: C.primary },
   filterChipSearch: {},
