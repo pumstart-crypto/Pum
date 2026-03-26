@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/pium-mobile/"
+title = "P:um 피움 - 모바일 앱"
+version = "1.0.0"
+id = "artifacts/pium-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/pium-mobile/" ]
+localPort = 20943
+
+[services.development]
+run = "pnpm --filter @workspace/pium-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pium-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/pium-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "20943"
+BASE_PATH = "/pium-mobile/"

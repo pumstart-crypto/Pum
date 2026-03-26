@@ -1,4 +1,4 @@
-# 캠퍼스라이프 — 부산대학교 학생 생활관리 앱
+# P:um 피움 — 부산대학교 학생 생활관리 앱
 
 ## Overview
 
@@ -48,6 +48,46 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+
+## P:um 피움 Mobile App (`artifacts/pium-mobile`)
+
+Expo React Native app (expo-router v6, path `/pium-mobile/`). Same features as the web app.
+
+**Tabs (5):** 홈 / 공지 / 시간표 / 커뮤니티 / 설정
+
+**Screens:**
+- `login.tsx` — P:um 로고, 아이디/비밀번호 입력, 로그인
+- `register.tsx` — 3단계 회원가입 (계정/전화/학생증), SMS 인증
+- `(tabs)/index.tsx` — 홈 (오늘 시간표, 할일, 바로가기)
+- `(tabs)/notices.tsx` — 공지사항 (학교/학과/서비스 탭)
+- `(tabs)/schedule.tsx` — 시간표 + 성적 (그리드 뷰, 과목 추가/삭제)
+- `(tabs)/board.tsx` — 커뮤니티 게시판
+- `(tabs)/settings.tsx` — 프로필 + 설정
+- `meals.tsx` — 식단 (캠퍼스별/식당별, 주간 네비)
+- `bus.tsx` — 순환버스 시간표
+- `finance.tsx` — 가계부
+- `profile-edit.tsx` — 프로필 편집
+- `academic-calendar.tsx` — 학사일정
+- `campus-map.tsx` — 캠퍼스 지도
+- `notifications-inbox.tsx` — 알림함
+- `notification-settings.tsx` — 알림 설정
+- `privacy-settings.tsx` — 개인정보 설정
+- `post/[id].tsx` — 게시글 상세
+- `restaurant/index.tsx` — 식당 목록
+- `restaurant/[id].tsx` — 식당 상세
+
+**Key files:**
+- `contexts/AuthContext.tsx` — 인증 (JWT, AsyncStorage `campus_life_token`)
+- `hooks/useProfile.ts` — 프로필 (AsyncStorage `campus_life_profile`)
+- `constants/colors.ts` — primary: `#00427D`
+- `components/ErrorBoundary.tsx` — 에러 경계
+
+**API Integration:**
+- `setBaseUrl()`/`setAuthTokenGetter()` — `app/_layout.tsx` 모듈 레벨에서 설정
+- `@workspace/api-client-react` 훅 사용 (useGetSchedules 등)
+- 직접 fetch: `https://${EXPO_PUBLIC_DOMAIN}/api`
+
+---
 
 ## CampusLife App — Feature Summary
 
