@@ -682,22 +682,26 @@ export default function ScheduleScreen() {
             </View>
 
             {/* Year filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-              {YEAR_FILTERS.map(y => (
-                <TouchableOpacity key={y} style={[styles.filterChip, csYear === y && styles.filterChipActive]} onPress={() => setCsYear(y)}>
-                  <Text style={[styles.filterChipText, csYear === y && styles.filterChipTextActive]}>{y}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={styles.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                {YEAR_FILTERS.map(y => (
+                  <TouchableOpacity key={y} style={[styles.filterChip, csYear === y && styles.filterChipActive]} onPress={() => setCsYear(y)}>
+                    <Text style={[styles.filterChipText, csYear === y && styles.filterChipTextActive]}>{y}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
 
             {/* Category filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-              {CATEGORY_FILTERS.map(c => (
-                <TouchableOpacity key={c} style={[styles.filterChip, csCategory === c && styles.filterChipActive]} onPress={() => setCsCategory(c)}>
-                  <Text style={[styles.filterChipText, csCategory === c && styles.filterChipTextActive]}>{c}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={styles.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                {CATEGORY_FILTERS.map(c => (
+                  <TouchableOpacity key={c} style={[styles.filterChip, csCategory === c && styles.filterChipActive]} onPress={() => setCsCategory(c)}>
+                    <Text style={[styles.filterChipText, csCategory === c && styles.filterChipTextActive]}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
 
             {/* Search button */}
             <TouchableOpacity
