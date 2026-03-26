@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { loadProfileAsync } from '@/hooks/useProfile';
 import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -53,21 +55,36 @@ export default function NoticesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
+  const [userDept, setUserDept] = useState('');
   const PER_PAGE = 15;
+
+  useEffect(() => {
+    loadProfileAsync().then(p => setUserDept(p.department || ''));
+  }, []);
 
   const fetchNotices = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (search) params.set('q', search);
       const r = await fetch(`${API}/notices?${params}`);
-      if (r.ok) setNotices(await r.json());
+      if (r.ok) {
+        const data = await r.json();
+        setNotices(Array.isArray(data) ? data : (data.notices ?? []));
+      }
     } catch {}
   }, [search]);
 
   const fetchDeptNotices = useCallback(async () => {
+    const profile = await loadProfileAsync();
+    const dept = profile.department;
+    if (!dept) return;
     try {
-      const r = await fetch(`${API}/dept-notices`);
-      if (r.ok) setDeptNotices(await r.json());
+      const params = new URLSearchParams({ dept });
+      const r = await fetch(`${API}/dept-notices?${params}`);
+      if (r.ok) {
+        const data = await r.json();
+        setDeptNotices(Array.isArray(data) ? data : (data.notices ?? []));
+      }
     } catch {}
   }, []);
 
@@ -130,6 +147,15 @@ export default function NoticesScreen() {
       >
         {loading ? (
           <ActivityIndicator color={C.primary} style={{ marginTop: 40 }} />
+        ) : tab === 'dept' && !userDept ? (
+          <View style={styles.emptyState}>
+            <Feather name="info" size={40} color="#D1D5DB" />
+            <Text style={styles.emptyText}>학과를 설정하면{'\n'}학과 공지를 볼 수 있어요</Text>
+            <TouchableOpacity style={styles.setDeptBtn} onPress={() => router.push('/profile-edit' as any)}>
+              <Text style={styles.setDeptBtnText}>프로필에서 학과 설정하기</Text>
+              <Feather name="arrow-right" size={14} color={C.primary} />
+            </TouchableOpacity>
+          </View>
         ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="bell-off" size={40} color="#D1D5DB" />
@@ -206,7 +232,9 @@ const styles = StyleSheet.create({
   tabBtnTextActive: { color: C.primary },
   list: { paddingHorizontal: 16, paddingTop: 12 },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+  emptyText: { fontSize: 15, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
+  setDeptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#EEF4FF', borderRadius: 12 },
+  setDeptBtnText: { fontSize: 14, color: C.primary, fontFamily: 'Inter_600SemiBold' },
   noticeCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,

@@ -79,8 +79,11 @@ export default function BoardScreen() {
       const params = new URLSearchParams();
       if (activeTab !== '전체') params.set('category', activeTab);
       params.set('limit', '100');
-      const r = await fetch(`${API}/community/posts?${params}`);
-      if (r.ok) setPosts(await r.json());
+      const r = await fetch(`${API}/community?${params}`);
+      if (r.ok) {
+        const data = await r.json();
+        setPosts(Array.isArray(data) ? data : (data.posts ?? []));
+      }
     } catch {}
     finally { setLoading(false); }
   }, [activeTab]);
@@ -99,7 +102,7 @@ export default function BoardScreen() {
     setSubmitting(true);
     try {
       const author = await getAuthor();
-      const r = await fetch(`${API}/community/posts`, {
+      const r = await fetch(`${API}/community`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: writeTitle.trim(), content: writeContent.trim(), category: writeCat, author }),

@@ -73,11 +73,14 @@ export default function PostDetailScreen() {
   const fetchPost = useCallback(async () => {
     try {
       const [pr, cr] = await Promise.all([
-        fetch(`${API}/community/posts/${id}`),
-        fetch(`${API}/community/posts/${id}/comments`),
+        fetch(`${API}/community/${id}`),
+        fetch(`${API}/community/${id}/comments`),
       ]);
       if (pr.ok) setPost(await pr.json());
-      if (cr.ok) setComments(await cr.json());
+      if (cr.ok) {
+        const data = await cr.json();
+        setComments(Array.isArray(data) ? data : (data.comments ?? []));
+      }
     } catch {}
     finally { setLoading(false); }
   }, [id]);
@@ -89,7 +92,7 @@ export default function PostDetailScreen() {
     setSubmitting(true);
     try {
       const author = await getAuthor();
-      const r = await fetch(`${API}/community/posts/${id}/comments`, {
+      const r = await fetch(`${API}/community/${id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: commentText.trim(), author }),
@@ -107,7 +110,7 @@ export default function PostDetailScreen() {
     Alert.alert('삭제', '댓글을 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => {
-        await fetch(`${API}/community/posts/${id}/comments/${cid}`, { method: 'DELETE' });
+        await fetch(`${API}/community/${id}/comments/${cid}`, { method: 'DELETE' });
         setComments(prev => prev.filter(c => c.id !== cid));
       }},
     ]);
