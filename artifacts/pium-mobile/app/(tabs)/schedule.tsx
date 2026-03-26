@@ -78,11 +78,33 @@ const TOTAL_GRAD = GRAD_REQS.reduce((s, r) => s + r.required, 0);
 const ISU_OPTIONS = ['전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
 const YEAR_FILTERS = ['전체', '1학년', '2학년', '3학년', '4학년'];
 const CATEGORY_FILTERS = ['전체', '전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
-const DEPT_LIST = [
-  '컴퓨터공학과','전자공학과','기계공학부','화학공학부','경영학과','경제학과',
-  '국어국문학과','영어영문학과','수학과','물리학과','화학과','생명과학부',
-  '간호학과','의학과','법학전문대학원','사범대학','예술대학','사회학과',
-];
+const DAY_MAP: Record<string, number> = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
+
+function parseTimeRoom(timeRoom: string, addMinutesFn: (t: string, m: number) => string) {
+  if (!timeRoom) return [];
+  const parts = timeRoom.split(/,\s*(?=[월화수목금토일]\s)/);
+  const results: { dayOfWeek: number; startTime: string; endTime: string; location: string }[] = [];
+  for (const part of parts) {
+    const dayMatch = part.match(/^([월화수목금토일])\s+(\d{1,2}:\d{2})/);
+    if (!dayMatch) continue;
+    const dayOfWeek = DAY_MAP[dayMatch[1]];
+    const startTime = dayMatch[2].padStart(5, '0');
+    const rangeMatch = part.match(/(\d{1,2}:\d{2})-(\d{1,2}:\d{2})/);
+    const durMatch = part.match(/(\d{1,2}:\d{2})\((\d+)\)/);
+    let endTime: string;
+    if (rangeMatch) {
+      endTime = rangeMatch[2].padStart(5, '0');
+    } else if (durMatch) {
+      endTime = addMinutesFn(durMatch[1].padStart(5, '0'), parseInt(durMatch[2]));
+    } else {
+      endTime = addMinutesFn(startTime, 75);
+    }
+    const locMatch = part.match(/\d{2}:\d{2}(?:-\d{2}:\d{2}|\(\d+\))?\s+(.+)$/);
+    let location = locMatch ? locMatch[1].replace(/\(외부\)\S*/g, '외부').trim() : '';
+    results.push({ dayOfWeek, startTime, endTime, location });
+  }
+  return results;
+}
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -130,6 +152,7 @@ export default function ScheduleScreen() {
 
   // Course search
   const [csDept, setCsDept] = useState('');
+  const [csDeptSearch, setCsDeptSearch] = useState('');
   const [csYear, setCsYear] = useState('전체');
   const [csCategory, setCsCategory] = useState('전체');
   const [csKeyword, setCsKeyword] = useState('');
@@ -137,6 +160,8 @@ export default function ScheduleScreen() {
   const [csLoading, setCsLoading] = useState(false);
   const [csSelected, setCsSelected] = useState<any>(null);
   const [showDeptPicker, setShowDeptPicker] = useState(false);
+  const [deptList, setDeptList] = useState<string[]>([]);
+  const [deptsLoading, setDeptsLoading] = useState(false);
 
   // Grade form
   const [gSubject, setGSubject] = useState('');
@@ -176,6 +201,19 @@ export default function ScheduleScreen() {
     if (t === 'grades' && !gradesFetched) fetchGrades();
   };
 
+  useEffect(() => {
+    if (showCourseSearch) {
+      setCsDept('');
+      setCsDeptSearch('');
+      setCsYear('전체');
+      setCsCategory('전체');
+      setCsKeyword('');
+      setCsResults([]);
+      setCsSelected(null);
+      fetchDepts(currentSem.year, currentSem.sem);
+    }
+  }, [showCourseSearch]);
+
   const toggleDay = (i: number) => {
     setDDays(prev => prev.includes(i) ? prev.filter(d => d !== i) : [...prev, i]);
   };
@@ -213,15 +251,27 @@ export default function ScheduleScreen() {
     ]);
   };
 
+  const fetchDepts = useCallback(async (year: number, sem: string) => {
+    setDeptsLoading(true);
+    try {
+      const r = await fetch(`${API}/courses/departments?catalogYear=${year}&catalogSemester=${sem}`);
+      if (r.ok) setDeptList(await r.json());
+    } catch {}
+    finally { setDeptsLoading(false); }
+  }, []);
+
   const searchCourses = async () => {
-    if (!csDept && !csKeyword) return;
+    if (!csDept && !csKeyword && csCategory === '전체' && csYear === '전체') return;
     setCsLoading(true);
+    setCsSelected(null);
     try {
       const params = new URLSearchParams();
+      params.set('catalogYear', String(currentSem.year));
+      params.set('catalogSemester', currentSem.sem);
       if (csDept) params.set('dept', csDept);
-      if (csYear !== '전체') params.set('year', csYear.replace('학년', ''));
+      if (csYear !== '전체') params.set('gradeYear', csYear.replace('학년', ''));
       if (csCategory !== '전체') params.set('category', csCategory);
-      if (csKeyword) params.set('keyword', csKeyword);
+      if (csKeyword) params.set('search', csKeyword);
       const r = await fetch(`${API}/courses?${params}`);
       if (r.ok) setCsResults(await r.json());
       else setCsResults([]);
@@ -231,17 +281,27 @@ export default function ScheduleScreen() {
 
   const addCourseFromSearch = async () => {
     if (!csSelected) return;
+    const slots = parseTimeRoom(csSelected.timeRoom || '', addMinutes);
+    if (slots.length === 0) {
+      Alert.alert('시간 정보 없음', '이 강의는 시간표 정보가 없습니다.\n직접 추가를 이용해 주세요.');
+      return;
+    }
     try {
-      await fetch(`${API}/schedules`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subjectName: csSelected.name, professor: csSelected.professor,
-          location: csSelected.location, dayOfWeek: csSelected.dayOfWeek,
-          startTime: csSelected.startTime, endTime: csSelected.endTime,
-          credit: csSelected.credit,
-        }),
-      });
+      await Promise.all(slots.map(slot =>
+        fetch(`${API}/schedules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subjectName: csSelected.subjectName,
+            professor: csSelected.professor || '',
+            location: slot.location || '',
+            dayOfWeek: slot.dayOfWeek,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            credit: csSelected.credits || 0,
+          }),
+        })
+      ));
       await refetch();
       setShowCourseSearch(false);
       setCsSelected(null);
@@ -632,6 +692,14 @@ export default function ScheduleScreen() {
               ))}
             </ScrollView>
 
+            {/* Search button */}
+            <TouchableOpacity
+              style={{ backgroundColor: C.primary, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginBottom: 8 }}
+              onPress={searchCourses}
+            >
+              <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#fff' }}>검색</Text>
+            </TouchableOpacity>
+
             {/* Results */}
             <ScrollView style={styles.csResults} showsVerticalScrollIndicator={false}>
               {csLoading ? (
@@ -645,19 +713,31 @@ export default function ScheduleScreen() {
                 csResults.map((course, i) => (
                   <TouchableOpacity key={i} style={[styles.courseRow, csSelected?.id === course.id && styles.courseRowSelected]}
                     onPress={() => setCsSelected(course)}>
-                    <Text style={styles.courseName}>{course.name}</Text>
-                    <Text style={styles.courseMeta}>{course.professor} · {course.credit}학점</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Text style={[styles.courseName, { flex: 1 }]} numberOfLines={2}>{course.subjectName}</Text>
+                      <Text style={[styles.courseMeta, { marginLeft: 8 }]}>{course.credits}학점</Text>
+                    </View>
+                    <Text style={styles.courseMeta}>{[course.professor, course.offeringDept, course.category].filter(Boolean).join(' · ')}</Text>
+                    {course.timeRoom ? <Text style={[styles.courseMeta, { color: '#9CA3AF', fontSize: 11 }]} numberOfLines={1}>{course.timeRoom}</Text> : null}
                   </TouchableOpacity>
                 ))
               )}
             </ScrollView>
 
+            {csSelected && (
+              <View style={{ backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: C.primary }} numberOfLines={1}>{csSelected.subjectName}</Text>
+                <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
+                  {csSelected.timeRoom || '시간 미정'}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity
               style={[styles.btn, { marginHorizontal: 0, opacity: csSelected ? 1 : 0.5 }]}
               onPress={addCourseFromSearch}
               disabled={!csSelected}
             >
-              <Text style={styles.btnText}>수업을 선택하세요</Text>
+              <Text style={styles.btnText}>{csSelected ? '시간표에 추가' : '수업을 선택하세요'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -665,18 +745,32 @@ export default function ScheduleScreen() {
         {/* Dept picker */}
         <Modal visible={showDeptPicker} transparent animationType="fade" onRequestClose={() => setShowDeptPicker(false)}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDeptPicker(false)}>
-            <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { maxHeight: '70%' }]}>
+            <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { maxHeight: '75%' }]}>
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>학과/학부 선택</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {DEPT_LIST.map(d => (
-                  <TouchableOpacity key={d} style={[styles.deptRow, csDept === d && styles.deptRowActive]}
-                    onPress={() => { setCsDept(d); setShowDeptPicker(false); searchCourses(); }}>
-                    <Text style={[styles.deptText, csDept === d && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>{d}</Text>
-                    {csDept === d && <Feather name="check" size={16} color={C.primary} />}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, marginHorizontal: 16, marginBottom: 8 }}>
+                <Feather name="search" size={14} color="#9CA3AF" />
+                <TextInput
+                  style={{ flex: 1, paddingVertical: 8, paddingLeft: 8, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#111827' }}
+                  value={csDeptSearch}
+                  onChangeText={setCsDeptSearch}
+                  placeholder="학과 검색"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              {deptsLoading ? (
+                <ActivityIndicator color={C.primary} style={{ marginTop: 20 }} />
+              ) : (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {(csDeptSearch ? deptList.filter(d => d.includes(csDeptSearch)) : deptList).map(d => (
+                    <TouchableOpacity key={d} style={[styles.deptRow, csDept === d && styles.deptRowActive]}
+                      onPress={() => { setCsDept(d); setCsDeptSearch(''); setShowDeptPicker(false); }}>
+                      <Text style={[styles.deptText, csDept === d && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>{d}</Text>
+                      {csDept === d && <Feather name="check" size={16} color={C.primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
