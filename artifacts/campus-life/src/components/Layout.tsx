@@ -1,9 +1,36 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
+const NOTIF_SETTINGS_KEY = "campus_life_notifications";
+const NOTIF_READ_KEY = "campus_life_notif_read";
+
+function useUnreadCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const calc = () => {
+      try {
+        const settings = { schoolNotice: true, deptNotice: true, communityComment: true, communityHot: false, academicDDay: true, mealOpen: false, ...JSON.parse(localStorage.getItem(NOTIF_SETTINGS_KEY) || "{}") };
+        const readArr: string[] = JSON.parse(localStorage.getItem(NOTIF_READ_KEY) || "[]");
+        const visibleIds = ["n1","n2","n3","n4","n5","n6","n7","n8","n9"].filter((_, i) => {
+          const cats = ["academicDDay","mealOpen","schoolNotice","communityComment","deptNotice","communityHot","schoolNotice","academicDDay","deptNotice"];
+          const cat = cats[i] as keyof typeof settings;
+          return settings[cat];
+        });
+        setCount(visibleIds.filter(id => !readArr.includes(id)).length);
+      } catch { setCount(0); }
+    };
+    calc();
+    window.addEventListener("storage", calc);
+    window.addEventListener("focus", calc);
+    return () => { window.removeEventListener("storage", calc); window.removeEventListener("focus", calc); };
+  }, []);
+  return count;
+}
+
 export function Layout({ children, hideTopBar, hideBottomNav }: { children: ReactNode; hideTopBar?: boolean; hideBottomNav?: boolean }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const unreadCount = useUnreadCount();
 
   const navItems = [
     { name: "홈",     path: "/",         icon: "home" },
@@ -28,8 +55,16 @@ export function Layout({ children, hideTopBar, hideBottomNav }: { children: Reac
                 P:um
               </h1>
             </div>
-            <button className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors">
+            <button
+              onClick={() => navigate("/notifications")}
+              className="relative p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors"
+            >
               <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
           </header>
         )}

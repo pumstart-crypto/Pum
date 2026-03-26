@@ -19,6 +19,7 @@ import { BusPage } from "./pages/BusPage";
 import { CampusMapPage } from "./pages/CampusMapPage";
 import { PostDetailPage } from "./pages/PostDetailPage";
 import { NotificationSettingsPage } from "./pages/NotificationSettingsPage";
+import { NotificationsInboxPage } from "./pages/NotificationsInboxPage";
 import { PrivacySettingsPage } from "./pages/PrivacySettingsPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -97,6 +98,9 @@ function Router() {
       </Route>
       <Route path="/settings/profile">
         {user ? <ProfileEditPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/notifications">
+        {user ? <NotificationsInboxPage /> : <Redirect to="/login" />}
       </Route>
       <Route path="/settings/notifications">
         {user ? <NotificationSettingsPage /> : <Redirect to="/login" />}
