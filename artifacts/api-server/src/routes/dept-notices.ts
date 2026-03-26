@@ -8,7 +8,8 @@ const BOARDS = {
   notice: { id: "182", label: "공지사항" },
   jobs:   { id: "660", label: "취업정보" },
 };
-const FETCH_PAGES = 3;
+const MAX_PAGES = 20;
+const CUTOFF_DATE = "2026-01-01";
 const HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -76,19 +77,28 @@ async function fetchBoardPage(boardId: string, page: number): Promise<DeptNotice
 
 async function fetchBoard(type: "notice" | "jobs"): Promise<DeptNotice[]> {
   const boardId = BOARDS[type].id;
-  const pages = Array.from({ length: FETCH_PAGES }, (_, i) => i + 1);
-  const results = await Promise.all(pages.map((p) => fetchBoardPage(boardId, p)));
-
   const seen = new Set<string>();
   const items: DeptNotice[] = [];
-  for (const page of results) {
-    for (const item of page) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        items.push(item);
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const pageItems = await fetchBoardPage(boardId, page);
+    if (pageItems.length === 0) break;
+
+    let hitCutoff = false;
+    for (const item of pageItems) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+
+      if (item.date && item.date < CUTOFF_DATE) {
+        hitCutoff = true;
+        continue;
       }
+      items.push(item);
     }
+
+    if (hitCutoff) break;
   }
+
   return items;
 }
 
