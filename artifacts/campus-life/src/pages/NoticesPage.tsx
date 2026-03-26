@@ -77,28 +77,46 @@ function NoticeCard({ notice, keyword }: { notice: Notice; keyword: string }) {
 /* ── Pagination ── */
 function Pagination({ current, total, onChange }: { current: number; total: number; onChange: (p: number) => void }) {
   if (total <= 1) return null;
+
+  const WINDOW = 5;
+  let start = Math.max(1, current - Math.floor(WINDOW / 2));
+  let end = start + WINDOW - 1;
+  if (end > total) { end = total; start = Math.max(1, end - WINDOW + 1); }
+  const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+  const btnBase = "h-9 rounded-xl text-sm font-bold transition-colors disabled:opacity-30";
+  const numBtn = (page: number) => cn(btnBase, "w-9",
+    current === page ? "bg-primary text-white shadow-sm" : "bg-slate-100 text-foreground hover:bg-slate-200");
+  const navBtn = "p-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-30 transition-colors";
+
   return (
     <div className="flex items-center justify-center gap-1 pt-4 pb-2">
-      <button onClick={() => onChange(current - 1)} disabled={current === 1}
-        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-30 transition-colors">
+      {/* 첫 페이지 */}
+      <button onClick={() => onChange(1)} disabled={current === 1} className={navBtn} title="첫 페이지">
+        <ChevronLeft className="w-3 h-3 text-foreground inline" />
+        <ChevronLeft className="w-3 h-3 text-foreground inline -ml-1.5" />
+      </button>
+      {/* 이전 */}
+      <button onClick={() => onChange(current - 1)} disabled={current === 1} className={navBtn}>
         <ChevronLeft className="w-4 h-4 text-foreground" />
       </button>
-      {Array.from({ length: total }, (_, i) => i + 1).map((page) => {
-        const show = page === 1 || page === total || Math.abs(page - current) <= 1;
-        const showDot = page === current - 2 || page === current + 2;
-        if (!show && !showDot) return null;
-        if (showDot) return <span key={page} className="text-muted-foreground text-xs px-1">…</span>;
-        return (
-          <button key={page} onClick={() => onChange(page)}
-            className={cn("w-9 h-9 rounded-xl text-sm font-bold transition-colors",
-              current === page ? "bg-primary text-white shadow-sm" : "bg-slate-100 text-foreground hover:bg-slate-200")}>
-            {page}
-          </button>
-        );
-      })}
-      <button onClick={() => onChange(current + 1)} disabled={current === total}
-        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-30 transition-colors">
+
+      {start > 1 && <span className="text-muted-foreground text-xs px-0.5">…</span>}
+
+      {pages.map((page) => (
+        <button key={page} onClick={() => onChange(page)} className={numBtn(page)}>{page}</button>
+      ))}
+
+      {end < total && <span className="text-muted-foreground text-xs px-0.5">…</span>}
+
+      {/* 다음 */}
+      <button onClick={() => onChange(current + 1)} disabled={current === total} className={navBtn}>
         <ChevronRight className="w-4 h-4 text-foreground" />
+      </button>
+      {/* 마지막 페이지 */}
+      <button onClick={() => onChange(total)} disabled={current === total} className={navBtn} title="마지막 페이지">
+        <ChevronRight className="w-3 h-3 text-foreground inline" />
+        <ChevronRight className="w-3 h-3 text-foreground inline -ml-1.5" />
       </button>
     </div>
   );
