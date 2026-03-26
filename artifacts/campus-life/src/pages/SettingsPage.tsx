@@ -1,14 +1,15 @@
+import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
+import { useProfile } from "@/hooks/useProfile";
 import {
   User, Bell, Shield, HelpCircle, ChevronRight, LogOut,
-  Moon, Globe, Smartphone, Info
+  Moon, Globe, Smartphone, Info, Edit3
 } from "lucide-react";
 
 const SETTINGS_SECTIONS = [
   {
     title: "계정",
     items: [
-      { icon: User, label: "마이페이지", desc: "프로필 및 개인 정보 관리", color: "#159A54" },
       { icon: Bell, label: "알림 설정", desc: "푸시 알림 및 리마인더", color: "#2563EB" },
       { icon: Shield, label: "개인정보 보호", desc: "데이터 및 보안 설정", color: "#7C3AED" },
     ],
@@ -30,7 +31,19 @@ const SETTINGS_SECTIONS = [
   },
 ];
 
+const GRADE_LABEL: Record<string, string> = {
+  "1": "1학년", "2": "2학년", "3": "3학년", "4": "4학년",
+  "5": "5학년 이상", "grad": "대학원생",
+};
+
 export function SettingsPage() {
+  const [, navigate] = useLocation();
+  const { profile } = useProfile();
+
+  const displayName = profile.name.trim() || "부산대학교 학생";
+  const displaySub = [profile.department, GRADE_LABEL[profile.grade] ?? ""].filter(Boolean).join(" · ");
+  const initial = displayName[0];
+
   return (
     <Layout hideTopBar>
       <div className="p-6 pt-5 pb-4">
@@ -40,18 +53,28 @@ export function SettingsPage() {
 
       {/* Profile Card */}
       <div className="px-4 mb-5">
-        <div className="bg-primary/5 border border-primary/20 rounded-3xl p-5 flex items-center gap-4">
-          <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
-            <User className="w-8 h-8 text-primary" />
+        <button
+          onClick={() => navigate("/settings/profile")}
+          className="w-full bg-primary/5 border border-primary/20 rounded-3xl p-5 flex items-center gap-4 hover:bg-primary/10 transition-colors text-left">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 shadow-sm"
+            style={{ backgroundColor: profile.avatarColor }}>
+            {profile.name.trim() ? (
+              <span className="text-2xl font-bold text-white">{initial}</span>
+            ) : (
+              <User className="w-8 h-8 text-white" />
+            )}
           </div>
-          <div>
-            <p className="font-bold text-lg text-foreground">부산대학교 학생</p>
-            <p className="text-sm text-muted-foreground">컴퓨터공학전공 · 학생</p>
-            <button className="mt-1.5 text-xs font-semibold text-primary hover:underline">
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-lg text-foreground truncate">{displayName}</p>
+            {displaySub && <p className="text-sm text-muted-foreground truncate">{displaySub}</p>}
+            {profile.bio && <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">"{profile.bio}"</p>}
+            <div className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+              <Edit3 className="w-3 h-3" />
               프로필 편집
-            </button>
+            </div>
           </div>
-        </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+        </button>
       </div>
 
       {/* Settings Sections */}
