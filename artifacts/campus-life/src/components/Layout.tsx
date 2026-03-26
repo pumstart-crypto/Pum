@@ -21,11 +21,9 @@ export function Layout({ children, hideTopBar, hideBottomNav }: { children: Reac
         {!hideTopBar && (
           <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-4 bg-card/90 backdrop-blur-xl border-b border-border/50">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
-                <span className="material-symbols-outlined text-white" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>school</span>
-              </div>
+              <img src="/logo.jpeg" alt="P:um 로고" className="w-8 h-8 rounded-xl object-cover" />
               <h1 className="text-base font-extrabold text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.02em" }}>
-                캠퍼스라이프
+                P:um
               </h1>
             </div>
             <button className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors">

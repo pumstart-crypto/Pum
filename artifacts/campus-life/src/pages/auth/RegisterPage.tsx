@@ -477,7 +477,7 @@ export function RegisterPage() {
               <span className="text-5xl">🎉</span>
             </div>
             <h2 className="text-2xl font-black text-gray-900 mb-2">가입 완료!</h2>
-            <p className="text-sm text-gray-500 mb-1">부산대학교 캠퍼스라이프에</p>
+            <p className="text-sm text-gray-500 mb-1">P:um 피움에</p>
             <p className="text-sm text-gray-500 mb-8">오신 것을 환영합니다 👋</p>
             <button
               onClick={() => navigate("/")}
