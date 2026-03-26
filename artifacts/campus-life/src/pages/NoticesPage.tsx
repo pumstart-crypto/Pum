@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
-import { Bell, School, BookOpen, Briefcase, AlertCircle, ExternalLink, Search, X,
+import { Bell, BookOpen, Briefcase, AlertCircle, ExternalLink, Search, X,
          ChevronLeft, ChevronRight, List, Check, Construction } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DEPT_BY_COLLEGE, SUPPORTED_DEPTS } from "@/lib/departments";
@@ -250,14 +250,6 @@ function SchoolNoticesList({ query }: { query: string }) {
         <div className="flex items-center gap-2 px-1 pt-2 pb-1"><Bell className="w-3.5 h-3.5 text-primary" /><span className="text-xs font-bold text-primary tracking-wide">고정 공지</span></div>
         {filteredPinned.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
       </>)}
-      {pagedRegular.length > 0 && (
-        <div className="flex items-center gap-2 px-1 pt-3 pb-1">
-          <School className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs font-bold text-muted-foreground tracking-wide">
-            일반 공지 {isSearching ? `(${filteredRegular.length}건)` : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredRegular.length)} / ${filteredRegular.length}건`}
-          </span>
-        </div>
-      )}
       {pagedRegular.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
       {!isSearching && <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />}
     </div>
@@ -327,14 +319,6 @@ function DeptNoticesList({ subTab, query, dept }: { subTab: "notice" | "jobs"; q
 
   return (
     <div className="space-y-2">
-      {paged.length > 0 && (
-        <div className="flex items-center gap-2 px-1 pt-2 pb-1">
-          <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs font-bold text-muted-foreground tracking-wide">
-            {dept} {subLabel} {isSearching ? `(${filtered.length}건)` : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} / ${filtered.length}건`}
-          </span>
-        </div>
-      )}
       {paged.map((n) => <NoticeCard key={n.id} notice={n} keyword={kw} />)}
       {!isSearching && <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />}
     </div>
