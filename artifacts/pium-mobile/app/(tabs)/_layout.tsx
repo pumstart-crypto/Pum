@@ -29,11 +29,11 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
     return (
       <View style={styles.activePill}>
         {isIOS ? (
-          <SymbolView name={sfFill as any} tintColor="#fff" size={20} />
+          <SymbolView name={sfFill as any} tintColor="#fff" size={19} />
         ) : (
-          <Ionicons name={iconFill as any} size={20} color="#fff" />
+          <Ionicons name={iconFill as any} size={19} color="#fff" />
         )}
-        <Text style={styles.activeLabel}>{label}</Text>
+        <Text style={styles.activeLabel} numberOfLines={1}>{label}</Text>
       </View>
     );
   }
@@ -117,16 +117,18 @@ const styles = StyleSheet.create({
   },
 
   activePill: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 3,
     backgroundColor: C.primary,
     borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 56,
   },
   activeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
