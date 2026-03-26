@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
-import { MessageSquare, Plus, Image as ImageIcon, X, Clock, Eye, ChevronRight } from "lucide-react";
+import { MessageSquare, Plus, Image as ImageIcon, X, Clock, Eye } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -61,6 +62,13 @@ async function compressImage(file: File): Promise<string> {
     img.onerror = reject;
     img.src = url;
   });
+}
+
+function getAuthorName(): string {
+  try {
+    const p = JSON.parse(localStorage.getItem("campus_life_profile") || "{}");
+    return p.name || p.department || "익명";
+  } catch { return "익명"; }
 }
 
 function getProfileDepts(): string[] {
@@ -127,11 +135,16 @@ function WritePostDialog({
           title: title.trim(),
           content: content.trim(),
           images: images.length > 0 ? images : null,
-          author: "익명",
+          author: getAuthorName(),
         }),
       });
       if (!res.ok) throw new Error("서버 오류");
       const post: Post = await res.json();
+      // 내가 쓴 글 ID 저장
+      try {
+        const ids: number[] = JSON.parse(localStorage.getItem("campus_life_authored_posts") || "[]");
+        localStorage.setItem("campus_life_authored_posts", JSON.stringify([...ids, post.id]));
+      } catch {}
       onCreated(post);
       onClose();
     } catch {
@@ -272,56 +285,15 @@ function WritePostDialog({
 }
 
 // ──────────────────────────────────────────────
-// Post detail view
-// ──────────────────────────────────────────────
-function PostDetail({ post, onClose }: { post: Post; onClose: () => void }) {
-  const cat = CATEGORY_STYLE[post.category] ?? { bg: "bg-slate-100", text: "text-slate-500" };
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
-      <div className="bg-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/50 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", cat.bg, cat.text)}>{post.category}</span>
-            {post.subCategory && <span className="text-xs text-muted-foreground">{post.subCategory}</span>}
-          </div>
-          <button onClick={onClose} className="p-2 bg-muted rounded-full hover:bg-secondary/50"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <div>
-            <h2 className="text-lg font-bold leading-snug">{post.title}</h2>
-            <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-              <span>{post.author}</span>
-              <span>·</span>
-              <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{relativeTime(post.createdAt)}</span>
-              <span>·</span>
-              <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" />{post.views}</span>
-            </div>
-          </div>
-          <div className="h-px bg-border/50" />
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
-          {post.images && post.images.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {post.images.map((src, i) => (
-                <img key={i} src={src} alt="" className="w-full rounded-xl object-cover max-h-64" />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
 // Main page
 // ──────────────────────────────────────────────
 export function BoardPage() {
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("전체");
   const [activeDept, setActiveDept] = useState("전체");
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [isWriting, setIsWriting] = useState(false);
-  const [viewingPost, setViewingPost] = useState<Post | null>(null);
 
   const profileDepts = useMemo(() => getProfileDepts(), []);
 
@@ -429,7 +401,7 @@ export function BoardPage() {
             return (
               <button
                 key={post.id}
-                onClick={() => setViewingPost(post)}
+                onClick={() => navigate(`/board/${post.id}`)}
                 className="w-full bg-card rounded-2xl border border-border/50 shadow-sm p-4 text-left hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 <div className="flex items-start gap-3">
@@ -479,9 +451,6 @@ export function BoardPage() {
         />
       )}
 
-      {viewingPost && (
-        <PostDetail post={viewingPost} onClose={() => setViewingPost(null)} />
-      )}
     </Layout>
   );
 }

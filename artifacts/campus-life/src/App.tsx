@@ -15,6 +15,7 @@ import { ProfileEditPage } from "./pages/ProfileEditPage";
 import { AcademicCalendarPage } from "./pages/AcademicCalendarPage";
 import { BusPage } from "./pages/BusPage";
 import { CampusMapPage } from "./pages/CampusMapPage";
+import { PostDetailPage } from "./pages/PostDetailPage";
 import { Layout } from "./components/Layout";
 
 const queryClient = new QueryClient({
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/notices" component={NoticesPage} />
       <Route path="/schedule" component={SchedulePage} />
       <Route path="/board" component={BoardPage} />
+      <Route path="/board/:id" component={PostDetailPage} />
       <Route path="/finance" component={FinancePage} />
       <Route path="/meals" component={MealsPage} />
       <Route path="/settings" component={SettingsPage} />
