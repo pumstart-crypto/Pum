@@ -272,10 +272,22 @@ export default function ScheduleScreen() {
       if (csYear !== '전체') params.set('gradeYear', csYear.replace('학년', ''));
       if (csCategory !== '전체') params.set('category', csCategory);
       if (csKeyword) params.set('search', csKeyword);
-      const r = await fetch(`${API}/courses?${params}`);
-      if (r.ok) setCsResults(await r.json());
-      else setCsResults([]);
-    } catch { setCsResults([]); }
+      const url = `${API}/courses?${params}`;
+      console.log('[CourseSearch] fetching:', url);
+      const r = await fetch(url);
+      console.log('[CourseSearch] status:', r.status, 'ok:', r.ok);
+      if (r.ok) {
+        const data = await r.json();
+        console.log('[CourseSearch] results count:', data.length);
+        setCsResults(data);
+      } else {
+        console.log('[CourseSearch] error response');
+        setCsResults([]);
+      }
+    } catch (e: any) {
+      console.log('[CourseSearch] catch error:', e?.message);
+      setCsResults([]);
+    }
     finally { setCsLoading(false); }
   };
 
@@ -640,7 +652,7 @@ export default function ScheduleScreen() {
       {/* ── 수강편람 검색 Modal ── */}
       <Modal visible={showCourseSearch} transparent animationType="slide" onRequestClose={() => setShowCourseSearch(false)}>
         <View style={styles.modalOverlayFull}>
-          <View style={[styles.modalSheetFull, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalSheetFull, { height: '92%', paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.sheetHandle} />
             {/* Header */}
             <View style={styles.csHeaderRow}>
