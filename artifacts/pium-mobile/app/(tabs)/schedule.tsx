@@ -436,10 +436,10 @@ export default function ScheduleScreen() {
                       const color = getColor(s.subjectName);
                       return (
                         <TouchableOpacity key={s.id}
-                          style={[styles.block, { top: y, height: Math.max(h, SLOT_H), backgroundColor: color + '22', borderLeftColor: color }]}
+                          style={[styles.block, { top: y, height: Math.max(h, SLOT_H), backgroundColor: color }]}
                           onLongPress={() => deleteSchedule(s.id)} activeOpacity={0.8}>
-                          <Text style={[styles.blockName, { color }]} numberOfLines={3}>{s.subjectName}</Text>
-                          {h > SLOT_H && s.location ? <Text style={[styles.blockLoc, { color }]} numberOfLines={1}>{s.location}</Text> : null}
+                          <Text style={[styles.blockName, { color: '#fff' }]} numberOfLines={3}>{s.subjectName}</Text>
+                          {h > SLOT_H && s.location ? <Text style={[styles.blockLoc, { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>{s.location}</Text> : null}
                         </TouchableOpacity>
                       );
                     })}
@@ -1001,9 +1001,9 @@ const styles = StyleSheet.create({
   timeText: { fontSize: 9, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   dayCol: { flex: 1, position: 'relative', borderLeftWidth: 1, borderLeftColor: '#F3F4F6' },
   slot: { borderTopWidth: 1 },
-  block: { position: 'absolute', left: 2, right: 2, borderRadius: 6, borderLeftWidth: 3, padding: 3, overflow: 'hidden' },
-  blockName: { fontSize: 9, fontFamily: 'Inter_700Bold', lineHeight: 13 },
-  blockLoc: { fontSize: 8, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  block: { position: 'absolute', left: 2, right: 2, borderRadius: 6, padding: 4, overflow: 'hidden' },
+  blockName: { fontSize: 11, fontFamily: 'Inter_700Bold', lineHeight: 15 },
+  blockLoc: { fontSize: 9, fontFamily: 'Inter_400Regular', marginTop: 1 },
 
   gradesContent: { paddingHorizontal: 16, paddingTop: 4 },
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
