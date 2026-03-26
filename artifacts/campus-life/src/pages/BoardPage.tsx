@@ -1,7 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { MessageSquare } from "lucide-react";
 
-const BOARD_TABS = ["전체", "공지", "자유", "질문", "거래"];
+const BOARD_TABS = ["전체", "공지", "질문", "모집", "거래"];
 
 export function BoardPage() {
   return (
