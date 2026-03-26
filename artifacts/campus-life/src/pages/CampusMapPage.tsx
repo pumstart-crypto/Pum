@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Layout } from "@/components/Layout";
-import { Search, Map, Building2, X, ExternalLink } from "lucide-react";
+import { Search, Map, Building2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -142,23 +142,12 @@ export function CampusMapPage() {
         {/* Header */}
         <div className="px-5 pt-14 pb-3 shrink-0">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">부산대학교</p>
-          <div className="flex items-end justify-between">
-            <h2
-              className="text-4xl font-extrabold text-foreground leading-tight"
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.03em" }}
-            >
-              캠퍼스 맵
-            </h2>
-            <a
-              href={`${BASE}/campus-map.pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-primary font-bold bg-primary/10 px-3 py-1.5 rounded-full"
-            >
-              <ExternalLink className="w-3 h-3" />
-              PDF 열기
-            </a>
-          </div>
+          <h2
+            className="text-4xl font-extrabold text-foreground leading-tight"
+            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.03em" }}
+          >
+            캠퍼스 맵
+          </h2>
         </div>
 
         {/* Tabs */}
@@ -185,17 +174,16 @@ export function CampusMapPage() {
 
         {/* Map Tab */}
         {tab === "map" && (
-          <div className="flex-1 mx-5 mb-3 flex flex-col gap-3">
-            <div className="rounded-3xl overflow-hidden border border-border/20 shadow-sm bg-white" style={{ height: "60vh" }}>
-              <iframe
-                src={`${BASE}/campus-map.pdf#toolbar=0&navpanes=0&scrollbar=0`}
-                className="w-full h-full"
-                title="부산대학교 캠퍼스 지도"
-              />
-            </div>
-            <div className="bg-slate-50 rounded-2xl px-4 py-3 border border-border/10 text-[12px] text-muted-foreground/60 font-medium text-center">
-              핀치로 확대 · 드래그로 이동 · 우측 상단 "PDF 열기"로 전체화면
-            </div>
+          <div
+            className="flex-1 mx-5 mb-3 rounded-3xl overflow-auto border border-border/20 shadow-sm bg-white"
+            style={{ touchAction: "pan-x pan-y pinch-zoom" }}
+          >
+            <img
+              src={`${BASE}/campus-map.png`}
+              alt="부산대학교 캠퍼스 지도"
+              className="w-full h-auto block"
+              draggable={false}
+            />
           </div>
         )}
 
