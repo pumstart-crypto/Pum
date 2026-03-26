@@ -1,6 +1,8 @@
 import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useProfile } from "@/hooks/useProfile";
+import { useTheme } from "@/contexts/ThemeContext";
+import { cn } from "@/lib/utils";
 import {
   User, Bell, Shield, HelpCircle, ChevronRight, LogOut,
   Moon, Globe, Smartphone, Info, Edit3
@@ -17,7 +19,7 @@ const SETTINGS_SECTIONS = [
   {
     title: "앱 설정",
     items: [
-      { icon: Moon, label: "다크 모드", desc: "화면 테마 설정", color: "#374151", route: null },
+      { icon: Moon, label: "다크 모드", desc: "화면 테마 설정", color: "#374151", route: null, isToggle: true },
       { icon: Globe, label: "언어", desc: "한국어", color: "#059669", route: null },
       { icon: Smartphone, label: "앱 버전", desc: "v1.0.0 (최신)", color: "#D97706", route: null },
     ],
@@ -39,6 +41,7 @@ const GRADE_LABEL: Record<string, string> = {
 export function SettingsPage() {
   const [, navigate] = useLocation();
   const { profile } = useProfile();
+  const { isDark, toggle } = useTheme();
 
   const displayName = profile.name.trim() || "부산대학교 학생";
   const displaySub = [profile.department, GRADE_LABEL[profile.grade] ?? ""].filter(Boolean).join(" · ");
@@ -92,7 +95,7 @@ export function SettingsPage() {
               {section.items.map((item) => (
                 <button
                   key={item.label}
-                  onClick={() => item.route && navigate(item.route)}
+                  onClick={() => item.isToggle ? toggle() : item.route && navigate(item.route)}
                   className="w-full flex items-center gap-3 p-4 hover:bg-secondary/30 transition-colors text-left"
                 >
                   <div
@@ -103,9 +106,15 @@ export function SettingsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    <p className="text-xs text-muted-foreground">{item.isToggle ? (isDark ? "다크 모드 켜짐" : "라이트 모드 켜짐") : item.desc}</p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                  {item.isToggle ? (
+                    <div className={cn("relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0", isDark ? "bg-primary" : "bg-slate-200")}>
+                      <span className={cn("absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200", isDark ? "translate-x-5" : "translate-x-0")} />
+                    </div>
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                  )}
                 </button>
               ))}
             </div>

@@ -58,6 +58,50 @@
   --primary-container: 213 100%  33%; /* #0059a6 — for active nav */
 }
 
+/* ── Dark mode CSS variables ─────────────────── */
+.dark {
+  color-scheme: dark;
+  --background:      215 14%  9%;   /* #0e131a */
+  --foreground:      210 17% 91%;   /* #e3e8ef */
+
+  --primary:         213 78% 60%;   /* #4a8fd4 — brighter navy */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary:       214 18% 20%;   /* #27313f */
+  --secondary-foreground: 213 10% 85%;
+
+  --muted:           210 14% 16%;   /* #1e2632 */
+  --muted-foreground: 220 10% 55%;  /* #7d8fa3 */
+
+  --accent:          213 75% 52%;   /* #2b7fd1 */
+  --accent-foreground: 0 0% 100%;
+
+  --destructive:     4 89% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border:          220 12% 21%;   /* #2c3547 */
+  --ring:            213 78% 60%;
+
+  --card:            215 14% 12%;   /* #161e2a */
+  --card-foreground: 210 17% 91%;
+
+  --surface:         215 14% 15%;   /* #1c2534 */
+  --on-surface-variant: 220 10% 60%;
+  --outline-variant: 220 12% 27%;
+  --primary-container: 213 50% 22%; /* #1a3456 — active nav bg */
+}
+
+/* ── bg-white & bg-slate overrides for dark mode ─ */
+.dark .bg-white                { background-color: hsl(var(--card)) !important; }
+.dark [class~="bg-slate-50"]   { background-color: hsl(215 14% 10%) !important; }
+.dark [class~="bg-slate-50/60"]{ background-color: hsl(215 14% 10% / .6) !important; }
+.dark [class~="bg-slate-100"]  { background-color: hsl(215 14% 15%) !important; }
+.dark [class~="bg-slate-200"]  { background-color: hsl(215 14% 20%) !important; }
+/* Inactive tab/chip text */
+.dark [class~="text-slate-500"] { color: hsl(220 10% 60%) !important; }
+.dark [class~="text-slate-400"] { color: hsl(220 10% 65%) !important; }
+.dark [class~="text-slate-600"] { color: hsl(220 10% 50%) !important; }
+
 @layer base {
   * { @apply border-border; }
 
