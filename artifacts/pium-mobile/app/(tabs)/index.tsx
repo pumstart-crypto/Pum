@@ -19,6 +19,9 @@ const QUICK_LINKS = [
   { label: 'PLATO', icon: 'book-open', href: 'https://plato.pusan.ac.kr' },
   { label: '도서관', icon: 'book', href: 'https://lib.pusan.ac.kr' },
   { label: '학사일정', icon: 'calendar', screen: '/academic-calendar' },
+  { label: '식단', icon: 'coffee', screen: '/meals' },
+  { label: '순환버스', icon: 'navigation', screen: '/bus' },
+  { label: '캠퍼스맵', icon: 'map', screen: '/campus-map' },
 ] as const;
 
 const TODO_CATEGORIES = ['과제', '팀플', '동영상시청', '기타'];
@@ -152,8 +155,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Quick Links */}
-        <View style={styles.quickRow}>
+        {/* Quick Links — 2×4 grid */}
+        <View style={styles.quickGrid}>
           {QUICK_LINKS.map((link) => (
             <TouchableOpacity
               key={link.label}
@@ -307,8 +310,8 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 34, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -0.5 },
   dayText: { fontSize: 34, fontFamily: 'Inter_400Regular', color: '#9CA3AF', letterSpacing: -0.5 },
 
-  quickRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
-  quickItem: { alignItems: 'center', gap: 8, flex: 1 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 28, marginHorizontal: -4 },
+  quickItem: { alignItems: 'center', gap: 7, width: '25%', paddingVertical: 8, paddingHorizontal: 4 },
   quickIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: '#F5F7FB', justifyContent: 'center', alignItems: 'center' },
   quickLabel: { fontSize: 11, color: '#374151', fontFamily: 'Inter_500Medium', textAlign: 'center' },
 
