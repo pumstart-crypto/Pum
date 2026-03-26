@@ -1062,65 +1062,87 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
                     </button>
                   </div>
                   <div className="divide-y divide-border/40">
-                    {courses.map((course) => {
-                      const isChecked = selected.has(course.id);
-                      return (
-                        <button
-                          key={course.id}
-                          onClick={() => toggleSelect(course.id)}
-                          className={cn(
-                            "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
-                            isChecked ? "bg-primary/5" : "hover:bg-secondary/50"
-                          )}
-                        >
-                          <div className={cn(
-                            "mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors",
-                            isChecked ? "bg-primary border-primary" : "border-border"
-                          )}>
-                            {isChecked && <CheckSquare className="w-3 h-3 text-white fill-white" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-1">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                <span className="font-semibold text-sm text-foreground leading-tight">{course.subjectName}</span>
-                                {course.section && (
-                                  <span className="shrink-0 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{course.section}분반</span>
-                                )}
-                                {course.isForeign && (
-                                  <span className="shrink-0 text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded font-bold">원어</span>
-                                )}
-                                {course.isOnline && (
-                                  <span className="shrink-0 text-[10px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded font-bold">원격</span>
-                                )}
-                              </div>
-                              {course.credits && (
-                                <span className="shrink-0 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{course.credits}학점</span>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {course.category && (
-                                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", GRAD_CAT_BG[course.category] ?? "bg-muted text-muted-foreground")}>{catLabel(curriculum, course.category)}</span>
-                                )}
-                                {course.professor && <span>{course.professor} 교수</span>}
-                                {course.offeringDept && <span className="text-muted-foreground/60 truncate max-w-[120px]">{course.offeringDept}</span>}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {course.subjectCode && (
-                                  <span className="text-[10px] text-muted-foreground/50 font-mono">{course.subjectCode}</span>
-                                )}
-                                {course.enrollmentLimit && (
-                                  <span className="text-[10px] text-muted-foreground/70">정원 {course.enrollmentLimit}명</span>
-                                )}
-                              </div>
-                              {course.timeRoom && (
-                                <div className="text-primary/80 font-medium truncate">{course.timeRoom.replace(/<br\s*\/?>/gi, " / ")}</div>
-                              )}
-                            </div>
-                          </div>
-                        </button>
+                    {(() => {
+                      const addedNames = new Set(
+                        existingSchedules
+                          .filter(s => s.year === year && s.semester === semester)
+                          .map(s => s.subjectName)
                       );
-                    })}
+                      return courses.map((course) => {
+                        const isChecked = selected.has(course.id);
+                        const isAdded = addedNames.has(course.subjectName);
+                        return (
+                          <button
+                            key={course.id}
+                            onClick={() => !isAdded && toggleSelect(course.id)}
+                            className={cn(
+                              "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
+                              isAdded
+                                ? "opacity-45 cursor-default"
+                                : isChecked
+                                  ? "bg-primary/5"
+                                  : "hover:bg-secondary/50"
+                            )}
+                          >
+                            <div className={cn(
+                              "mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors",
+                              isAdded
+                                ? "bg-muted border-border"
+                                : isChecked
+                                  ? "bg-primary border-primary"
+                                  : "border-border"
+                            )}>
+                              {isAdded
+                                ? <span className="text-muted-foreground" style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>
+                                : isChecked && <CheckSquare className="w-3 h-3 text-white fill-white" />
+                              }
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                  <span className={cn("font-semibold text-sm leading-tight", isAdded ? "line-through text-muted-foreground" : "text-foreground")}>{course.subjectName}</span>
+                                  {isAdded && (
+                                    <span className="shrink-0 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">추가됨</span>
+                                  )}
+                                  {!isAdded && course.section && (
+                                    <span className="shrink-0 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{course.section}분반</span>
+                                  )}
+                                  {!isAdded && course.isForeign && (
+                                    <span className="shrink-0 text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded font-bold">원어</span>
+                                  )}
+                                  {!isAdded && course.isOnline && (
+                                    <span className="shrink-0 text-[10px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded font-bold">원격</span>
+                                  )}
+                                </div>
+                                {course.credits && (
+                                  <span className={cn("shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium", isAdded ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>{course.credits}학점</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {course.category && (
+                                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", isAdded ? "bg-muted text-muted-foreground" : GRAD_CAT_BG[course.category] ?? "bg-muted text-muted-foreground")}>{catLabel(curriculum, course.category)}</span>
+                                  )}
+                                  {course.professor && <span>{course.professor} 교수</span>}
+                                  {course.offeringDept && <span className="text-muted-foreground/60 truncate max-w-[120px]">{course.offeringDept}</span>}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {course.subjectCode && (
+                                    <span className="text-[10px] text-muted-foreground/50 font-mono">{course.subjectCode}</span>
+                                  )}
+                                  {course.enrollmentLimit && (
+                                    <span className="text-[10px] text-muted-foreground/70">정원 {course.enrollmentLimit}명</span>
+                                  )}
+                                </div>
+                                {course.timeRoom && (
+                                  <div className={cn("font-medium truncate", isAdded ? "text-muted-foreground/50" : "text-primary/80")}>{course.timeRoom.replace(/<br\s*\/?>/gi, " / ")}</div>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
                 </>
               )}
