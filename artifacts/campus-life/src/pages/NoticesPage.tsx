@@ -7,6 +7,7 @@ import { DEPT_BY_COLLEGE, SUPPORTED_DEPTS } from "@/lib/departments";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const PAGE_SIZE = 10;
+const MAX_PAGES_DISPLAY = 10;
 const DEPT_PREF_KEY = "campus_life_notice_dept";
 const DEFAULT_DEPT = "산업공학과";
 
@@ -234,8 +235,9 @@ function SchoolNoticesList({ query }: { query: string }) {
   const kw = query.trim().toLowerCase();
   const isSearching = kw.length > 0;
   const filteredPinned = isSearching ? pinned.filter((n) => n.title.toLowerCase().includes(kw)) : pinned;
-  const filteredRegular = isSearching ? regular.filter((n) => n.title.toLowerCase().includes(kw)) : regular;
-  const totalPages = Math.ceil(filteredRegular.length / PAGE_SIZE);
+  const displayRegular = regular.slice(0, MAX_PAGES_DISPLAY * PAGE_SIZE);
+  const filteredRegular = isSearching ? displayRegular.filter((n) => n.title.toLowerCase().includes(kw)) : displayRegular;
+  const totalPages = Math.min(Math.ceil(filteredRegular.length / PAGE_SIZE), MAX_PAGES_DISPLAY);
   const pagedRegular = isSearching ? filteredRegular : filteredRegular.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   if (isLoading) return <div className="flex flex-col items-center justify-center h-64 gap-4"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /><p className="text-sm text-muted-foreground">불러오는 중...</p></div>;
@@ -310,11 +312,11 @@ function DeptNoticesList({ subTab, query, dept }: { subTab: "notice" | "jobs"; q
     </div>
   );
 
-  const all = data?.notices ?? [];
+  const all = (data?.notices ?? []).slice(0, MAX_PAGES_DISPLAY * PAGE_SIZE);
   const kw = query.trim().toLowerCase();
   const isSearching = kw.length > 0;
   const filtered = isSearching ? all.filter((n) => n.title.toLowerCase().includes(kw)) : all;
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const totalPages = Math.min(Math.ceil(filtered.length / PAGE_SIZE), MAX_PAGES_DISPLAY);
   const paged = isSearching ? filtered : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const subLabel = subTab === "notice" ? "공지사항" : "취업정보";
 
