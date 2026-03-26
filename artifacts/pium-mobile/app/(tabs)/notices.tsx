@@ -48,6 +48,8 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
   const showNew = 'isNew' in n
     ? (n.isNew || (isRecent(n.date) && !isPinned))
     : (d.isNew || isRecent(d.date));
+  const hasDept = type === 'dept' && !!d.department;
+  const hasBadge = isPinned || showNew || hasDept;
 
   return (
     <TouchableOpacity
@@ -55,8 +57,9 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
       onPress={() => Linking.openURL(item.url)}
       activeOpacity={0.7}
     >
-      <View style={styles.cardTop}>
-        <View style={styles.badges}>
+      {/* Badges row — only rendered when there's at least one badge */}
+      {hasBadge && (
+        <View style={styles.badgeRow}>
           {isPinned && (
             <View style={styles.badgePrimary}>
               <Text style={styles.badgeText}>공지</Text>
@@ -67,15 +70,18 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
               <Text style={styles.badgeText}>NEW</Text>
             </View>
           )}
-          {type === 'dept' && d.department && (
+          {hasDept && (
             <View style={styles.badgeDept}>
               <Text style={[styles.badgeText, { color: C.primary }]}>{d.department}</Text>
             </View>
           )}
         </View>
-        <Feather name="external-link" size={13} color="#D1D5DB" />
+      )}
+      {/* Title + external link on the same row */}
+      <View style={styles.titleRow}>
+        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        <Feather name="external-link" size={13} color="#D1D5DB" style={{ marginTop: 2 }} />
       </View>
-      <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
       <View style={styles.cardMeta}>
         <Text style={styles.cardDate}>{item.date}</Text>
         {'views' in item && item.views != null && (
@@ -121,52 +127,39 @@ function Pagination({
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
+  const inactive = '#6B7280';
+  const disabled = '#D1D5DB';
+
   return (
-    <View style={styles.pagination}>
-      {/* First */}
-      <TouchableOpacity
-        style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]}
-        onPress={() => go(1)} disabled={current === 1}
-      >
-        <Ionicons name="play-skip-back" size={11} color={current === 1 ? '#D1D5DB' : '#374151'} />
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.pagination}
+    >
+      <TouchableOpacity style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]} onPress={() => go(1)} disabled={current === 1}>
+        <Ionicons name="play-skip-back" size={10} color={current === 1 ? disabled : inactive} />
       </TouchableOpacity>
-      {/* Prev */}
-      <TouchableOpacity
-        style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]}
-        onPress={() => go(current - 1)} disabled={current === 1}
-      >
-        <Ionicons name="chevron-back" size={14} color={current === 1 ? '#D1D5DB' : '#374151'} />
+      <TouchableOpacity style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]} onPress={() => go(current - 1)} disabled={current === 1}>
+        <Ionicons name="chevron-back" size={13} color={current === 1 ? disabled : inactive} />
       </TouchableOpacity>
 
       {start > 1 && <Text style={styles.ellipsis}>…</Text>}
 
       {pages.map(p => (
-        <TouchableOpacity
-          key={p}
-          style={[styles.pageBtn, current === p && styles.pageBtnActive]}
-          onPress={() => go(p)}
-        >
+        <TouchableOpacity key={p} style={[styles.pageBtn, current === p && styles.pageBtnActive]} onPress={() => go(p)}>
           <Text style={[styles.pageBtnText, current === p && styles.pageBtnTextActive]}>{p}</Text>
         </TouchableOpacity>
       ))}
 
       {end < total && <Text style={styles.ellipsis}>…</Text>}
 
-      {/* Next */}
-      <TouchableOpacity
-        style={[styles.pageBtn, current === total && styles.pageBtnDisabled]}
-        onPress={() => go(current + 1)} disabled={current === total}
-      >
-        <Ionicons name="chevron-forward" size={14} color={current === total ? '#D1D5DB' : '#374151'} />
+      <TouchableOpacity style={[styles.pageBtn, current === total && styles.pageBtnDisabled]} onPress={() => go(current + 1)} disabled={current === total}>
+        <Ionicons name="chevron-forward" size={13} color={current === total ? disabled : inactive} />
       </TouchableOpacity>
-      {/* Last */}
-      <TouchableOpacity
-        style={[styles.pageBtn, current === total && styles.pageBtnDisabled]}
-        onPress={() => go(total)} disabled={current === total}
-      >
-        <Ionicons name="play-skip-forward" size={11} color={current === total ? '#D1D5DB' : '#374151'} />
+      <TouchableOpacity style={[styles.pageBtn, current === total && styles.pageBtnDisabled]} onPress={() => go(total)} disabled={current === total}>
+        <Ionicons name="play-skip-forward" size={10} color={current === total ? disabled : inactive} />
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -456,24 +449,24 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  badges: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  badgeRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap', marginBottom: 6 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   badgePrimary: { backgroundColor: C.primary, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   badgeNew: { backgroundColor: '#3B82F6', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   badgeDept: { backgroundColor: '#EEF4FF', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#fff' },
-  cardTitle: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#111827', lineHeight: 20 },
+  cardTitle: { flex: 1, fontSize: 14, fontFamily: 'Inter_500Medium', color: '#111827', lineHeight: 20 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   cardDate: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   metaDot: { color: '#D1D5DB', fontSize: 12 },
 
   /* Pagination */
   pagination: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    flexWrap: 'wrap', gap: 6, paddingVertical: 20,
+    flexDirection: 'row', alignItems: 'center',
+    gap: 5, paddingVertical: 20, paddingHorizontal: 4,
   },
   pageBtn: {
-    width: 36, height: 36, borderRadius: 12,
+    width: 34, height: 34, borderRadius: 11,
     backgroundColor: '#F3F4F6',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -481,7 +474,7 @@ const styles = StyleSheet.create({
   pageBtnDisabled: { opacity: 0.35 },
   pageBtnText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#374151' },
   pageBtnTextActive: { color: '#fff' },
-  ellipsis: { fontSize: 13, color: '#9CA3AF', paddingHorizontal: 2 },
+  ellipsis: { fontSize: 13, color: '#9CA3AF', paddingHorizontal: 1, lineHeight: 34 },
 
   /* Empty state */
   emptyBox: { alignItems: 'center', paddingVertical: 60, gap: 12 },
