@@ -99,10 +99,11 @@ function WritePostDialog({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const cat = defaultCategory === "전체" ? "" : defaultCategory;
-  const needsSub = cat === "질문" || cat === "모집";
+  const hasSub = cat === "질문" || cat === "모집";
   const subOptions = cat === "모집" ? MOZIP_SUBS : profileDepts;
+  const subRequired = cat === "모집"; // 질문은 선택 사항
 
-  const canSubmit = title.trim() && content.trim() && (!needsSub || subCategory);
+  const canSubmit = title.trim() && content.trim() && (!subRequired || subCategory);
 
   const handleImages = async (files: FileList | null) => {
     if (!files) return;
@@ -156,12 +157,27 @@ function WritePostDialog({
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Sub-category selector */}
-          {needsSub && subOptions.length > 0 && (
+          {hasSub && subOptions.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-2">
-                {cat === "질문" ? "학과 선택" : "분류 선택"} <span className="text-destructive">*</span>
+                {cat === "질문" ? "학과 선택" : "분류 선택"}
+                {subRequired && <span className="text-destructive ml-0.5">*</span>}
+                {cat === "질문" && <span className="text-muted-foreground/60 font-normal ml-1">(선택 사항)</span>}
               </p>
               <div className="flex flex-wrap gap-2">
+                {cat === "질문" && (
+                  <button
+                    onClick={() => setSubCategory("")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors",
+                      subCategory === ""
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:border-primary/50"
+                    )}
+                  >
+                    전체 질문
+                  </button>
+                )}
                 {subOptions.map(opt => (
                   <button
                     key={opt}
