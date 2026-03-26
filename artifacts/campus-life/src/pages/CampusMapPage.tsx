@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Search, Map, Building2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -120,6 +120,14 @@ export function CampusMapPage() {
   const [tab, setTab] = useState<"map" | "search">("map");
   const [query, setQuery] = useState("");
   const [zoneFilter, setZoneFilter] = useState<number | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  function handleMapImageLoad() {
+    const el = mapContainerRef.current;
+    if (!el) return;
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    el.scrollTop = 0;
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -137,7 +145,7 @@ export function CampusMapPage() {
 
   return (
     <Layout hideTopBar>
-      <div className="flex flex-col h-screen overflow-hidden pb-16">
+      <div className="flex flex-col pb-20">
 
         {/* Header */}
         <div className="px-5 pt-14 pb-3 shrink-0">
@@ -175,23 +183,25 @@ export function CampusMapPage() {
         {/* Map Tab */}
         {tab === "map" && (
           <div
-            className="flex-1 mx-5 mb-3 rounded-3xl overflow-auto border border-border/20 shadow-sm bg-white"
-            style={{ touchAction: "pan-x pan-y pinch-zoom" }}
+            ref={mapContainerRef}
+            className="mx-5 mb-3 rounded-3xl overflow-auto border border-border/20 shadow-sm bg-white"
+            style={{ height: "calc(100dvh - 280px)", touchAction: "pan-x pan-y pinch-zoom" }}
           >
             <img
               src={`${BASE}/campus-map.png`}
               alt="부산대학교 캠퍼스 지도"
-              className="w-full h-auto block"
+              style={{ width: "780px", height: "auto", display: "block" }}
               draggable={false}
+              onLoad={handleMapImageLoad}
             />
           </div>
         )}
 
         {/* Building Search Tab */}
         {tab === "search" && (
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex flex-col">
             {/* Search input */}
-            <div className="px-5 mb-3 shrink-0">
+            <div className="px-5 mb-3">
               <div className="flex items-center gap-2.5 bg-white border border-border/30 rounded-2xl px-4 py-3 shadow-sm">
                 <Search className="w-4 h-4 text-muted-foreground/40 shrink-0" />
                 <input
@@ -210,7 +220,7 @@ export function CampusMapPage() {
             </div>
 
             {/* Zone filter chips */}
-            <div className="px-5 mb-3 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
+            <div className="px-5 mb-3 flex gap-2 overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setZoneFilter(null)}
                 className={cn(
@@ -235,12 +245,12 @@ export function CampusMapPage() {
             </div>
 
             {/* Result count */}
-            <div className="px-5 mb-2 shrink-0">
+            <div className="px-5 mb-2">
               <p className="text-[11px] text-muted-foreground/40 font-medium">{filtered.length}개 건물</p>
             </div>
 
             {/* Building list */}
-            <div className="flex-1 overflow-y-auto px-5 pb-4">
+            <div className="px-5 pb-4">
               <div className="bg-white rounded-3xl border border-border/20 shadow-[0_2px_16px_rgba(0,0,0,0.04)] overflow-hidden">
                 {filtered.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground/40">
