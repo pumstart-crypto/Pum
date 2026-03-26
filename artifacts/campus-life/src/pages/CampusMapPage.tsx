@@ -3,8 +3,6 @@ import { Layout } from "@/components/Layout";
 import { Search, Map, Building2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Building {
   code: string;
@@ -159,7 +157,7 @@ const CAMPUSES: CampusInfo[] = [
   {
     id: "pusan",
     label: "부산",
-    mapImage: `${BASE}/campus-map.png`,
+    mapImage: null,
     buildings: PUSAN_BUILDINGS,
     groups: [
       { id: 1, label: "1존 공학서쪽", color: "bg-blue-100 text-blue-700" },
