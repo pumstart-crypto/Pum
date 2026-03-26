@@ -10,7 +10,12 @@ function getProfileDepts(): string[] {
     const raw = localStorage.getItem("campus_life_profile");
     if (!raw) return [];
     const p = JSON.parse(raw);
-    return [p.department, p.doubleMajor, p.minor].filter(Boolean) as string[];
+    // 본전공은 항상 포함, 부/복수전공은 있을 때만
+    const result: string[] = [];
+    if (p.department) result.push(p.department);
+    if (p.doubleMajor) result.push(p.doubleMajor);
+    if (p.minor) result.push(p.minor);
+    return result;
   } catch {
     return [];
   }
@@ -49,8 +54,8 @@ export function BoardPage() {
         </div>
       </div>
 
-      {/* Dept sub-filter — only on 질문 tab, only if profile has majors */}
-      {activeTab === "질문" && profileDepts.length > 0 && (
+      {/* Dept sub-filter — always visible on 질문 tab */}
+      {activeTab === "질문" && (
         <div className="px-4 mb-3">
           <div className="flex gap-1.5">
             {(["전체", ...profileDepts] as string[]).map((dept) => (
