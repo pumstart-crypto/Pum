@@ -137,7 +137,6 @@ export default function HomeScreen() {
               <Text style={styles.logoP}>P</Text>
               <Text style={styles.logoUm}>:um</Text>
             </View>
-            <Text style={styles.logoText}>P:um</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
             <Feather name="bell" size={20} color="#374151" />
