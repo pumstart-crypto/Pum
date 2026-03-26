@@ -143,10 +143,15 @@ function WritePostDialog({
       });
       if (!res.ok) throw new Error("서버 오류");
       const post: Post = await res.json();
-      // 내가 쓴 글 ID 저장
+      // 내가 쓴 글 저장
       try {
         const ids: number[] = JSON.parse(localStorage.getItem("campus_life_authored_posts") || "[]");
         localStorage.setItem("campus_life_authored_posts", JSON.stringify([...ids, post.id]));
+        const summaries = JSON.parse(localStorage.getItem("campus_life_my_posts") || "[]");
+        localStorage.setItem("campus_life_my_posts", JSON.stringify([
+          { id: post.id, title: post.title, category: post.category, subCategory: post.subCategory, createdAt: post.createdAt },
+          ...summaries,
+        ]));
       } catch {}
       onCreated(post);
       onClose();

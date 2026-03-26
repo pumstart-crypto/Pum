@@ -11,7 +11,7 @@ const SETTINGS_SECTIONS = [
     title: "계정",
     items: [
       { icon: Bell, label: "알림 설정", desc: "푸시 알림 및 리마인더", color: "#2563EB", route: "/settings/notifications" },
-      { icon: Shield, label: "개인정보 보호", desc: "데이터 및 보안 설정", color: "#7C3AED", route: null },
+      { icon: Shield, label: "개인정보 보호", desc: "데이터 및 보안 설정", color: "#7C3AED", route: "/settings/privacy" },
     ],
   },
   {

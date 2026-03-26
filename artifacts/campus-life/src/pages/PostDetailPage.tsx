@@ -103,6 +103,13 @@ export function PostDetailPage() {
     mutationFn: () => fetch(`${API}/community/${postId}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      // localStorage 정리
+      try {
+        const ids: number[] = JSON.parse(localStorage.getItem("campus_life_authored_posts") || "[]");
+        localStorage.setItem("campus_life_authored_posts", JSON.stringify(ids.filter(id => id !== postId)));
+        const posts = JSON.parse(localStorage.getItem("campus_life_my_posts") || "[]");
+        localStorage.setItem("campus_life_my_posts", JSON.stringify(posts.filter((p: any) => p.id !== postId)));
+      } catch {}
       navigate("/board");
     },
   });
@@ -115,8 +122,17 @@ export function PostDetailPage() {
         body: JSON.stringify({ content, author: getProfile() }),
       }).then(r => r.json()),
     onSuccess: (data) => {
+      // ID 목록 저장 (is-mine 체크용)
       const ids = getAuthoredComments();
       localStorage.setItem("campus_life_authored_comments", JSON.stringify([...ids, data.id]));
+      // 요약 저장 (개인정보 보호 페이지용)
+      try {
+        const summaries = JSON.parse(localStorage.getItem("campus_life_my_comments") || "[]");
+        localStorage.setItem("campus_life_my_comments", JSON.stringify([
+          { id: data.id, postId, content: data.content, createdAt: data.createdAt },
+          ...summaries,
+        ]));
+      } catch {}
       queryClient.invalidateQueries({ queryKey: ["comments", postId] });
       setCommentText("");
     },
@@ -125,7 +141,16 @@ export function PostDetailPage() {
   const deleteComment = useMutation({
     mutationFn: (commentId: number) =>
       fetch(`${API}/community/${postId}/comments/${commentId}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["comments", postId] }),
+    onSuccess: (_data, commentId) => {
+      // localStorage 정리
+      try {
+        const ids: number[] = JSON.parse(localStorage.getItem("campus_life_authored_comments") || "[]");
+        localStorage.setItem("campus_life_authored_comments", JSON.stringify(ids.filter(id => id !== commentId)));
+        const summaries = JSON.parse(localStorage.getItem("campus_life_my_comments") || "[]");
+        localStorage.setItem("campus_life_my_comments", JSON.stringify(summaries.filter((c: any) => c.id !== commentId)));
+      } catch {}
+      queryClient.invalidateQueries({ queryKey: ["comments", postId] });
+    },
   });
 
   // ── Render helpers ────────────────────────────────────────────────────────
