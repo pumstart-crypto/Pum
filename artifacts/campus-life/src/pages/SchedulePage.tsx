@@ -1,5 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { PNU_CATALOG } from "@/data/pnuCatalog";
+import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Clock, MapPin, User, Trash2, Search, CheckSquare, BookOpen, ChevronDown, AlertCircle, GraduationCap, TrendingUp, Award, ChevronRight, ChevronUp, List, ChevronLeft, Calendar, Pencil, Check, Settings2 } from "lucide-react";
 import { Layout } from "@/components/Layout";
@@ -1714,10 +1713,8 @@ function QuickGradeDialog({
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Auto-fill from 수강편람 catalog
-  const catalogInfo = useMemo(() => PNU_CATALOG[course.subjectName], [course.subjectName]);
-  const category = catalogInfo?.[0] ?? "전공선택";
-  const credits = catalogInfo?.[1] ?? 3;
+  const category = "전공선택";
+  const credits = 3;
 
   const handleSave = async () => {
     if (!selectedGrade) return;
