@@ -755,6 +755,7 @@ export default function ScheduleScreen() {
 
         {/* Dept picker */}
         <Modal visible={showDeptPicker} transparent animationType="fade" onRequestClose={() => setShowDeptPicker(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDeptPicker(false)}>
             <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { maxHeight: '75%' }]}>
               <View style={styles.sheetHandle} />
@@ -784,6 +785,7 @@ export default function ScheduleScreen() {
               )}
             </TouchableOpacity>
           </TouchableOpacity>
+          </KeyboardAvoidingView>
         </Modal>
       </Modal>
 
