@@ -76,6 +76,27 @@ export function BoardPage() {
         </div>
       )}
 
+      {activeTab === "모집" && (
+        <div className="px-4 mb-3">
+          <div className="flex gap-1.5">
+            {["전체", "공모전", "대외활동", "기타"].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveDept(cat)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
+                  activeDept === cat
+                    ? "bg-primary/15 text-primary"
+                    : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
       <div className="px-4 pb-28 flex flex-col items-center justify-center pt-12 gap-4">
         <div className="w-16 h-16 bg-primary/8 rounded-3xl flex items-center justify-center">
