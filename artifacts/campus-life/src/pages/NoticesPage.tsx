@@ -102,13 +102,6 @@ export function NoticesPage() {
             <RefreshCw className={cn("w-4 h-4 text-muted-foreground", isLoading && "animate-spin")} />
           </button>
         </div>
-        {fetchedTime && (
-          <p className="text-xs text-muted-foreground mt-1">
-            총 {data?.total ?? 0}건
-            {data?.stale ? " · 임시 캐시" : data?.cached ? " · 캐시됨" : " · 방금 업데이트"}
-            {" · "}{fetchedTime} 기준
-          </p>
-        )}
       </div>
 
       {/* 검색창 */}
