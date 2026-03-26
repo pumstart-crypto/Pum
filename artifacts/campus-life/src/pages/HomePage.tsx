@@ -13,12 +13,12 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 // ── Quick Links ──────────────────────────────────────────────────────
 const QUICK_LINKS = [
   { label: "홈페이지",  icon: "language",       href: "https://www.pusan.ac.kr/kor/Main.do", external: true },
+  { label: "학생지원", icon: "help_center",     href: "https://onestop.pusan.ac.kr/login", external: true },
   { label: "PLATO",    icon: "school",          href: "https://plato.pusan.ac.kr", external: true },
   { label: "도서관",   icon: "local_library",   href: "https://lib.pusan.ac.kr", external: true },
-  { label: "식단",     icon: "restaurant",      href: "/meals", external: false },
   { label: "학사일정", icon: "event_note",      href: "/academic-calendar", external: false },
-  { label: "학생지원", icon: "help_center",     href: "https://onestop.pusan.ac.kr/login", external: true },
-  { label: "버스",     icon: "directions_bus",  href: "/bus", external: false },
+  { label: "식단",     icon: "restaurant",      href: "/meals", external: false },
+  { label: "순환버스", icon: "directions_bus",  href: "/bus", external: false },
   { label: "캠퍼스맵", icon: "map",             href: "/campus-map", external: false },
 ];
 
