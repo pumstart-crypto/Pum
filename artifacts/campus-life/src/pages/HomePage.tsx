@@ -6,6 +6,8 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Plus, X, Circle, CheckCircle2, Pencil } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getSubjectColor } from "@/lib/colorThemes";
 
 const DAY_MAP: Record<string, number> = { 월: 0, 화: 1, 수: 2, 목: 3, 금: 4, 토: 5, 일: 6 };
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -243,6 +245,7 @@ export function HomePage() {
 
 // ── Timetable List Item ───────────────────────────────────────────────
 function TimetableItem({ schedule }: { schedule: Schedule }) {
+  const { colorTheme } = useTheme();
   return (
     <div className="bg-white rounded-3xl px-5 py-4 flex items-center gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-border/20">
       <div className="flex flex-col items-center border-r border-border/40 pr-4 shrink-0">
@@ -260,7 +263,7 @@ function TimetableItem({ schedule }: { schedule: Schedule }) {
           </p>
         )}
       </div>
-      <div className="w-1.5 h-10 rounded-full shrink-0" style={{ backgroundColor: schedule.color }} />
+      <div className="w-1.5 h-10 rounded-full shrink-0" style={{ backgroundColor: getSubjectColor(schedule.subjectName, colorTheme) }} />
     </div>
   );
 }
