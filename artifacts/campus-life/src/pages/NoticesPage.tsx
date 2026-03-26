@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Bell, School, BookOpen, Briefcase, AlertCircle, ExternalLink, Search, X,
-         ChevronLeft, ChevronRight, Menu, Check, Construction } from "lucide-react";
+         ChevronLeft, ChevronRight, List, Check, Construction } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DEPT_BY_COLLEGE } from "@/lib/departments";
 
@@ -126,10 +126,10 @@ function DeptSelectPanel({ selected, onSelect, onClose }: {
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/40 z-[60] backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card rounded-t-3xl z-50 shadow-2xl flex flex-col" style={{ maxHeight: "82vh" }}>
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card rounded-t-3xl z-[61] shadow-2xl flex flex-col" style={{ maxHeight: "82vh" }}>
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 bg-border rounded-full" />
@@ -357,7 +357,7 @@ export function NoticesPage() {
   const handleDeptSelect = (dept: string) => { setSelectedDept(dept); saveDept(dept); };
 
   return (
-    <Layout hideTopBar>
+    <Layout hideTopBar hideBottomNav={showDeptPanel}>
       {/* ── Sticky Header ── */}
       <div className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/30">
         {/* Title row */}
@@ -370,12 +370,10 @@ export function NoticesPage() {
           </div>
           <button
             onClick={() => setShowDeptPanel(true)}
-            className="flex flex-col gap-1 p-2 rounded-xl hover:bg-muted transition-colors group mb-0.5"
+            className="w-11 h-11 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all shadow-sm"
             title="학과 선택"
           >
-            <span className="block w-5 h-0.5 bg-foreground/70 rounded-full group-hover:bg-primary transition-colors" />
-            <span className="block w-5 h-0.5 bg-foreground/70 rounded-full group-hover:bg-primary transition-colors" />
-            <span className="block w-5 h-0.5 bg-foreground/70 rounded-full group-hover:bg-primary transition-colors" />
+            <List className="w-5 h-5" />
           </button>
         </div>
 
