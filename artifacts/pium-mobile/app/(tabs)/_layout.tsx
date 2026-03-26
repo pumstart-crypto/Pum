@@ -3,105 +3,142 @@ import { Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import C from '@/constants/colors';
 
 const isIOS = Platform.OS === 'ios';
 const isWeb = Platform.OS === 'web';
 
+const TAB_ITEMS = [
+  { name: 'index',    label: '홈',     iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',        sfOutline: 'house' },
+  { name: 'notices',  label: '공지',   iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',         sfOutline: 'bell' },
+  { name: 'schedule', label: '시간표', iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
+  { name: 'board',    label: '커뮤니티', iconFill: 'people',      iconOutline: 'people-outline',        sfFill: 'person.2.fill',     sfOutline: 'person.2' },
+  { name: 'settings', label: '설정',   iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',    sfOutline: 'gearshape' },
+] as const;
+
+function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
+  label: string;
+  focused: boolean;
+  sfFill: string;
+  sfOutline: string;
+  iconFill: string;
+  iconOutline: string;
+}) {
+  if (focused) {
+    return (
+      <View style={styles.activePill}>
+        {isIOS ? (
+          <SymbolView name={sfFill as any} tintColor="#fff" size={20} />
+        ) : (
+          <Ionicons name={iconFill as any} size={20} color="#fff" />
+        )}
+        <Text style={styles.activeLabel}>{label}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.inactiveItem}>
+      {isIOS ? (
+        <SymbolView name={sfOutline as any} tintColor="#9CA3AF" size={22} />
+      ) : (
+        <Ionicons name={iconOutline as any} size={22} color="#9CA3AF" />
+      )}
+      <Text style={styles.inactiveLabel}>{label}</Text>
+    </View>
+  );
+}
+
 export default function TabLayout() {
+  const tabBarHeight = isWeb ? 84 : 72;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.primary,
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarShowLabel: false,
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : '#fff',
+          backgroundColor: 'transparent',
           borderTopWidth: 0,
           elevation: 0,
-          height: isWeb ? 84 : 80,
-          paddingBottom: isWeb ? 34 : 20,
+          height: tabBarHeight,
+          paddingBottom: isWeb ? 16 : 8,
           paddingTop: 8,
+          paddingHorizontal: 4,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.06,
-          shadowRadius: 16,
+          shadowOpacity: 0.07,
+          shadowRadius: 20,
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
+            <BlurView
+              intensity={90}
+              tint="light"
+              style={[StyleSheet.absoluteFill, styles.tabBarBg]}
+            />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} />
+            <View style={[StyleSheet.absoluteFill, styles.tabBarBg, { backgroundColor: '#fff' }]} />
           ),
-        tabBarLabelStyle: {
-          fontFamily: 'Inter_600SemiBold',
-          fontSize: 10,
-          marginTop: 2,
-        },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: '홈',
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name={focused ? 'house.fill' : 'house'} tintColor={color} size={22} />
-            ) : (
-              <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+      {TAB_ITEMS.map(tab => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.label,
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                label={tab.label}
+                focused={focused}
+                sfFill={tab.sfFill}
+                sfOutline={tab.sfOutline}
+                iconFill={tab.iconFill}
+                iconOutline={tab.iconOutline}
+              />
             ),
-        }}
-      />
-      <Tabs.Screen
-        name="notices"
-        options={{
-          title: '공지',
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name={focused ? 'bell.fill' : 'bell'} tintColor={color} size={22} />
-            ) : (
-              <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          title: '시간표',
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name={focused ? 'calendar.badge.clock' : 'calendar'} tintColor={color} size={22} />
-            ) : (
-              <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="board"
-        options={{
-          title: '커뮤니티',
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name={focused ? 'person.2.fill' : 'person.2'} tintColor={color} size={22} />
-            ) : (
-              <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: '설정',
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name={focused ? 'gearshape.fill' : 'gearshape'} tintColor={color} size={22} />
-            ) : (
-              <Ionicons name={focused ? 'settings' : 'settings-outline'} size={22} color={color} />
-            ),
-        }}
-      />
+          }}
+        />
+      ))}
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarBg: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+
+  activePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: C.primary,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  activeLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+  },
+
+  inactiveItem: {
+    alignItems: 'center',
+    gap: 3,
+    paddingTop: 2,
+  },
+  inactiveLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#9CA3AF',
+  },
+});
