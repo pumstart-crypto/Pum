@@ -85,7 +85,6 @@ export function HomePage() {
   const [todosLoading, setTodosLoading] = useState(true);
   const [isAddTodoOpen, setIsAddTodoOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [newTask, setNewTask] = useState("");
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -107,13 +106,6 @@ export function HomePage() {
   const handleUpdateTodo = async (id: number, data: { title: string; category: string; dueDate?: string | null }) => {
     const updated = await updateTodo(id, data);
     setTodos(prev => prev.map(t => t.id === id ? updated : t));
-  };
-
-  const quickAdd = async () => {
-    if (!newTask.trim()) return;
-    const t = newTask.trim();
-    setNewTask("");
-    await handleAddTodo({ title: t, category: "기타" });
   };
 
   const todaySchedules = getTodaySchedules(schedules);
@@ -231,17 +223,6 @@ export function HomePage() {
               )}
             </div>
 
-            {/* Inline quick-add */}
-            <div className="flex items-center gap-3 bg-muted/40 mx-4 mb-4 mt-2 rounded-2xl px-4 py-3 border border-dashed border-border/60 focus-within:border-primary transition-colors">
-              <span className="material-symbols-outlined text-muted-foreground" style={{ fontSize: 20 }}>add</span>
-              <input
-                value={newTask}
-                onChange={e => setNewTask(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && quickAdd()}
-                placeholder="할 일 추가 (Enter)"
-                className="bg-transparent border-none focus:ring-0 focus:outline-none w-full text-sm font-medium placeholder:text-muted-foreground/50 text-foreground"
-              />
-            </div>
           </div>
         </section>
 
