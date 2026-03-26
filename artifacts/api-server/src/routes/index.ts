@@ -12,6 +12,7 @@ import deptNoticesRouter from "./dept-notices";
 import busRouter from "./bus";
 import communityRouter from "./community";
 import authRouter from "./auth";
+import academicCalendarRouter from "./academic-calendar";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(deptNoticesRouter);
 router.use(busRouter);
 router.use(communityRouter);
 router.use(authRouter);
+router.use(academicCalendarRouter);
 
 export default router;

@@ -48,6 +48,39 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## P:um 피움 Mobile App (`artifacts/pium-mobile`)
+
+Expo React Native app for 부산대학교 students. 5-tab structure.
+
+**Architecture:**
+- Expo Router (file-based routing), TypeScript
+- `contexts/AuthContext.tsx` — JWT auth, AsyncStorage, `useAuth()`, `useApiUrl()`, `updateUser()`
+- `constants/colors.ts` — Primary #2563EB, Accent #10B981, theme tokens
+- All API calls via `useApiUrl()` hook → `https://${EXPO_PUBLIC_DOMAIN}/api`
+
+**Tab Screens (`app/(tabs)/`):**
+- `index.tsx` — 홈: greeting, date, stat cards (budget/grades), quick actions, today's schedule, notices
+- `timetable.tsx` — 시간표: weekly grid, CRUD modal with color picker
+- `meal.tsx` — 학식: restaurant + day selector, weekly menu display
+- `community.tsx` — 커뮤니티: post list with categories, write modal
+- `more.tsx` — 더보기: profile card, all sub-screens menu, logout
+
+**Sub-screens (`app/`):**
+- `grades.tsx` — GPA calculator, semester-grouped list, CRUD
+- `budget.tsx` — Income/expense tracker, monthly summary
+- `bus.tsx` — Real-time bus route (금정구7), 15s auto-refresh
+- `calendar.tsx` — Academic calendar with month selector
+- `map.tsx` — Campus building list with categories
+- `notices.tsx` — PNU notice board (links to web)
+- `settings.tsx` — Profile edit, notification toggles
+
+**Auth Flow:** `_layout.tsx` → user=null → `<Redirect href="/login">` else Stack with all screens
+
+**API Routes added for mobile:**
+- `GET /api/schedule/academic` — Static academic calendar events (2025-2026)
+
+---
+
 ## CampusLife App — Feature Summary
 
 ### 캠퍼스라이프 Web App (`artifacts/campus-life`)
