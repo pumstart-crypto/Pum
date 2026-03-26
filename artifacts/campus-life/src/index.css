@@ -91,13 +91,25 @@
   --primary-container: 213 50% 22%; /* #1a3456 — active nav bg */
 }
 
+/* ── Bottom nav shadow ─────────────────────────── */
+.bottom-nav-shadow { box-shadow: 0 -8px 24px rgba(0, 66, 125, 0.07); }
+.dark .bottom-nav-shadow { box-shadow: 0 -1px 0 hsl(220 12% 26%), 0 -8px 32px rgba(0,0,0,0.40); }
+
 /* ── bg-white & bg-slate overrides for dark mode ─ */
-.dark .bg-white                { background-color: hsl(var(--card)) !important; }
+.dark .bg-white,
+.dark [class*="bg-white"]      { background-color: hsl(var(--card)) !important; }
 .dark [class~="bg-slate-50"]   { background-color: hsl(215 14% 10%) !important; }
 .dark [class~="bg-slate-50/60"]{ background-color: hsl(215 14% 10% / .6) !important; }
 .dark [class~="bg-slate-100"]  { background-color: hsl(215 14% 15%) !important; }
 .dark [class~="bg-slate-200"]  { background-color: hsl(215 14% 20%) !important; }
-/* Inactive tab/chip text */
+
+/* ── Stronger dividers & borders in dark mode ──── */
+.dark .divide-y > * + *  { border-color: hsl(var(--border) / 0.8) !important; }
+/* Card items: subtle inner highlight for depth perception */
+.dark .rounded-2xl.border,
+.dark .rounded-xl.border { box-shadow: inset 0 1px 0 hsl(220 14% 30% / 0.7); }
+
+/* ── Inactive tab/chip text ────────────────────── */
 .dark [class~="text-slate-500"] { color: hsl(220 10% 60%) !important; }
 .dark [class~="text-slate-400"] { color: hsl(220 10% 65%) !important; }
 .dark [class~="text-slate-600"] { color: hsl(220 10% 50%) !important; }

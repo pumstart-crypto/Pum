@@ -40,7 +40,7 @@ export function Layout({ children, hideTopBar, hideBottomNav }: { children: Reac
         </main>
 
         {/* ── Bottom Navigation ── */}
-        <nav className={`absolute bottom-0 left-0 right-0 flex items-center justify-around px-3 pt-3 pb-5 bg-white/90 backdrop-blur-2xl border-t border-border/40 rounded-t-3xl shadow-[0_-12px_32px_rgba(0,66,125,0.06)] z-50 transition-transform duration-300 ${hideBottomNav ? "translate-y-full" : "translate-y-0"}`}>
+        <nav className={`absolute bottom-0 left-0 right-0 flex items-center justify-around px-3 pt-3 pb-5 bg-card/95 backdrop-blur-2xl border-t border-border z-50 transition-transform duration-300 bottom-nav-shadow rounded-t-3xl ${hideBottomNav ? "translate-y-full" : "translate-y-0"}`}>
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
             return (
