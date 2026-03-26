@@ -3,9 +3,10 @@ import { Layout } from "@/components/Layout";
 import { useProfile } from "@/hooks/useProfile";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
+import { COLOR_THEMES, type ColorTheme } from "@/lib/colorThemes";
 import {
   User, Bell, Shield, HelpCircle, ChevronRight, LogOut,
-  Moon, Globe, Smartphone, Info, Edit3
+  Moon, Globe, Smartphone, Info, Edit3, Palette, Check
 } from "lucide-react";
 
 const SETTINGS_SECTIONS = [
@@ -38,10 +39,12 @@ const GRADE_LABEL: Record<string, string> = {
   "5": "5학년 이상", "grad": "대학원생",
 };
 
+const COLOR_THEME_KEYS: ColorTheme[] = ["A", "B", "C"];
+
 export function SettingsPage() {
   const [, navigate] = useLocation();
   const { profile } = useProfile();
-  const { isDark, toggle } = useTheme();
+  const { isDark, toggle, colorTheme, setColorTheme } = useTheme();
 
   const displayName = profile.name.trim() || "부산대학교 학생";
   const displaySub = [profile.department, GRADE_LABEL[profile.grade] ?? ""].filter(Boolean).join(" · ");
@@ -120,6 +123,65 @@ export function SettingsPage() {
             </div>
           </div>
         ))}
+
+        {/* ── 시간표 색상 테마 ── */}
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+            시간표 색상 테마
+          </p>
+          <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2.5 p-4 border-b border-border/40">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Palette className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">시간표 팔레트</p>
+                <p className="text-xs text-muted-foreground">시간표 과목 색상 조합을 선택하세요</p>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              {COLOR_THEME_KEYS.map((key) => {
+                const theme = COLOR_THEMES[key];
+                const isSelected = colorTheme === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setColorTheme(key)}
+                    className={cn(
+                      "w-full flex items-center gap-4 p-3.5 rounded-2xl border-2 transition-all text-left",
+                      isSelected
+                        ? "border-primary bg-primary/5"
+                        : "border-border/50 hover:border-primary/40 hover:bg-muted/30"
+                    )}
+                  >
+                    {/* Palette swatches */}
+                    <div className="flex gap-1.5 shrink-0">
+                      {theme.palette.slice(0, 4).map((color, i) => (
+                        <div
+                          key={i}
+                          className="w-7 h-7 rounded-lg shadow-sm"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    {/* Name + desc */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{theme.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{theme.desc}</p>
+                    </div>
+                    {/* Check */}
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                      isSelected ? "bg-primary" : "border-2 border-border"
+                    )}>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
         {/* Coming Soon Notice */}
         <div className="bg-muted rounded-2xl p-4 text-center">

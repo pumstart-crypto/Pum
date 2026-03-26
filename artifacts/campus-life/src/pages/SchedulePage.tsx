@@ -14,6 +14,8 @@ import {
   getCurriculum, loadAdmissionYear, saveAdmissionYear, catLabel, catBg, catColor,
   type Curriculum,
 } from "@/lib/curriculum";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getSubjectColor, COLOR_THEMES } from "@/lib/colorThemes";
 
 const DAYS = ["월", "화", "수", "목", "금"];
 // 30-minute slots: 09:00 → 18:30 (20 slots × 30px = 600px)
@@ -23,10 +25,6 @@ const HALF_HOURS = Array.from({ length: 20 }, (_, i) => {
   const m = total % 60;
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 });
-const COLORS = [
-  "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD",
-  "#D4A5A5", "#9B59B6", "#1ABC9C", "#F1C40F", "#E67E22",
-];
 
 const DAY_MAP: Record<string, number> = {
   월: 0, 화: 1, 수: 2, 목: 3, 금: 4, 토: 5, 일: 6,
@@ -596,6 +594,8 @@ function SemesterManagerDialog({
 
 function ScheduleBlock({ schedule, allSchedules }: { schedule: Schedule; allSchedules: Schedule[] }) {
   const queryClient = useQueryClient();
+  const { colorTheme } = useTheme();
+  const displayColor = getSubjectColor(schedule.subjectName, colorTheme);
   const [showDetail, setShowDetail] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -649,7 +649,7 @@ function ScheduleBlock({ schedule, allSchedules }: { schedule: Schedule; allSche
           height: `${height}px`,
           left: `calc(56px + ${schedule.dayOfWeek} * ((100% - 56px) / 5))`,
           width: `calc((100% - 56px) / 5 - 4px)`,
-          backgroundColor: schedule.color,
+          backgroundColor: displayColor,
           marginLeft: "2px",
         }}
       >
@@ -663,7 +663,7 @@ function ScheduleBlock({ schedule, allSchedules }: { schedule: Schedule; allSche
             <button onClick={() => setShowDetail(false)} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
               <X className="w-6 h-6" />
             </button>
-            <div className="w-12 h-12 rounded-2xl mb-4" style={{ backgroundColor: schedule.color }} />
+            <div className="w-12 h-12 rounded-2xl mb-4" style={{ backgroundColor: displayColor }} />
             <h3 className="text-2xl font-bold text-foreground mb-1">{schedule.subjectName}</h3>
             <div className="space-y-3 mt-6">
               <div className="flex items-center text-muted-foreground">
@@ -722,6 +722,7 @@ type ConflictState = {
 
 function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, onClose }: { year: number; semester: string; curriculum: Curriculum; existingSchedules: Schedule[]; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { colorTheme } = useTheme();
   const catalogYear = catalogYearFor(year, semester);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
@@ -736,7 +737,6 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
   const [importDone, setImportDone] = useState(false);
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
   const [error, setError] = useState("");
-  const [colorIndex, setColorIndex] = useState(0);
   const [showDeptDropdown, setShowDeptDropdown] = useState(false);
   const [deptSearch, setDeptSearch] = useState("");
 
@@ -801,7 +801,8 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
     const toImport = courses.filter(c => selected.has(c.id));
     if (toImport.length === 0) return;
     setIsImporting(true);
-    let ci = colorIndex;
+    const palette = COLOR_THEMES[colorTheme].palette;
+    let ci = 0;
 
     // live list of scheduled slots (existing + newly added this session)
     const liveSchedules: Schedule[] = [...existingSchedules];
@@ -827,7 +828,7 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
               dayOfWeek: 0,
               startTime: "09:00",
               endTime: "10:00",
-              color: COLORS[ci % COLORS.length],
+              color: getSubjectColor(course.subjectName, colorTheme),
               year,
               semester,
             },
@@ -840,7 +841,7 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
 
       const slots = parseTimeSlots(course.timeRoom, course.subjectName, course.professor || "");
       if (slots.length === 0) continue;
-      const color = COLORS[ci % COLORS.length];
+      const color = palette[ci % palette.length];
 
       let skipCourse = false;
       for (const slot of slots) {
@@ -1238,6 +1239,7 @@ function AddScheduleDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { colorTheme } = useTheme();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     subjectName: "",
@@ -1246,7 +1248,6 @@ function AddScheduleDialog({
     selectedDays: [0] as number[],
     startTime: "09:00",
     endTime: addMinutesToTime("09:00", 75),
-    color: COLORS[0],
     category: curriculum.categories[0]?.code ?? "전공필수",
     credits: 3,
   });
@@ -1283,7 +1284,7 @@ function AddScheduleDialog({
             dayOfWeek,
             startTime: formData.startTime,
             endTime: formData.endTime,
-            color: formData.color,
+            color: getSubjectColor(formData.subjectName, colorTheme),
             category: formData.category,
             credits: formData.credits,
             year,
@@ -1426,24 +1427,13 @@ function AddScheduleDialog({
             </div>
           </div>
 
-          {/* 색상 */}
-          <div>
-            <label className="text-sm font-bold text-muted-foreground block mb-2">색상</label>
-            <div className="flex gap-2 flex-wrap">
-              {COLORS.map(color => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, color })}
-                  className={cn(
-                    "w-8 h-8 rounded-full transition-transform",
-                    formData.color === color ? "scale-125 ring-2 ring-offset-2 ring-foreground/30" : "hover:scale-110"
-                  )}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
+          {/* 색상 미리보기 */}
+          {formData.subjectName && (
+            <div className="flex items-center gap-3 px-1">
+              <div className="w-5 h-5 rounded-full shrink-0" style={{ backgroundColor: getSubjectColor(formData.subjectName, colorTheme) }} />
+              <span className="text-xs text-muted-foreground">시간표에 표시될 색상 (테마 자동 적용)</span>
             </div>
-          </div>
+          )}
 
           <button
             type="submit"
@@ -1491,6 +1481,7 @@ function GradeSection({
   isSettingsOpen: boolean;
   onSettingsClose: () => void;
 }) {
+  const { colorTheme } = useTheme();
   const [grades, setGrades] = useState<GradeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingGrade, setEditingGrade] = useState<GradeEntry | null>(null);
@@ -1794,7 +1785,7 @@ function GradeSection({
                       return (
                         <div key={course.id} className="flex items-center gap-3 px-5 py-3.5 border-b border-border/20 last:border-0">
                           {/* Course color dot */}
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: course.color }} />
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: getSubjectColor(course.subjectName, colorTheme) }} />
                           {/* Name + category */}
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-foreground truncate">{course.subjectName}</p>
@@ -1899,6 +1890,7 @@ function QuickGradeDialog({
   onClose: () => void;
   onAdd: (g: GradeEntry) => void;
 }) {
+  const { colorTheme } = useTheme();
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -1929,7 +1921,7 @@ function QuickGradeDialog({
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: course.color }} />
+            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getSubjectColor(course.subjectName, colorTheme) }} />
             <div className="min-w-0">
               <p className="font-black text-foreground text-base truncate">{course.subjectName}</p>
               <div className="flex items-center gap-2 mt-0.5">
