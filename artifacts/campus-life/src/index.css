@@ -109,6 +109,17 @@
 .dark .rounded-2xl.border,
 .dark .rounded-xl.border { box-shadow: inset 0 1px 0 hsl(220 14% 30% / 0.7); }
 
+/* ── Green (진행중) overrides for dark mode ──────── */
+.dark [class*="bg-green-50"]    { background-color: hsl(145 30% 10%) !important; }
+.dark [class~="bg-green-100"]   { background-color: hsl(145 28% 13%) !important; }
+.dark [class~="bg-green-200"]   { background-color: hsl(145 25% 18%) !important; }
+.dark [class~="border-green-200"]{ border-color:    hsl(145 25% 22%) !important; }
+.dark [class~="text-green-700"] { color: hsl(145 45% 55%) !important; }
+.dark [class~="text-green-800"] { color: hsl(145 40% 50%) !important; }
+/* Progress bar fill stays visible but muted */
+.dark [class~="bg-green-400"]   { background-color: hsl(145 38% 38%) !important; }
+.dark [class~="bg-green-500"]   { background-color: hsl(145 35% 32%) !important; }
+
 /* ── Inactive tab/chip text ────────────────────── */
 .dark [class~="text-slate-500"] { color: hsl(220 10% 60%) !important; }
 .dark [class~="text-slate-400"] { color: hsl(220 10% 65%) !important; }
