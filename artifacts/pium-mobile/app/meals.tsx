@@ -1,201 +1,379 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Platform,
+  ActivityIndicator, Platform,
 } from 'react-native';
-import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
 
-const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+const isWeb = Platform.OS === 'web';
 
-interface MealMenu {
-  type: string;
-  menu: string[];
-  calorie?: number;
-  price?: number;
-  operatingHours?: string;
-}
-
-interface CafeteriaData {
+interface SubMenu {
   name: string;
-  location?: string;
-  meals: MealMenu[];
+  price: string;
+  items: string[];
+  isCheapBreakfast: boolean;
 }
 
-interface MealData {
+interface DayMenu {
   date: string;
-  cafeterias: CafeteriaData[];
+  day: string;
+  subMenus: SubMenu[];
+}
+
+interface MealRow {
+  type: string;
+  hours: string;
+  days: DayMenu[];
+}
+
+interface WeekMeals {
+  restaurantCode: string;
+  restaurantName: string;
+  campus: string;
+  campusLabel: string;
+  weekLabel: string;
+  dates: string[];
+  days: string[];
+  mealRows: MealRow[];
+  prevDate: string;
+  nextDate: string;
+  fetchedAt: string;
+}
+
+const CAMPUSES = [
+  { id: 'PUSAN', label: '부산' },
+  { id: 'MIRYANG', label: '밀양' },
+  { id: 'YANGSAN', label: '양산' },
+];
+
+const CAMPUS_RESTAURANTS: Record<string, { code: string; name: string }[]> = {
+  PUSAN: [
+    { code: 'PG002', name: '금정회관\n학생식당' },
+    { code: 'PH002', name: '학생회관\n식당' },
+    { code: 'PG001', name: '금정회관\n교직원식당' },
+  ],
+  MIRYANG: [
+    { code: 'M001', name: '학생회관\n학생식당' },
+    { code: 'M002', name: '학생회관\n교직원식당' },
+  ],
+  YANGSAN: [
+    { code: 'Y001', name: '편의동\n식당' },
+  ],
+};
+
+const SUBMENU_STYLES: Record<string, { borderColor: string; badgeBg: string; badgeText: string }> = {
+  '천원의아침':  { borderColor: '#FBBF24', badgeBg: '#FFFBEB', badgeText: '#B45309' },
+  '천원의아침&정식': { borderColor: '#FBBF24', badgeBg: '#FFFBEB', badgeText: '#B45309' },
+  '정식':       { borderColor: '#60A5FA', badgeBg: '#EFF6FF', badgeText: '#1D4ED8' },
+  '특정식':     { borderColor: '#60A5FA', badgeBg: '#EFF6FF', badgeText: '#1D4ED8' },
+  '일품':       { borderColor: '#A78BFA', badgeBg: '#F5F3FF', badgeText: '#6D28D9' },
+};
+
+function getSubMenuStyle(name: string) {
+  return SUBMENU_STYLES[name] ?? { borderColor: '#D1D5DB', badgeBg: '#F9FAFB', badgeText: '#6B7280' };
 }
 
 const MEAL_COLORS: Record<string, string> = {
-  '조식': '#F59E0B',
+  '조식': '#F97316',
   '중식': '#3B82F6',
   '석식': '#8B5CF6',
-  '조중식': '#10B981',
 };
 
-const MEAL_ICONS: Record<string, string> = {
-  '조식': 'sun',
-  '중식': 'clock',
-  '석식': 'moon',
-  '조중식': 'coffee',
-};
+function getTodayStr() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
 
 export default function MealsScreen() {
   const insets = useSafeAreaInsets();
-  const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
-  const [meals, setMeals] = useState<MealData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(0);
+  const [campus, setCampus] = useState('PUSAN');
+  const [restaurant, setRestaurant] = useState('PG002');
+  const [queryDate, setQueryDate] = useState(getTodayStr());
+  const [data, setData] = useState<WeekMeals | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  const [error, setError] = useState('');
 
-  const getDates = () => {
-    return Array.from({ length: 5 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i - 1);
-      return d;
-    });
-  };
-  const dates = getDates();
-
-  const fetchMeals = useCallback(async () => {
+  const fetchMeals = useCallback(async (rest: string, date: string) => {
+    setIsLoading(true);
+    setError('');
     try {
-      const r = await fetch(`${API}/meals`);
-      if (r.ok) setMeals(await r.json());
-    } catch {}
-    finally { setLoading(false); }
+      const res = await fetch(`${API_BASE}/api/meals?restaurant=${rest}&date=${date}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: WeekMeals = await res.json();
+      if ((json as any).error) throw new Error((json as any).error);
+      setData(json);
+      const today = getTodayStr();
+      const todayIdx = json.dates.findIndex(d => d === today);
+      setSelectedDayIdx(todayIdx >= 0 ? todayIdx : 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   }, []);
 
-  useEffect(() => { fetchMeals(); }, [fetchMeals]);
+  useEffect(() => { fetchMeals(restaurant, queryDate); }, [restaurant, queryDate, fetchMeals]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchMeals();
-    setRefreshing(false);
-  }, [fetchMeals]);
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchMeals(restaurant, queryDate);
+  };
 
-  const currentMeals = meals[selectedDate] || null;
+  const handleCampusChange = (campusId: string) => {
+    setCampus(campusId);
+    const firstRest = CAMPUS_RESTAURANTS[campusId]?.[0]?.code ?? 'PG002';
+    setRestaurant(firstRest);
+  };
 
-  const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+  const today = getTodayStr();
+  const effDayIdx = selectedDayIdx ?? 0;
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>학식 메뉴</Text>
-        <TouchableOpacity onPress={() => router.push('/restaurant' as any)} style={styles.restaurantBtn}>
-          <Text style={styles.restaurantBtnText}>외식</Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110 }}>
 
-      {/* Date selector */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll} contentContainerStyle={styles.dateContainer}>
-        {dates.map((d, i) => {
-          const isToday = i === 1;
-          const isSelected = i === selectedDate;
-          return (
-            <TouchableOpacity key={i} style={[styles.dateChip, isSelected && styles.dateChipSelected]} onPress={() => setSelectedDate(i)}>
-              <Text style={[styles.dateChipDay, isSelected && styles.dateChipDaySelected, isToday && !isSelected && { color: C.primary }]}>
-                {isToday ? '오늘' : DAY_NAMES[d.getDay()]}
-              </Text>
-              <Text style={[styles.dateChipDate, isSelected && styles.dateChipDateSelected]}>
-                {d.getMonth() + 1}/{d.getDate()}
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <Text style={styles.universityLabel}>부산대학교</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.pageTitle}>오늘의 식단</Text>
+            <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh}>
+              <Feather name="refresh-cw" size={16} color={isRefreshing ? C.primary : '#6B7280'} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Campus Tabs */}
+        <View style={styles.campusTabs}>
+          {CAMPUSES.map(c => (
+            <TouchableOpacity
+              key={c.id}
+              style={[styles.campusTab, campus === c.id && styles.campusTabActive]}
+              onPress={() => handleCampusChange(c.id)}
+            >
+              <Text style={[styles.campusTabText, campus === c.id && styles.campusTabTextActive]}>
+                {c.label}
               </Text>
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          ))}
+        </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[styles.content, { paddingBottom: isWeb ? 50 : 100 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <ActivityIndicator color={C.primary} style={{ marginTop: 40 }} />
-        ) : !currentMeals || !currentMeals.cafeterias.length ? (
-          <View style={styles.empty}>
-            <Feather name="coffee" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>식단 정보 없음</Text>
-            <Text style={styles.emptyDesc}>해당 날짜의 식단 정보가 없습니다</Text>
+        {/* Restaurant Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.restContainer} style={styles.restScroll}>
+          {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
+            <TouchableOpacity
+              key={r.code}
+              style={[styles.restChip, restaurant === r.code && styles.restChipActive]}
+              onPress={() => setRestaurant(r.code)}
+            >
+              <Text style={[styles.restChipText, restaurant === r.code && styles.restChipTextActive]}>
+                {r.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Week Navigation */}
+        {data && (
+          <View style={styles.weekNav}>
+            <TouchableOpacity
+              style={[styles.navBtn, !data.prevDate && styles.navBtnDisabled]}
+              onPress={() => data.prevDate && setQueryDate(data.prevDate)}
+              disabled={!data.prevDate}
+            >
+              <Feather name="chevron-left" size={20} color={data.prevDate ? '#374151' : '#D1D5DB'} />
+            </TouchableOpacity>
+            <Text style={styles.weekLabel}>{data.weekLabel}</Text>
+            <TouchableOpacity
+              style={[styles.navBtn, !data.nextDate && styles.navBtnDisabled]}
+              onPress={() => data.nextDate && setQueryDate(data.nextDate)}
+              disabled={!data.nextDate}
+            >
+              <Feather name="chevron-right" size={20} color={data.nextDate ? '#374151' : '#D1D5DB'} />
+            </TouchableOpacity>
           </View>
-        ) : (
-          currentMeals.cafeterias.map((cafeteria, cIdx) => (
-            <View key={cIdx} style={styles.cafeteriaCard}>
-              <View style={styles.cafeteriaHeader}>
-                <Text style={styles.cafeteriaName}>{cafeteria.name}</Text>
-                {cafeteria.location && (
-                  <View style={styles.locationBadge}>
-                    <Feather name="map-pin" size={11} color="#6B7280" />
-                    <Text style={styles.locationText}>{cafeteria.location}</Text>
-                  </View>
-                )}
-              </View>
-              {cafeteria.meals.map((meal, mIdx) => {
-                const color = MEAL_COLORS[meal.type] || '#6B7280';
-                const icon = MEAL_ICONS[meal.type] || 'utensils';
+        )}
+
+        {/* Day Tabs */}
+        {data && data.dates.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayTabsContainer} style={styles.dayTabsScroll}>
+            {data.dates.map((date, idx) => {
+              const isTodayDate = date === today;
+              const isSelected = idx === effDayIdx;
+              return (
+                <TouchableOpacity
+                  key={date}
+                  style={[
+                    styles.dayTab,
+                    isSelected && styles.dayTabSelected,
+                    isTodayDate && !isSelected && styles.dayTabToday,
+                  ]}
+                  onPress={() => setSelectedDayIdx(idx)}
+                >
+                  <Text style={[styles.dayTabDay, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
+                    {data.days[idx]}
+                  </Text>
+                  <Text style={[styles.dayTabDate, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
+                    {date.slice(8)}
+                  </Text>
+                  {isTodayDate && !isSelected && <View style={styles.dayDot} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Content */}
+        <View style={styles.content}>
+          {isLoading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={C.primary} size="large" />
+            </View>
+          ) : error ? (
+            <View style={styles.errorCard}>
+              <Feather name="alert-circle" size={40} color="#D1D5DB" />
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => fetchMeals(restaurant, queryDate)}>
+                <Text style={styles.retryText}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !data || data.mealRows.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Feather name="coffee" size={40} color="#D1D5DB" />
+              <Text style={styles.emptyText}>식단 정보가 없습니다.</Text>
+            </View>
+          ) : (
+            <>
+              {data.mealRows.map((row, ri) => {
+                const dayMenu = row.days[effDayIdx];
+                const hasMenus = dayMenu && dayMenu.subMenus.length > 0;
+                const accentColor = MEAL_COLORS[row.type] ?? '#6B7280';
+
                 return (
-                  <View key={mIdx} style={styles.mealSection}>
-                    <View style={[styles.mealTypeBar, { backgroundColor: color + '18' }]}>
-                      <Feather name={icon as any} size={14} color={color} />
-                      <Text style={[styles.mealType, { color }]}>{meal.type}</Text>
-                      {meal.operatingHours && (
-                        <Text style={styles.mealHours}>{meal.operatingHours}</Text>
-                      )}
-                      <View style={{ flex: 1 }} />
-                      {meal.price ? <Text style={styles.mealPrice}>{meal.price.toLocaleString()}원</Text> : null}
-                      {meal.calorie ? <Text style={styles.mealCal}>{meal.calorie}kcal</Text> : null}
+                  <View key={ri} style={styles.mealCard}>
+                    <View style={styles.mealHeader}>
+                      <View style={styles.mealTypeRow}>
+                        <Text style={[styles.mealType, { color: hasMenus ? accentColor : '#D1D5DB' }]}>
+                          {row.type}
+                        </Text>
+                        {row.hours ? (
+                          <Text style={styles.mealHours}>{row.hours}</Text>
+                        ) : null}
+                      </View>
+                      {!hasMenus && <Text style={styles.noOperating}>미운영</Text>}
                     </View>
-                    {meal.menu.map((item, iIdx) => (
-                      <Text key={iIdx} style={styles.menuItem}>• {item}</Text>
-                    ))}
+
+                    {hasMenus ? (
+                      <View style={styles.subMenuList}>
+                        {dayMenu.subMenus.map((sub, si) => {
+                          const style = getSubMenuStyle(sub.name);
+                          return (
+                            <View key={si} style={[styles.subMenuItem, { borderLeftColor: style.borderColor }]}>
+                              <View style={styles.subMenuHeader}>
+                                <View style={[styles.subMenuBadge, { backgroundColor: style.badgeBg }]}>
+                                  <Text style={[styles.subMenuBadgeText, { color: style.badgeText }]}>
+                                    {sub.isCheapBreakfast ? '천원의아침' : sub.name}
+                                  </Text>
+                                </View>
+                                {sub.price ? <Text style={styles.subMenuPrice}>{sub.price}</Text> : null}
+                              </View>
+                              <View style={styles.itemsRow}>
+                                {sub.items.map((item, ii) => (
+                                  <Text key={ii} style={styles.menuItem}>{item}</Text>
+                                ))}
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <View style={{ height: 4 }} />
+                    )}
                   </View>
                 );
               })}
-            </View>
-          ))
-        )}
+              {data.restaurantName ? (
+                <Text style={styles.footerText}>
+                  {data.restaurantName}
+                </Text>
+              ) : null}
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F7FA' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-  headerTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center' },
-  restaurantBtn: { backgroundColor: '#EEF4FF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  restaurantBtnText: { fontSize: 13, color: C.primary, fontFamily: 'Inter_600SemiBold' },
-  dateScroll: { backgroundColor: '#fff' },
-  dateContainer: { paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
-  dateChip: { alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 14, backgroundColor: '#F3F4F6', minWidth: 52 },
-  dateChipSelected: { backgroundColor: C.primary },
-  dateChipDay: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  dateChipDaySelected: { color: '#fff' },
-  dateChipDate: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#111827', marginTop: 2 },
-  dateChipDateSelected: { color: '#fff' },
-  content: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
-  empty: { alignItems: 'center', paddingVertical: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#374151' },
-  emptyDesc: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  cafeteriaCard: { backgroundColor: '#fff', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  cafeteriaHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  cafeteriaName: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827' },
-  locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  locationText: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_400Regular' },
-  mealSection: { marginBottom: 10 },
-  mealTypeBar: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 6 },
-  mealType: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  mealHours: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  mealPrice: { fontSize: 12, color: '#374151', fontFamily: 'Inter_600SemiBold' },
-  mealCal: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginLeft: 4 },
-  menuItem: { fontSize: 14, color: '#374151', fontFamily: 'Inter_400Regular', lineHeight: 22, paddingLeft: 4 },
+  root: { flex: 1, backgroundColor: '#F9FAFB' },
+
+  headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
+  universityLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1 },
+  refreshBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+
+  campusTabs: { flexDirection: 'row', marginHorizontal: 20, backgroundColor: '#F3F4F6', borderRadius: 16, padding: 4, marginBottom: 14 },
+  campusTab: { flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center' },
+  campusTabActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  campusTabText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#9CA3AF' },
+  campusTabTextActive: { color: C.primary },
+
+  restScroll: { marginBottom: 14 },
+  restContainer: { paddingHorizontal: 20, gap: 8 },
+  restChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+  restChipActive: { backgroundColor: C.primary, borderColor: C.primary, shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 3 },
+  restChipText: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#6B7280', textAlign: 'center' },
+  restChipTextActive: { color: '#fff' },
+
+  weekNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 },
+  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  navBtnDisabled: { opacity: 0.4 },
+  weekLabel: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#111827' },
+
+  dayTabsScroll: { marginBottom: 16 },
+  dayTabsContainer: { paddingHorizontal: 20, gap: 8 },
+  dayTab: { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', minWidth: 48 },
+  dayTabSelected: { backgroundColor: C.primary, borderColor: C.primary, shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 3 },
+  dayTabToday: { backgroundColor: '#EFF6FF', borderColor: `${C.primary}33` },
+  dayTabDay: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#9CA3AF' },
+  dayTabDate: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827', marginTop: 2 },
+  dayTabTextActive: { color: '#fff' },
+  dayTabTodayText: { color: C.primary },
+  dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.primary, marginTop: 2 },
+
+  content: { paddingHorizontal: 20, gap: 10 },
+  center: { paddingVertical: 60, alignItems: 'center' },
+  errorCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)' },
+  errorText: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium', textAlign: 'center' },
+  retryBtn: { backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9 },
+  retryText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#fff' },
+  emptyCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)' },
+  emptyText: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium' },
+
+  mealCard: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 },
+  mealHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8 },
+  mealTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  mealType: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  mealHours: { fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+  noOperating: { fontSize: 11, color: '#D1D5DB', fontFamily: 'Inter_500Medium' },
+
+  subMenuList: { paddingHorizontal: 18, paddingBottom: 14, gap: 10 },
+  subMenuItem: { borderLeftWidth: 2, paddingLeft: 10 },
+  subMenuHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  subMenuBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  subMenuBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  subMenuPrice: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_500Medium' },
+  itemsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  menuItem: { fontSize: 13, color: '#111827', fontFamily: 'Inter_500Medium', lineHeight: 20 },
+
+  footerText: { textAlign: 'center', fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_500Medium', paddingVertical: 4 },
 });
