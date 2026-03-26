@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Check, User, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProfile, UserProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
 import { DEPT_BY_COLLEGE } from "@/lib/departments";
 
@@ -50,6 +51,14 @@ const selectCls = inputCls + " appearance-none cursor-pointer";
 export function ProfileEditPage() {
   const [, navigate] = useLocation();
   const { profile, updateProfile } = useProfile();
+  const { user } = useAuth();
+
+  const isAdmin = user?.studentId === 'ADMIN' || user?.username === 'admin27548';
+
+  const lockedName = isAdmin ? (user?.name || '관리자') : profile.name;
+  const lockedDept = isAdmin ? (user?.major || '시스템 관리') : profile.department;
+  const lockedStudentId = isAdmin ? (user?.studentId || 'ADMIN') : profile.studentId;
+  const lockedMajor = isAdmin ? (user?.major || '시스템 관리') : profile.major;
 
   const [form, setForm] = useState<UserProfile>({ ...profile });
   const [saved, setSaved] = useState(false);
@@ -69,7 +78,7 @@ export function ProfileEditPage() {
     setTimeout(() => navigate("/settings"), 600);
   };
 
-  const initial = profile.name.trim() ? profile.name[0] : "학";
+  const initial = lockedName.trim() ? lockedName[0] : "관";
 
   return (
     <Layout hideTopBar>
@@ -116,23 +125,32 @@ export function ProfileEditPage() {
           </div>
         </div>
 
-        {/* ── 학생증 인증 안내 ── */}
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
-          <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-700 leading-relaxed">
-            이름, 학과, 전공, 학번은 회원가입 시 <span className="font-bold">학생증 인증</span>으로 확인된 정보입니다. 변경이 필요하면 학교 포털에 문의하세요.
-          </p>
-        </div>
+        {/* ── 인증 안내 ── */}
+        {isAdmin ? (
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3.5">
+            <Lock className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700 leading-relaxed">
+              관리자 계정입니다. 이름, 학과, 학번은 <span className="font-bold">시스템에서 관리</span>하는 정보입니다.
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
+            <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 leading-relaxed">
+              이름, 학과, 전공, 학번은 회원가입 시 <span className="font-bold">학생증 인증</span>으로 확인된 정보입니다. 변경이 필요하면 학교 포털에 문의하세요.
+            </p>
+          </div>
+        )}
 
         {/* ── 잠긴 필드들 ── */}
         <div className="space-y-4">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">인증된 정보</p>
-          <LockedField label="이름" value={profile.name} />
+          <LockedField label="이름" value={lockedName} />
           <div className="grid grid-cols-2 gap-3">
-            <LockedField label="학과" value={profile.department} />
-            <LockedField label="학번" value={profile.studentId} />
+            <LockedField label="학과" value={lockedDept} />
+            <LockedField label="학번" value={lockedStudentId} />
           </div>
-          <LockedField label="전공" value={profile.major} />
+          <LockedField label="전공" value={lockedMajor} />
         </div>
 
         {/* ── 편집 가능 필드들 ── */}
