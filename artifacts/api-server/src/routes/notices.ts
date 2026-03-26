@@ -96,6 +96,14 @@ async function fetchAllNotices(): Promise<Notice[]> {
   return [...pinned, ...regular];
 }
 
+// Warm up cache on server start
+(async () => {
+  try {
+    const notices = await fetchAllNotices();
+    cache = { data: notices, fetchedAt: Date.now() };
+  } catch {}
+})();
+
 router.get("/notices", async (_req, res) => {
   try {
     const now = Date.now();

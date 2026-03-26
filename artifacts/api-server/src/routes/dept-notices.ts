@@ -9,8 +9,8 @@ const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Accept-Language": "ko-KR,ko;q=0.9",
 };
-const MAX_SCRAPE_PAGES = 15;
-const TARGET_COUNT = 100;
+const MAX_SCRAPE_PAGES = 5;
+const TARGET_COUNT = 50;
 const OLDEST_CUTOFF = "2020-01-01";
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
