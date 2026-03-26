@@ -31,7 +31,6 @@ export function NoticesPage() {
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const searchRef = useRef<HTMLInputElement>(null);
-  const topRef = useRef<HTMLDivElement>(null);
 
   const fetchNotices = async () => {
     setIsLoading(true);
@@ -81,14 +80,13 @@ export function NoticesPage() {
 
   const handlePage = (page: number) => {
     setCurrentPage(page);
-    topRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const totalResults = filteredPinned.length + filteredRegular.length;
 
   return (
     <Layout>
-      <div ref={topRef} className="p-6 pt-12 pb-4">
+      <div className="p-6 pt-12 pb-4">
         <p className="text-muted-foreground font-medium mb-1">부산대학교</p>
         <div className="flex items-end justify-between">
           <h1 className="text-3xl text-foreground">
