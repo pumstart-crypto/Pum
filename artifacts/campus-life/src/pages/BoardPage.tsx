@@ -1,28 +1,26 @@
 import { Layout } from "@/components/Layout";
 import { MessageSquare } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const BOARD_TABS = ["전체", "공지", "질문", "모집", "거래"];
 
+function getProfileDepts(): string[] {
+  try {
+    const raw = localStorage.getItem("campus_life_profile");
+    if (!raw) return [];
+    const p = JSON.parse(raw);
+    return [p.department, p.doubleMajor, p.minor].filter(Boolean) as string[];
+  } catch {
+    return [];
+  }
+}
+
 export function BoardPage() {
   const [activeTab, setActiveTab] = useState("전체");
-  const [depts, setDepts] = useState<string[]>([]);
   const [activeDept, setActiveDept] = useState("전체");
 
-  useEffect(() => {
-    if (activeTab === "질문" && depts.length === 0) {
-      fetch(`${BASE}/api/courses/departments`)
-        .then(r => r.json())
-        .then((data: string[]) => setDepts(data))
-        .catch(() => {});
-    }
-    if (activeTab !== "질문") setActiveDept("전체");
-  }, [activeTab]);
-
-  const deptList = ["전체", ...depts];
+  const profileDepts = useMemo(() => getProfileDepts(), []);
 
   return (
     <Layout hideTopBar>
@@ -37,7 +35,7 @@ export function BoardPage() {
           {BOARD_TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setActiveDept("전체"); }}
               className={cn(
                 "shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors",
                 activeTab === tab
@@ -51,35 +49,24 @@ export function BoardPage() {
         </div>
       </div>
 
-      {/* Department sub-filter — only visible on 질문 tab */}
-      {activeTab === "질문" && (
+      {/* Dept sub-filter — only on 질문 tab, only if profile has majors */}
+      {activeTab === "질문" && profileDepts.length > 0 && (
         <div className="px-4 mb-3">
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">
-            {depts.length === 0 ? (
-              <div className="flex gap-1.5">
-                {["전체", "로딩중..."].map((label, i) => (
-                  <div key={i} className={cn(
-                    "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold",
-                    i === 0 ? "bg-primary/15 text-primary" : "bg-slate-100 text-slate-400 animate-pulse"
-                  )}>{label}</div>
-                ))}
-              </div>
-            ) : (
-              deptList.map((dept) => (
-                <button
-                  key={dept}
-                  onClick={() => setActiveDept(dept)}
-                  className={cn(
-                    "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
-                    activeDept === dept
-                      ? "bg-primary/15 text-primary"
-                      : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
-                  )}
-                >
-                  {dept}
-                </button>
-              ))
-            )}
+          <div className="flex gap-1.5">
+            {(["전체", ...profileDepts] as string[]).map((dept) => (
+              <button
+                key={dept}
+                onClick={() => setActiveDept(dept)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
+                  activeDept === dept
+                    ? "bg-primary/15 text-primary"
+                    : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                )}
+              >
+                {dept === "전체" ? "전체 질문" : dept}
+              </button>
+            ))}
           </div>
         </div>
       )}
