@@ -4,3 +4,4 @@ export * from "./restaurant";
 export * from "./courses";
 export * from "./todos";
 export * from "./grades";
+export * from "./community";

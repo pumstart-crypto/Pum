@@ -10,6 +10,7 @@ import gradesRouter from "./grades";
 import noticesRouter from "./notices";
 import deptNoticesRouter from "./dept-notices";
 import busRouter from "./bus";
+import communityRouter from "./community";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(gradesRouter);
 router.use(noticesRouter);
 router.use(deptNoticesRouter);
 router.use(busRouter);
+router.use(communityRouter);
 
 export default router;
