@@ -95,16 +95,6 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
   );
 }
 
-/* ── Section Label ── */
-function SectionLabel({ label }: { label: string }) {
-  return (
-    <View style={styles.sectionLabel}>
-      <Ionicons name="notifications" size={14} color={C.primary} />
-      <Text style={styles.sectionLabelText}>{label}</Text>
-    </View>
-  );
-}
-
 /* ── Pagination ── */
 function Pagination({
   current, total, onChange, scrollRef,
@@ -212,12 +202,7 @@ function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React
 
   return (
     <>
-      {pinned.length > 0 && (
-        <>
-          <SectionLabel label="고정 공지" />
-          {pinned.map((n, i) => <NoticeCard key={`p-${i}`} item={n} type="school" />)}
-        </>
-      )}
+      {pinned.map((n, i) => <NoticeCard key={`p-${i}`} item={n} type="school" />)}
       {paged.map((n, i) => <NoticeCard key={`r-${i}`} item={n} type="school" />)}
       {!kw && (
         <Pagination
@@ -434,14 +419,6 @@ const styles = StyleSheet.create({
 
   /* List */
   listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
-
-  /* Section label */
-  sectionLabel: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 4, paddingHorizontal: 2,
-    marginTop: 4, marginBottom: 2,
-  },
-  sectionLabelText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 0.3 },
 
   /* Card */
   card: {
