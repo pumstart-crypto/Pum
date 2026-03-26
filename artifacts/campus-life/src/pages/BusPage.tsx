@@ -1,251 +1,98 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Layout } from "@/components/Layout";
-import { RefreshCw, AlertCircle, Bus, Clock, ArrowRight, ArrowLeft, Radio } from "lucide-react";
+import { RefreshCw, AlertCircle, Bus, Clock, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-interface BusNext {
-  carNo: string;
-  min: number;
-  stations: number;
-  lowFloor: boolean;
-  seat: number;
-}
+const MIDPOINT = 14; // 부산대경암체육관 = turnaround
 
-interface BusArrival {
-  lineNo: string;
-  lineId: string;
-  busType: string;
-  next: BusNext | null;
-  next2: BusNext | null;
-}
-
-interface StopArrivals {
-  arsno: string;
-  stopName: string;
-  arrivals: BusArrival[];
-  fetchedAt: string;
-  cached?: boolean;
-  stale?: boolean;
-}
-
-interface Stop {
-  id: string;
+interface StopInfo {
+  idx: number;
   name: string;
-  dir: string;
   arsno: string;
+  nodeId: string;
+  isEndPoint: boolean;
 }
 
-// Stop groups for the tab UI
-const STOP_GROUPS = [
-  {
-    id: "jangjeonyeok",
-    label: "장전역",
-    stops: [
-      { id: "jangjeonyeok-down", name: "장전역", dir: "시내 방향", arsno: "11071" },
-      { id: "jangjeonyeok-up", name: "장전역", dir: "부산대 방향", arsno: "11281" },
-    ],
-  },
-  {
-    id: "jeonmun",
-    label: "정문",
-    stops: [
-      { id: "jeonmun-down", name: "부산대학교 정문", dir: "시내 방향", arsno: "11085" },
-      { id: "jeonmun-up", name: "부산대학교 정문", dir: "캠퍼스 방향", arsno: "11081" },
-    ],
-  },
-  {
-    id: "humun",
-    label: "후문",
-    stops: [
-      { id: "pumun-down", name: "부산대학교 후문", dir: "시내 방향", arsno: "11088" },
-      { id: "pumun-up", name: "부산대학교 후문", dir: "캠퍼스 방향", arsno: "11089" },
-    ],
-  },
-  {
-    id: "pnustation",
-    label: "부산대역",
-    stops: [
-      { id: "pnustation", name: "부산대역", dir: "전체", arsno: "11082" },
-    ],
-  },
-] as const;
-
-// Route colors (by route category)
-function getRouteColor(lineNo: string) {
-  if (lineNo.startsWith("금정")) return "bg-emerald-500 text-white";
-  if (lineNo === "29") return "bg-blue-500 text-white";
-  if (lineNo === "49") return "bg-violet-500 text-white";
-  if (lineNo.startsWith("77")) return "bg-orange-500 text-white";
-  if (lineNo.startsWith("80")) return "bg-rose-500 text-white";
-  if (lineNo.startsWith("100")) return "bg-sky-500 text-white";
-  if (lineNo.startsWith("11")) return "bg-teal-500 text-white";
-  if (lineNo.startsWith("12")) return "bg-indigo-500 text-white";
-  if (lineNo.startsWith("13")) return "bg-amber-500 text-white";
-  if (lineNo.startsWith("14")) return "bg-pink-500 text-white";
-  if (lineNo.startsWith("3")) return "bg-slate-600 text-white";
-  return "bg-slate-400 text-white";
+interface BusOnRoute {
+  idx: number;
+  stopName: string;
+  carNo: string;
+  lat: number;
+  lng: number;
+  lowFloor: boolean;
 }
 
-function MinBadge({ min }: { min: number }) {
-  const color =
-    min <= 2 ? "text-red-600 bg-red-50" :
-    min <= 5 ? "text-orange-600 bg-orange-50" :
-    min <= 10 ? "text-amber-600 bg-amber-50" :
-    "text-slate-600 bg-slate-100";
-
-  return (
-    <span className={cn(
-      "inline-flex items-center gap-0.5 text-[13px] font-black px-2 py-0.5 rounded-lg tabular-nums",
-      color
-    )}>
-      {min}
-      <span className="text-[10px] font-semibold">분</span>
-    </span>
-  );
-}
-
-function StopPanel({ stop, lastUpdated, onUpdate }: {
-  stop: Stop;
-  lastUpdated: Record<string, Date>;
-  onUpdate: (arsno: string, data: StopArrivals) => void;
-}) {
-  const [data, setData] = useState<StopArrivals | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const fetch = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const res = await window.fetch(`${BASE}/api/bus/arrivals?arsno=${stop.arsno}`);
-      const json: StopArrivals = await res.json();
-      if ((json as any).error) throw new Error((json as any).error);
-      setData(json);
-      onUpdate(stop.arsno, json);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "오류");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [stop.arsno, onUpdate]);
-
-  useEffect(() => {
-    fetch();
-    const interval = setInterval(fetch, 20_000);
-    return () => clearInterval(interval);
-  }, [fetch]);
-
-  const liveArrivals = data?.arrivals.filter(a => a.next !== null) ?? [];
-  const noDataArrivals = data?.arrivals.filter(a => a.next === null) ?? [];
-
-  return (
-    <div>
-      {isLoading && !data && (
-        <div className="flex justify-center py-10">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
-      {error && (
-        <div className="text-center py-6 text-sm text-muted-foreground">
-          <AlertCircle className="w-6 h-6 mx-auto mb-1 opacity-30" />
-          {error}
-          <button onClick={fetch} className="block mx-auto mt-2 text-primary underline text-xs">다시 시도</button>
-        </div>
-      )}
-      {data && (
-        <div>
-          {/* Live arrivals */}
-          {liveArrivals.length > 0 ? (
-            <div className="space-y-2">
-              {liveArrivals.map(a => (
-                <div key={a.lineNo} className="bg-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] border border-border/20">
-                  <span className={cn("text-[13px] font-bold px-2.5 py-1 rounded-xl min-w-[52px] text-center shrink-0", getRouteColor(a.lineNo))}>
-                    {a.lineNo}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {a.next && (
-                        <div className="flex items-center gap-1.5">
-                          <MinBadge min={a.next.min} />
-                          <span className="text-[11px] text-muted-foreground/50 font-medium">
-                            {a.next.stations > 0 ? `${a.next.stations}정류장` : ""}
-                            {a.next.lowFloor ? " · 저상" : ""}
-                          </span>
-                        </div>
-                      )}
-                      {a.next2 && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-muted-foreground/30 font-medium">다음</span>
-                          <MinBadge min={a.next2.min} />
-                          {a.next2.lowFloor && <span className="text-[10px] text-muted-foreground/30">저상</span>}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground/30 font-medium shrink-0">
-                    {a.busType === "마을버스" ? "마을" : a.busType === "급행버스" ? "급행" : "일반"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-slate-50 rounded-2xl px-4 py-6 text-center text-sm text-muted-foreground border border-border/10">
-              <Radio className="w-5 h-5 mx-auto mb-2 opacity-30" />
-              현재 운행 중인 버스가 없습니다
-              <p className="text-xs mt-1 opacity-60">운행 시간이 되면 실시간 정보가 표시됩니다</p>
-            </div>
-          )}
-
-          {/* Route list (no live data) */}
-          {noDataArrivals.length > 0 && (
-            <div className="mt-3">
-              <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-wider mb-2">경유 노선 (비운행)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {noDataArrivals.map(a => (
-                  <span key={a.lineNo} className={cn(
-                    "text-[11px] font-bold px-2 py-0.5 rounded-lg opacity-40",
-                    getRouteColor(a.lineNo)
-                  )}>
-                    {a.lineNo}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Update time */}
-          {lastUpdated[stop.arsno] && (
-            <p className="text-[10px] text-muted-foreground/30 mt-3 text-right font-medium">
-              {lastUpdated[stop.arsno].toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} 업데이트
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
+interface RouteData {
+  lineId: string;
+  lineName: string;
+  stops: StopInfo[];
+  buses: BusOnRoute[];
+  fetchedAt: string;
+  outboundCount: number;
+  inboundCount: number;
+  cached?: boolean;
 }
 
 export function BusPage() {
-  const [activeGroup, setActiveGroup] = useState(STOP_GROUPS[0].id);
-  const [lastUpdated, setLastUpdated] = useState<Record<string, Date>>({});
+  const [data, setData] = useState<RouteData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [direction, setDirection] = useState<"out" | "in" | "all">("all");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const refreshKeyRef = useRef(0);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleUpdate = useCallback((arsno: string, _data: StopArrivals) => {
-    setLastUpdated(prev => ({ ...prev, [arsno]: new Date() }));
+  const fetchRoute = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
+    setError("");
+    try {
+      const res = await fetch(`${BASE}/api/bus/route`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: RouteData = await res.json();
+      if ((json as any).error) throw new Error((json as any).error);
+      setData(json);
+      setLastUpdated(new Date());
+    } catch (e) {
+      if (!silent) setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   }, []);
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    refreshKeyRef.current++;
-    setRefreshKey(refreshKeyRef.current);
-    setTimeout(() => setIsRefreshing(false), 800);
-  };
+  useEffect(() => {
+    fetchRoute();
+    intervalRef.current = setInterval(() => fetchRoute(true), 25_000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [fetchRoute]);
 
-  const currentGroup = STOP_GROUPS.find(g => g.id === activeGroup) ?? STOP_GROUPS[0];
+  useEffect(() => {
+    const onVisible = () => { if (!document.hidden) fetchRoute(true); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchRoute]);
+
+  const outboundStops = data?.stops.filter(s => s.idx <= MIDPOINT) ?? [];
+  const inboundStops = data?.stops.filter(s => s.idx > MIDPOINT) ?? [];
+  const displayStops =
+    direction === "out" ? outboundStops :
+    direction === "in" ? inboundStops :
+    data?.stops ?? [];
+
+  const busAtStop = (idx: number) =>
+    (data?.buses ?? []).filter(b => b.idx === idx);
+
+  const approachingStop = (idx: number) =>
+    (data?.buses ?? []).filter(b => b.idx === idx - 1);
+
+  function formatTime(d: Date) {
+    return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  const totalBuses = data?.buses.length ?? 0;
 
   return (
     <Layout hideTopBar>
@@ -253,19 +100,19 @@ export function BusPage() {
 
         {/* Header */}
         <div className="px-5 pt-14 pb-4">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1.5">실시간 도착 정보</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1.5">부산대학교 교내 순환버스</p>
           <div className="flex items-end justify-between">
             <div>
               <h2
                 className="text-4xl font-extrabold text-foreground leading-tight"
                 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.03em" }}
               >
-                버스
+                금정구 7
               </h2>
-              <p className="text-xs text-muted-foreground mt-1 font-medium">부산대학교 주변 주요 정류소</p>
+              <p className="text-xs text-muted-foreground mt-1 font-medium">부산대역 ↺ 부산대경암체육관</p>
             </div>
             <button
-              onClick={handleRefresh}
+              onClick={() => fetchRoute(true)}
               className="p-2.5 bg-slate-100 rounded-full text-muted-foreground hover:text-primary active:scale-95 transition-all"
             >
               <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
@@ -273,61 +120,196 @@ export function BusPage() {
           </div>
         </div>
 
-        {/* Stop Group Tabs */}
-        <div className="flex mx-5 mb-5 bg-slate-100 rounded-2xl p-1 gap-1">
-          {STOP_GROUPS.map(group => (
+        {/* Status Bar */}
+        {data && (
+          <div className="mx-5 mb-4 bg-white rounded-2xl border border-border/20 shadow-sm px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-sm font-bold text-foreground">현재 {totalBuses}대 운행중</span>
+            </div>
+            {lastUpdated && (
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 font-medium">
+                <Clock className="w-3 h-3" />
+                {formatTime(lastUpdated)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Direction Tabs */}
+        <div className="flex mx-5 mb-4 bg-slate-100 rounded-2xl p-1 gap-1">
+          {[
+            { id: "all" as const, label: "전체 노선" },
+            { id: "out" as const, label: `출발 ${data ? `(${data.outboundCount}대)` : ""}` },
+            { id: "in" as const, label: `복귀 ${data ? `(${data.inboundCount}대)` : ""}` },
+          ].map(tab => (
             <button
-              key={group.id}
-              onClick={() => setActiveGroup(group.id)}
+              key={tab.id}
+              onClick={() => setDirection(tab.id)}
               className={cn(
                 "flex-1 py-2.5 rounded-xl text-[12px] font-bold transition-all",
-                activeGroup === group.id ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+                direction === tab.id ? "bg-white text-primary shadow-sm" : "text-muted-foreground"
               )}
             >
-              {group.label}
+              {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Directional stops */}
-        <div className="px-5 space-y-5">
-          {currentGroup.stops.map(stop => (
-            <div key={stop.id}>
-              {/* Direction label */}
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className={cn(
-                  "p-1 rounded-lg",
-                  stop.dir.includes("시내") ? "bg-primary/10" : stop.dir.includes("전체") ? "bg-slate-100" : "bg-emerald-50"
-                )}>
-                  {stop.dir.includes("시내") ? (
-                    <ArrowRight className="w-3 h-3 text-primary" />
-                  ) : stop.dir.includes("전체") ? (
-                    <Bus className="w-3 h-3 text-slate-500" />
-                  ) : (
-                    <ArrowLeft className="w-3 h-3 text-emerald-600" />
-                  )}
-                </div>
-                <div>
-                  <span className="text-[13px] font-bold text-foreground">{stop.dir}</span>
-                  <span className="ml-2 text-[11px] text-muted-foreground/40 font-medium">정류소 {stop.arsno}</span>
-                </div>
-              </div>
+        {/* Direction label */}
+        {data && direction !== "all" && (
+          <div className="mx-5 mb-3 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/60">
+            <Bus className="w-3 h-3" />
+            {direction === "out" ? "부산대역 → 부산대경암체육관" : "부산대경암체육관 → 신한은행"}
+          </div>
+        )}
 
-              <StopPanel
-                key={`${stop.arsno}-${refreshKey}`}
-                stop={stop}
-                lastUpdated={lastUpdated}
-                onUpdate={handleUpdate}
-              />
+        {/* Route List */}
+        <div className="px-5">
+          {isLoading ? (
+            <div className="flex justify-center py-20">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-          ))}
+          ) : error ? (
+            <div className="bg-white rounded-3xl p-8 text-center border border-border/30 shadow-sm">
+              <AlertCircle className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">{error}</p>
+              <button onClick={() => fetchRoute()} className="mt-4 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl">
+                다시 시도
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-border/20 shadow-[0_2px_16px_rgba(0,0,0,0.04)] overflow-hidden">
+              {/* Turnaround divider info */}
+              {direction === "all" && data && (
+                <div className="mx-4 mt-3 mb-1 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-primary/60 uppercase tracking-wider">→ 출발 방향</span>
+                </div>
+              )}
+
+              {displayStops.map((stop, i) => {
+                const buses = busAtStop(stop.idx);
+                const approaching = approachingStop(stop.idx);
+                const hasBus = buses.length > 0;
+                const isApproaching = approaching.length > 0 && !hasBus;
+                const isTurnaround = stop.isEndPoint;
+                const isLast = i === displayStops.length - 1;
+                const isFirstOfInbound = direction === "all" && stop.idx === MIDPOINT + 1;
+
+                return (
+                  <div key={stop.idx}>
+                    {/* 복귀 방향 divider */}
+                    {isFirstOfInbound && (
+                      <div className="mx-4 mt-3 mb-1 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-wider">← 복귀 방향</span>
+                      </div>
+                    )}
+
+                    <div
+                      className={cn(
+                        "flex items-start gap-3 px-4 py-2.5 relative",
+                        hasBus && "bg-primary/5",
+                        isApproaching && "bg-amber-50/60",
+                        isTurnaround && "bg-slate-50",
+                        !isLast && "border-b border-border/10"
+                      )}
+                    >
+                      {/* Route line + dot */}
+                      <div className="flex flex-col items-center pt-1 shrink-0 w-5">
+                        <div className={cn(
+                          "w-3 h-3 rounded-full border-2 z-10 shrink-0",
+                          hasBus
+                            ? "bg-primary border-primary shadow-[0_0_0_3px_rgba(0,66,125,0.15)]"
+                            : isApproaching
+                            ? "bg-amber-400 border-amber-400"
+                            : isTurnaround
+                            ? "bg-slate-500 border-slate-500 w-4 h-4"
+                            : stop.idx === 1 || stop.idx === displayStops[displayStops.length - 1]?.idx
+                            ? "bg-slate-400 border-slate-400"
+                            : "bg-slate-200 border-slate-300"
+                        )} />
+                        {!isLast && (
+                          <div className={cn(
+                            "w-0.5 flex-1 mt-0.5",
+                            isTurnaround ? "bg-slate-400" : hasBus ? "bg-primary/30" : "bg-slate-200"
+                          )}
+                            style={{ minHeight: 12 }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Stop info */}
+                      <div className="flex-1 min-w-0 pb-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn(
+                            "text-[13px] leading-snug",
+                            hasBus ? "font-bold text-primary" : isTurnaround ? "font-bold text-foreground" : "font-medium text-foreground/75"
+                          )}>
+                            {stop.name}
+                            {isTurnaround && (
+                              <span className="ml-1.5 text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">반환점</span>
+                            )}
+                            {stop.idx === 1 && (
+                              <span className="ml-1.5 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">출발</span>
+                            )}
+                          </span>
+                          <span className="text-[11px] font-bold text-muted-foreground/25 shrink-0 tabular-nums">{stop.idx}</span>
+                        </div>
+
+                        {/* Buses at this stop */}
+                        {buses.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {buses.map(bus => (
+                              <div key={bus.carNo} className="flex items-center gap-1 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                <Bus className="w-2.5 h-2.5" />
+                                {bus.carNo.replace("70아", "")}
+                                {bus.lowFloor && <span className="text-[8px] opacity-80">저상</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Approaching buses */}
+                        {isApproaching && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                              <Radio className="w-2.5 h-2.5 animate-pulse" />
+                              곧 도착
+                              <span className="text-[9px] opacity-70">
+                                ({approaching.map(b => b.carNo.replace("70아", "")).join(", ")})
+                              </span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Auto-refresh notice */}
-        <div className="mx-5 mt-6 flex items-center justify-center gap-1.5">
-          <Clock className="w-3 h-3 text-muted-foreground/30" />
-          <span className="text-[11px] text-muted-foreground/30 font-medium">20초마다 자동 갱신</span>
-        </div>
+        {/* Legend + auto-refresh */}
+        {data && (
+          <div className="mx-5 mt-4 flex items-center gap-4 flex-wrap text-[10px] text-muted-foreground/50 font-medium">
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+              버스 현재 위치
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+              다음 정류소 도착 예정
+            </div>
+            <div className="flex items-center gap-1 ml-auto">
+              <Clock className="w-3 h-3" />
+              25초 자동갱신
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
