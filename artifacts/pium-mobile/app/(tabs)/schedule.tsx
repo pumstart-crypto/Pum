@@ -272,20 +272,10 @@ export default function ScheduleScreen() {
       if (csYear !== '전체') params.set('gradeYear', csYear.replace('학년', ''));
       if (csCategory !== '전체') params.set('category', csCategory);
       if (csKeyword) params.set('search', csKeyword);
-      const url = `${API}/courses?${params}`;
-      console.log('[CourseSearch] fetching:', url);
-      const r = await fetch(url);
-      console.log('[CourseSearch] status:', r.status, 'ok:', r.ok);
-      if (r.ok) {
-        const data = await r.json();
-        console.log('[CourseSearch] results count:', data.length);
-        setCsResults(data);
-      } else {
-        console.log('[CourseSearch] error response');
-        setCsResults([]);
-      }
-    } catch (e: any) {
-      console.log('[CourseSearch] catch error:', e?.message);
+      const r = await fetch(`${API}/courses?${params}`);
+      if (r.ok) setCsResults(await r.json());
+      else setCsResults([]);
+    } catch {
       setCsResults([]);
     }
     finally { setCsLoading(false); }
