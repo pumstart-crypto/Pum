@@ -29,9 +29,9 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
     return (
       <View style={styles.activePill}>
         {isIOS ? (
-          <SymbolView name={sfFill as any} tintColor="#fff" size={18} />
+          <SymbolView name={sfFill as any} tintColor="#fff" size={20} />
         ) : (
-          <Ionicons name={iconFill as any} size={18} color="#fff" />
+          <Ionicons name={iconFill as any} size={20} color="#fff" />
         )}
         <Text style={styles.activeLabel} numberOfLines={1}>{label}</Text>
       </View>
@@ -41,9 +41,9 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
   return (
     <View style={styles.inactiveItem}>
       {isIOS ? (
-        <SymbolView name={sfOutline as any} tintColor="#9CA3AF" size={21} />
+        <SymbolView name={sfOutline as any} tintColor="#9CA3AF" size={22} />
       ) : (
-        <Ionicons name={iconOutline as any} size={21} color="#9CA3AF" />
+        <Ionicons name={iconOutline as any} size={22} color="#9CA3AF" />
       )}
       <Text style={styles.inactiveLabel} numberOfLines={1}>{label}</Text>
     </View>
@@ -123,15 +123,15 @@ const styles = StyleSheet.create({
   activePill: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
     backgroundColor: C.primary,
     borderRadius: 14,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 7,
-    minWidth: 54,
+    minWidth: 56,
   },
   activeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
@@ -139,10 +139,10 @@ const styles = StyleSheet.create({
   inactiveItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
   },
   inactiveLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
     color: '#9CA3AF',
   },
