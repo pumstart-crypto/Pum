@@ -1,4 +1,4 @@
-# Workspace
+# 캠퍼스라이프 — 부산대학교 학생 생활관리 앱
 
 ## Overview
 

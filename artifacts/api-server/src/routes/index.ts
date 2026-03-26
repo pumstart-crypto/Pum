@@ -11,6 +11,7 @@ import noticesRouter from "./notices";
 import deptNoticesRouter from "./dept-notices";
 import busRouter from "./bus";
 import communityRouter from "./community";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(noticesRouter);
 router.use(deptNoticesRouter);
 router.use(busRouter);
 router.use(communityRouter);
+router.use(authRouter);
 
 export default router;

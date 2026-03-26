@@ -2,6 +2,7 @@ import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useProfile } from "@/hooks/useProfile";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { COLOR_THEMES, type ColorTheme } from "@/lib/colorThemes";
 import {
@@ -48,6 +49,12 @@ export function SettingsPage() {
   const [, navigate] = useLocation();
   const { profile } = useProfile();
   const { isDark, toggle, colorTheme, setColorTheme } = useTheme();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
   const displayName = profile.name.trim() || "부산대학교 학생";
   const displaySub = [profile.department, GRADE_LABEL[profile.grade] ?? ""].filter(Boolean).join(" · ");
@@ -186,16 +193,27 @@ export function SettingsPage() {
           </div>
         </div>}
 
-        {/* Coming Soon Notice */}
-        <div className="bg-muted rounded-2xl p-4 text-center">
-          <p className="text-xs text-muted-foreground">회원가입 및 로그인 기능이 곧 추가됩니다</p>
-        </div>
+        {/* Login status notice */}
+        {user && (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 text-center">
+            <p className="text-xs text-primary font-medium">부산대학교 인증 학생으로 로그인 중</p>
+          </div>
+        )}
 
-        {/* Logout placeholder */}
-        <button className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-destructive/10 text-destructive font-semibold text-sm hover:bg-destructive hover:text-white transition-colors">
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-destructive/10 text-destructive font-semibold text-sm hover:bg-destructive hover:text-white transition-colors"
+        >
           <LogOut className="w-4 h-4" />
           로그아웃
         </button>
+
+        {user && (
+          <p className="text-center text-xs text-muted-foreground/50 pb-2">
+            {user.username} · {user.studentId}
+          </p>
+        )}
       </div>
     </Layout>
   );

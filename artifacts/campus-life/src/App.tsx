@@ -1,8 +1,9 @@
-import { Switch, Route, Router as WouterRouter, Link } from "wouter";
+import { Switch, Route, Router as WouterRouter, Link, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 // Pages
 import { HomePage } from "./pages/HomePage";
@@ -19,6 +20,8 @@ import { CampusMapPage } from "./pages/CampusMapPage";
 import { PostDetailPage } from "./pages/PostDetailPage";
 import { NotificationSettingsPage } from "./pages/NotificationSettingsPage";
 import { PrivacySettingsPage } from "./pages/PrivacySettingsPage";
+import { LoginPage } from "./pages/auth/LoginPage";
+import { RegisterPage } from "./pages/auth/RegisterPage";
 import { Layout } from "./components/Layout";
 
 const queryClient = new QueryClient({
@@ -46,22 +49,70 @@ function NotFound() {
 }
 
 function Router() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#021526]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-3xl bg-white/10 flex items-center justify-center">
+            <span className="text-3xl">🎓</span>
+          </div>
+          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Switch>
-      <Route path="/" component={HomePage} />
-      <Route path="/notices" component={NoticesPage} />
-      <Route path="/schedule" component={SchedulePage} />
-      <Route path="/board" component={BoardPage} />
-      <Route path="/board/:id" component={PostDetailPage} />
-      <Route path="/finance" component={FinancePage} />
-      <Route path="/meals" component={MealsPage} />
-      <Route path="/settings" component={SettingsPage} />
-      <Route path="/settings/profile" component={ProfileEditPage} />
-      <Route path="/settings/notifications" component={NotificationSettingsPage} />
-      <Route path="/settings/privacy" component={PrivacySettingsPage} />
-      <Route path="/academic-calendar" component={AcademicCalendarPage} />
-      <Route path="/bus" component={BusPage} />
-      <Route path="/campus-map" component={CampusMapPage} />
+      {/* 공개 라우트 */}
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
+
+      {/* 인증 필요 라우트 */}
+      <Route path="/">
+        {user ? <HomePage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/notices">
+        {user ? <NoticesPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/schedule">
+        {user ? <SchedulePage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/board">
+        {user ? <BoardPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/board/:id">
+        {user ? <PostDetailPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/finance">
+        {user ? <FinancePage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/meals">
+        {user ? <MealsPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/settings">
+        {user ? <SettingsPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/settings/profile">
+        {user ? <ProfileEditPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/settings/notifications">
+        {user ? <NotificationSettingsPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/settings/privacy">
+        {user ? <PrivacySettingsPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/academic-calendar">
+        {user ? <AcademicCalendarPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/bus">
+        {user ? <BusPage /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/campus-map">
+        {user ? <CampusMapPage /> : <Redirect to="/login" />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -70,14 +121,16 @@ function Router() {
 function App() {
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
