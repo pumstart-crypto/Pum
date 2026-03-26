@@ -13,7 +13,7 @@ function getProfile() {
     const p = JSON.parse(localStorage.getItem("campus_life_profile") || "{}");
     const parts = ["익명"];
     if (p.department) parts.push(p.department);
-    if (p.studentId) parts.push(p.studentId);
+    if (p.studentId) parts.push(`${String(p.studentId).substring(2, 4)}학번`);
     return parts.join(".");
   } catch {
     return "익명";
