@@ -21,8 +21,8 @@ export function Layout({ children, hideTopBar, hideBottomNav }: { children: Reac
         {!hideTopBar && (
           <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-4 bg-card/90 backdrop-blur-xl border-b border-border/50">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#04346E]">
-                <img src="/logo.png" alt="P:um 로고" className="w-full h-full object-cover scale-[2.0]" />
+              <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#eef0f3]">
+                <img src="/logo.png" alt="P:um 로고" className="w-full h-full object-cover scale-[1.35]" />
               </div>
               <h1 className="text-base font-extrabold text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "-0.02em" }}>
                 P:um
