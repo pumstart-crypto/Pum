@@ -9,7 +9,7 @@ export function Layout({ children, hideTopBar, hideBottomNav }: { children: Reac
     { name: "홈",     path: "/",         icon: "home" },
     { name: "공지",   path: "/notices",   icon: "notifications" },
     { name: "시간표", path: "/schedule",  icon: "calendar_view_week" },
-    { name: "게시판", path: "/board",     icon: "group" },
+    { name: "커뮤니티", path: "/board",     icon: "group" },
     { name: "설정",   path: "/settings",  icon: "settings" },
   ];
 
