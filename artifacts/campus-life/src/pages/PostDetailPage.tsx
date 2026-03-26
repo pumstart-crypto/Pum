@@ -11,7 +11,10 @@ const API = import.meta.env.BASE_URL.replace(/\/$/, "").replace(/\/[^/]*$/, "") 
 function getProfile() {
   try {
     const p = JSON.parse(localStorage.getItem("campus_life_profile") || "{}");
-    return p.name || p.department || "익명";
+    const parts = ["익명"];
+    if (p.department) parts.push(p.department);
+    if (p.studentId) parts.push(p.studentId);
+    return parts.join(".");
   } catch {
     return "익명";
   }
