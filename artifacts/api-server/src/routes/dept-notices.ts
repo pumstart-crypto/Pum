@@ -9,8 +9,9 @@ const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Accept-Language": "ko-KR,ko;q=0.9",
 };
-const MAX_PAGES = 20;
-const CUTOFF_DATE = "2026-01-01";
+const MAX_SCRAPE_PAGES = 15;
+const TARGET_COUNT = 100;
+const OLDEST_CUTOFF = "2020-01-01";
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
 function fetchInsecure(url: string, opts?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<string> {
@@ -69,7 +70,7 @@ async function fetchMeBoard(basePhpUrl: string): Promise<DeptNotice[]> {
   const seen = new Set<string>();
   let lastHtml = "";
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  for (let page = 1; page <= MAX_SCRAPE_PAGES; page++) {
     let html: string;
     if (page === 1) {
       html = await fetchInsecure(basePhpUrl);
@@ -86,7 +87,7 @@ async function fetchMeBoard(basePhpUrl: string): Promise<DeptNotice[]> {
     const rows = root.querySelectorAll("tbody tr");
     if (rows.length === 0) break;
 
-    let hitCutoff = false;
+    let reachedOldest = false;
     for (const row of rows) {
       const anchor = row.querySelector("td.title a");
       if (!anchor) continue;
@@ -108,10 +109,10 @@ async function fetchMeBoard(basePhpUrl: string): Promise<DeptNotice[]> {
       const views = parseInt(hitTd?.text.trim() ?? "0", 10) || 0;
       const articleUrl = `${basePhpUrl}?page_mode=view&seq=${id}`;
 
-      if (date && date < CUTOFF_DATE) { hitCutoff = true; continue; }
+      if (date && date < OLDEST_CUTOFF) { reachedOldest = true; break; }
       items.push({ id, title: rawTitle, date, writer, views, isNew: false, url: articleUrl });
     }
-    if (hitCutoff) break;
+    if (reachedOldest || items.length >= TARGET_COUNT) break;
   }
   return items;
 }
@@ -178,18 +179,18 @@ async function fetchDeptBoard(subviewUrl: string): Promise<DeptNotice[]> {
   const seen = new Set<string>();
   const items: DeptNotice[] = [];
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  for (let page = 1; page <= MAX_SCRAPE_PAGES; page++) {
     const pageItems = await fetchBoardPage(meta, page);
     if (pageItems.length === 0) break;
 
-    let hitCutoff = false;
+    let reachedOldest = false;
     for (const item of pageItems) {
       if (seen.has(item.id)) continue;
       seen.add(item.id);
-      if (item.date && item.date < CUTOFF_DATE) { hitCutoff = true; continue; }
+      if (item.date && item.date < OLDEST_CUTOFF) { reachedOldest = true; break; }
       items.push(item);
     }
-    if (hitCutoff) break;
+    if (reachedOldest || items.length >= TARGET_COUNT) break;
   }
   return items;
 }
