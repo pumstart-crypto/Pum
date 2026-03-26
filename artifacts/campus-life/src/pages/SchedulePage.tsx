@@ -392,7 +392,7 @@ export function SchedulePage() {
                       {slot}
                     </div>
                   ))}
-                  {filteredSchedules.map((schedule) => (<ScheduleBlock key={schedule.id} schedule={schedule} />))}
+                  {filteredSchedules.map((schedule) => (<ScheduleBlock key={schedule.id} schedule={schedule} allSchedules={schedules} />))}
                 </div>
               </div>
             )}
@@ -593,18 +593,39 @@ function SemesterManagerDialog({
   );
 }
 
-function ScheduleBlock({ schedule }: { schedule: Schedule }) {
+function ScheduleBlock({ schedule, allSchedules }: { schedule: Schedule; allSchedules: Schedule[] }) {
   const queryClient = useQueryClient();
   const [showDetail, setShowDetail] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const deleteMutation = useDeleteSchedule({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
-        setShowDetail(false);
       },
     },
   });
+
+  // All slots for the same course (same name + year + semester)
+  const siblings = allSchedules.filter(s =>
+    s.subjectName === schedule.subjectName &&
+    s.year === schedule.year &&
+    s.semester === schedule.semester
+  );
+  const siblingDays = siblings
+    .map(s => DAYS[s.dayOfWeek])
+    .sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b))
+    .join("·");
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    for (const s of siblings) {
+      await deleteMutation.mutateAsync({ id: s.id }).catch(() => {});
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
+    setIsDeleting(false);
+    setShowDetail(false);
+  };
 
   const parseTime = (timeStr: string) => {
     const [h, m] = timeStr.split(":").map(Number);
@@ -662,12 +683,16 @@ function ScheduleBlock({ schedule }: { schedule: Schedule }) {
               )}
             </div>
             <button
-              onClick={() => deleteMutation.mutate({ id: schedule.id })}
-              disabled={deleteMutation.isPending}
+              onClick={handleDelete}
+              disabled={isDeleting}
               className="mt-8 w-full py-4 rounded-xl font-bold bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-colors"
             >
               <Trash2 className="w-5 h-5 mr-2" />
-              {deleteMutation.isPending ? "삭제 중..." : "이 수업 삭제하기"}
+              {isDeleting
+                ? "삭제 중..."
+                : siblings.length > 1
+                  ? `수업 전체 삭제 (${siblingDays})`
+                  : "이 수업 삭제하기"}
             </button>
           </div>
         </div>
