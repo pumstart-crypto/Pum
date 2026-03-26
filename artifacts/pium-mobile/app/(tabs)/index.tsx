@@ -14,14 +14,14 @@ import { useAuth } from '@/contexts/AuthContext';
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
 const QUICK_LINKS = [
-  { label: '홈페이지', icon: 'globe', href: 'https://www.pusan.ac.kr/kor/Main.do' },
-  { label: '학생지원', icon: 'help-circle', href: 'https://onestop.pusan.ac.kr/login' },
-  { label: 'PLATO', icon: 'book-open', href: 'https://plato.pusan.ac.kr' },
-  { label: '도서관', icon: 'book', href: 'https://lib.pusan.ac.kr' },
-  { label: '학사일정', icon: 'calendar', screen: '/academic-calendar' },
-  { label: '식단', icon: 'coffee', screen: '/meals' },
-  { label: '순환버스', icon: 'navigation', screen: '/bus' },
-  { label: '캠퍼스맵', icon: 'map', screen: '/campus-map' },
+  { label: '홈페이지', icon: 'globe', set: 'feather', href: 'https://www.pusan.ac.kr/kor/Main.do' },
+  { label: '학생지원', icon: 'help-circle', set: 'feather', href: 'https://onestop.pusan.ac.kr/login' },
+  { label: 'PLATO', icon: 'book-open', set: 'feather', href: 'https://plato.pusan.ac.kr' },
+  { label: '도서관', icon: 'book', set: 'feather', href: 'https://lib.pusan.ac.kr' },
+  { label: '학사일정', icon: 'calendar', set: 'feather', screen: '/academic-calendar' },
+  { label: '식단', icon: 'restaurant-outline', set: 'ionicons', screen: '/meals' },
+  { label: '순환버스', icon: 'bus-outline', set: 'ionicons', screen: '/bus' },
+  { label: '캠퍼스맵', icon: 'map', set: 'feather', screen: '/campus-map' },
 ] as const;
 
 const TODO_CATEGORIES = ['과제', '팀플', '동영상시청', '기타'];
@@ -167,7 +167,10 @@ export default function HomeScreen() {
               }}
             >
               <View style={styles.quickIcon}>
-                <Feather name={link.icon as any} size={22} color={C.primary} />
+                {link.set === 'ionicons'
+                  ? <Ionicons name={link.icon as any} size={24} color={C.primary} />
+                  : <Feather name={link.icon as any} size={22} color={C.primary} />
+                }
               </View>
               <Text style={styles.quickLabel}>{link.label}</Text>
             </TouchableOpacity>
