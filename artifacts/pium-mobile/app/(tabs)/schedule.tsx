@@ -662,31 +662,36 @@ export default function ScheduleScreen() {
               <Feather name="chevron-down" size={16} color="#9CA3AF" />
             </TouchableOpacity>
 
+            {/* Keyword search */}
+            <View style={styles.csSearchRow}>
+              <Feather name="search" size={14} color="#9CA3AF" />
+              <TextInput
+                style={styles.csSearchInput}
+                value={csKeyword}
+                onChangeText={setCsKeyword}
+                placeholder="과목명으로 검색"
+                placeholderTextColor="#9CA3AF"
+                onSubmitEditing={searchCourses}
+                returnKeyType="search"
+              />
+              {csKeyword ? (
+                <TouchableOpacity onPress={() => setCsKeyword('')}>
+                  <Feather name="x-circle" size={14} color="#9CA3AF" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
             {/* Year filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={styles.filterRow}>
               {YEAR_FILTERS.map(y => (
-                <TouchableOpacity key={y} style={[styles.filterChip, csYear === y && styles.filterChipActive, y === '과목명' && styles.filterChipSearch]}
-                  onPress={() => setCsYear(y)}>
-                  {y === '과목명' ? <Feather name="search" size={12} color={csYear === y ? '#fff' : '#6B7280'} /> : null}
+                <TouchableOpacity key={y} style={[styles.filterChip, csYear === y && styles.filterChipActive]} onPress={() => setCsYear(y)}>
                   <Text style={[styles.filterChipText, csYear === y && styles.filterChipTextActive]}>{y}</Text>
                 </TouchableOpacity>
               ))}
-              <View style={styles.filterSearchBox}>
-                <Feather name="search" size={12} color="#9CA3AF" />
-                <TextInput
-                  style={styles.filterSearchInput}
-                  value={csKeyword}
-                  onChangeText={setCsKeyword}
-                  placeholder="과목명"
-                  placeholderTextColor="#9CA3AF"
-                  onSubmitEditing={searchCourses}
-                  returnKeyType="search"
-                />
-              </View>
             </ScrollView>
 
             {/* Category filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={styles.filterRow}>
               {CATEGORY_FILTERS.map(c => (
                 <TouchableOpacity key={c} style={[styles.filterChip, csCategory === c && styles.filterChipActive]} onPress={() => setCsCategory(c)}>
                   <Text style={[styles.filterChipText, csCategory === c && styles.filterChipTextActive]}>{c}</Text>
@@ -1045,14 +1050,14 @@ const styles = StyleSheet.create({
   csSubtitle: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   csDropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12 },
   csDropdownText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#111827' },
-  filterRow: { marginBottom: 8, height: 30 },
-  filterChip: { height: 28, paddingHorizontal: 12, paddingVertical: 0, borderRadius: 14, backgroundColor: '#F3F4F6', marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  csSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 },
+  csSearchInput: { flex: 1, fontSize: 14, color: '#111827', fontFamily: 'Inter_400Regular', padding: 0 },
+  filterRow: { marginBottom: 8 },
+  filterChip: { height: 26, paddingHorizontal: 12, paddingVertical: 0, borderRadius: 13, backgroundColor: '#F3F4F6', marginRight: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   filterChipActive: { backgroundColor: C.primary },
   filterChipSearch: {},
   filterChipText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6B7280' },
   filterChipTextActive: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  filterSearchBox: { height: 28, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 0, marginRight: 8 },
-  filterSearchInput: { fontSize: 13, color: '#111827', fontFamily: 'Inter_400Regular', minWidth: 80 },
   csResults: { flex: 1, marginBottom: 12 },
   csEmpty: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   csEmptyText: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textAlign: 'center', paddingHorizontal: 20 },
