@@ -69,6 +69,7 @@ export default function HomeScreen() {
   const [newCategory, setNewCategory] = useState('과제');
   const [newDueDate, setNewDueDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : 0;
@@ -126,7 +127,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.root, { paddingBottom: bottomPad }]}>
       {/* Fixed Header */}
-      <View style={[styles.header, { paddingTop: topPad }]}>
+      <View style={[styles.header, { paddingTop: topPad }, scrolled && styles.headerScrolled]}>
         <View style={styles.logoRow}>
           <View style={styles.logoBox}>
             <Text style={styles.logoP}>P</Text>
@@ -142,6 +143,8 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.scroll, { paddingTop: 16 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
+        onScroll={e => setScrolled(e.nativeEvent.contentOffset.y > 4)}
+        scrollEventThrottle={16}
       >
         {/* Date */}
         <View style={styles.dateSection}>
@@ -302,6 +305,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingBottom: 10,
     backgroundColor: '#fff',
+  },
+  headerScrolled: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logoBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
