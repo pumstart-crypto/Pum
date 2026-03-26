@@ -56,8 +56,9 @@ export function SettingsPage() {
     navigate("/login");
   };
 
-  const displayName = profile.name.trim() || "부산대학교 학생";
-  const displaySub = [profile.department, GRADE_LABEL[profile.grade] ?? ""].filter(Boolean).join(" · ");
+  const isAdmin = user?.studentId === 'ADMIN' || user?.username === 'admin27548';
+  const displayName = isAdmin ? (user?.name || '관리자') : (profile.name.trim() || "부산대학교 학생");
+  const displaySub = isAdmin ? (user?.major || '시스템 관리') : [profile.department, GRADE_LABEL[profile.grade] ?? ""].filter(Boolean).join(" · ");
   const initial = displayName[0];
 
   return (
@@ -196,7 +197,9 @@ export function SettingsPage() {
         {/* Login status notice */}
         {user && (
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 text-center">
-            <p className="text-xs text-primary font-medium">부산대학교 인증 학생으로 로그인 중</p>
+            <p className="text-xs text-primary font-medium">
+              {isAdmin ? '관리자용 계정으로 로그인 중' : '부산대학교 인증 학생으로 로그인 중'}
+            </p>
           </div>
         )}
 
