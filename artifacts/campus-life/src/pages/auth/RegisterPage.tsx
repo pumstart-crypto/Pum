@@ -2,542 +2,488 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import {
-  User, Lock, Eye, EyeOff, Phone, ChevronLeft,
-  CheckCircle2, Camera, AlertCircle, Loader2, Check, X
-} from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, ChevronRight } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const API = `${BASE}/api`;
 
 type Step = "account" | "phone" | "studentid" | "done";
 
-interface RegisterData {
-  username: string;
-  password: string;
-  phone: string;
-  name: string;
-  studentId: string;
-  major: string;
-  studentIdBase64?: string;
-}
+const STEPS: Step[] = ["account", "phone", "studentid", "done"];
+const STEP_LABELS = ["계정", "전화", "학생증", "완료"];
 
-// ─── 비밀번호 유효성 검사 ────────────────────────────────────
-function validatePassword(pw: string) {
-  const hasLength = pw.length >= 8;
-  const hasLetter = /[a-zA-Z]/.test(pw);
-  const hasNumber = /[0-9]/.test(pw);
-  return { hasLength, hasLetter, hasNumber, valid: hasLength && hasLetter && hasNumber };
-}
-
-// ─── Step 인디케이터 ─────────────────────────────────────────
-function StepBar({ step }: { step: Step }) {
-  const steps: Step[] = ["account", "phone", "studentid", "done"];
-  const labels = ["계정 정보", "전화 인증", "학생증 인증", "완료"];
-  const current = steps.indexOf(step);
+function ProgressBar({ current }: { current: Step }) {
+  const idx = STEPS.indexOf(current);
   return (
-    <div className="flex items-center gap-0 mb-8">
-      {steps.map((s, i) => (
-        <div key={s} className="flex-1 flex flex-col items-center">
-          <div className="flex items-center w-full">
-            {i > 0 && <div className={cn("flex-1 h-0.5", i <= current ? "bg-[#04346E]" : "bg-gray-200")} />}
-            <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all",
-              i < current ? "bg-[#04346E] text-white" :
-              i === current ? "bg-[#04346E] text-white ring-4 ring-[#04346E]/20" :
-              "bg-gray-100 text-gray-400"
-            )}>
-              {i < current ? <Check className="w-4 h-4" /> : i + 1}
+    <div className="flex items-center mb-8">
+      {STEPS.map((s, i) => (
+        <div key={s} className="flex items-center flex-1">
+          <div className="flex flex-col items-center">
+            <div
+              className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all",
+                i < idx
+                  ? "bg-[#04346E] text-white"
+                  : i === idx
+                  ? "bg-[#04346E] text-white ring-4 ring-[#04346E]/20"
+                  : "bg-gray-100 text-gray-400"
+              )}
+            >
+              {i < idx ? "✓" : i + 1}
             </div>
-            {i < steps.length - 1 && <div className={cn("flex-1 h-0.5", i < current ? "bg-[#04346E]" : "bg-gray-200")} />}
+            <span
+              className={cn(
+                "text-[10px] mt-1 font-medium",
+                i <= idx ? "text-[#04346E]" : "text-gray-400"
+              )}
+            >
+              {STEP_LABELS[i]}
+            </span>
           </div>
-          <span className={cn("text-[10px] mt-1.5 font-semibold", i === current ? "text-[#04346E]" : "text-gray-400")}>
-            {labels[i]}
-          </span>
+          {i < STEPS.length - 1 && (
+            <div
+              className={cn(
+                "flex-1 h-0.5 mx-1 mb-4 rounded-full",
+                i < idx ? "bg-[#04346E]" : "bg-gray-100"
+              )}
+            />
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-// ─── Step 1: 계정 정보 ───────────────────────────────────────
-function StepAccount({ onNext }: { onNext: (d: Partial<RegisterData>) => void }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "ok" | "taken" | "invalid">("idle");
-  const pwCheck = validatePassword(password);
-
-  const checkUsername = async () => {
-    const trimmed = username.trim();
-    if (!/^[a-zA-Z0-9]{4,20}$/.test(trimmed)) { setUsernameStatus("invalid"); return; }
-    setChecking(true);
-    try {
-      const r = await fetch(`${API}/auth/check-username?username=${encodeURIComponent(trimmed)}`);
-      const data = await r.json();
-      setUsernameStatus(data.available ? "ok" : "taken");
-    } catch { setUsernameStatus("invalid"); }
-    setChecking(false);
-  };
-
-  const canNext = usernameStatus === "ok" && pwCheck.valid && confirm === password;
-
+function PwCondition({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <div className="space-y-5">
-      <div>
-        <label className="text-xs font-semibold text-gray-500 mb-1.5 block">아이디</label>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              value={username}
-              onChange={e => { setUsername(e.target.value); setUsernameStatus("idle"); }}
-              placeholder="영문+숫자 4-20자"
-              className={cn(
-                "w-full pl-10 pr-4 py-3 border rounded-xl text-sm outline-none transition-all",
-                usernameStatus === "ok" ? "border-green-400 focus:ring-2 focus:ring-green-200" :
-                usernameStatus === "taken" || usernameStatus === "invalid" ? "border-red-400 focus:ring-2 focus:ring-red-100" :
-                "border-gray-200 focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10"
-              )}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={checkUsername}
-            disabled={!username || checking}
-            className="px-4 py-3 bg-[#04346E] text-white text-xs font-bold rounded-xl disabled:bg-gray-200 shrink-0"
-          >
-            {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : "중복확인"}
-          </button>
-        </div>
-        {usernameStatus === "ok" && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> 사용 가능한 아이디입니다.</p>}
-        {usernameStatus === "taken" && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><X className="w-3 h-3" /> 이미 사용 중인 아이디입니다.</p>}
-        {usernameStatus === "invalid" && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><X className="w-3 h-3" /> 영문+숫자 4-20자리로 입력하세요.</p>}
-      </div>
-
-      <div>
-        <label className="text-xs font-semibold text-gray-500 mb-1.5 block">비밀번호</label>
-        <div className="relative">
-          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type={showPw ? "text" : "password"}
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="8자 이상, 영문+숫자 포함"
-            className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10 transition-all"
-          />
-          <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-            {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-        </div>
-        {password && (
-          <div className="mt-2 space-y-1">
-            {[
-              { ok: pwCheck.hasLength, label: "8자 이상" },
-              { ok: pwCheck.hasLetter, label: "영문 포함" },
-              { ok: pwCheck.hasNumber, label: "숫자 포함" },
-            ].map(({ ok, label }) => (
-              <div key={label} className="flex items-center gap-1.5">
-                {ok ? <Check className="w-3 h-3 text-green-500" /> : <X className="w-3 h-3 text-gray-300" />}
-                <span className={cn("text-xs", ok ? "text-green-600" : "text-gray-400")}>{label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <label className="text-xs font-semibold text-gray-500 mb-1.5 block">비밀번호 확인</label>
-        <div className="relative">
-          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type={showConfirm ? "text" : "password"}
-            value={confirm}
-            onChange={e => setConfirm(e.target.value)}
-            placeholder="비밀번호 재입력"
-            className={cn(
-              "w-full pl-10 pr-10 py-3 border rounded-xl text-sm outline-none transition-all",
-              confirm && confirm !== password ? "border-red-400" :
-              confirm && confirm === password ? "border-green-400" :
-              "border-gray-200 focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10"
-            )}
-          />
-          <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-            {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-        </div>
-        {confirm && confirm !== password && <p className="text-xs text-red-500 mt-1">비밀번호가 일치하지 않습니다.</p>}
-      </div>
-
-      <button
-        onClick={() => canNext && onNext({ username: username.trim(), password })}
-        disabled={!canNext}
-        className={cn("w-full py-3.5 rounded-xl font-bold text-white text-sm transition-all",
-          canNext ? "bg-[#04346E] hover:bg-[#021526] active:scale-[0.98]" : "bg-gray-200 text-gray-400"
-        )}
-      >
-        다음
-      </button>
+    <div className={cn("flex items-center gap-1.5 text-xs", ok ? "text-green-500" : "text-gray-400")}>
+      {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+      {label}
     </div>
   );
 }
 
-// ─── Step 2: 전화번호 인증 ───────────────────────────────────
-function StepPhone({ onNext }: { onNext: (d: Partial<RegisterData>) => void }) {
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
-  const [verified, setVerified] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [error, setError] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-
-  const formatPhone = (v: string) => v.replace(/[^0-9]/g, "").slice(0, 11);
-
-  const sendOTP = async () => {
-    if (!phone || phone.length < 10) { setError("올바른 번호를 입력하세요."); return; }
-    setSending(true); setError("");
-    try {
-      const r = await fetch(`${API}/auth/send-otp`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message);
-      setSent(true);
-      let t = 60;
-      setCooldown(t);
-      const iv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(iv); }, 1000);
-    } catch (err: any) { setError(err.message); }
-    setSending(false);
-  };
-
-  const verifyOTP = async () => {
-    if (code.length !== 6) { setError("6자리 인증번호를 입력하세요."); return; }
-    setVerifying(true); setError("");
-    try {
-      const r = await fetch(`${API}/auth/verify-otp`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message);
-      setVerified(true);
-    } catch (err: any) { setError(err.message); }
-    setVerifying(false);
-  };
-
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-5">
-      <div className="bg-blue-50 rounded-2xl p-4">
-        <p className="text-sm text-blue-700 font-medium">📱 휴대폰 번호 인증</p>
-        <p className="text-xs text-blue-600/80 mt-1">한 번호로 하나의 계정만 만들 수 있습니다.</p>
-      </div>
-
-      <div>
-        <label className="text-xs font-semibold text-gray-500 mb-1.5 block">휴대폰 번호</label>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              value={phone}
-              onChange={e => { setPhone(formatPhone(e.target.value)); setSent(false); setVerified(false); }}
-              placeholder="01012345678"
-              disabled={verified}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10 disabled:bg-gray-50"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={sendOTP}
-            disabled={!phone || sending || cooldown > 0 || verified}
-            className="px-4 py-3 bg-[#04346E] text-white text-xs font-bold rounded-xl disabled:bg-gray-200 shrink-0 min-w-[72px]"
-          >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : cooldown > 0 ? `${cooldown}초` : sent ? "재발송" : "인증요청"}
-          </button>
-        </div>
-      </div>
-
-      {sent && !verified && (
-        <div>
-          <label className="text-xs font-semibold text-gray-500 mb-1.5 block">인증번호 6자리</label>
-          <div className="flex gap-2">
-            <input
-              value={code}
-              onChange={e => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-              placeholder="000000"
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm text-center tracking-[0.3em] font-bold outline-none focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10"
-            />
-            <button
-              type="button"
-              onClick={verifyOTP}
-              disabled={code.length !== 6 || verifying}
-              className="px-5 py-3 bg-green-600 text-white text-xs font-bold rounded-xl disabled:bg-gray-200"
-            >
-              {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : "확인"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {verified && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-          <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-          <p className="text-sm text-green-700 font-medium">전화번호 인증이 완료되었습니다.</p>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={() => verified && onNext({ phone })}
-        disabled={!verified}
-        className={cn("w-full py-3.5 rounded-xl font-bold text-white text-sm transition-all",
-          verified ? "bg-[#04346E] hover:bg-[#021526] active:scale-[0.98]" : "bg-gray-200 text-gray-400"
-        )}
-      >
-        다음
-      </button>
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-sm font-semibold text-gray-800">{value}</span>
     </div>
   );
 }
 
-// ─── Step 3: 학생증 인증 ─────────────────────────────────────
-function StepStudentId({ onNext }: { onNext: (d: Partial<RegisterData>) => void }) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string>("");
-  const [base64, setBase64] = useState<string>("");
-  const [mime, setMime] = useState("image/jpeg");
-  const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<{ name: string; studentId: string; major: string } | null>(null);
-  const [error, setError] = useState("");
-
-  const handleFile = (file: File) => {
-    setResult(null); setError("");
-    const reader = new FileReader();
-    reader.onload = e => {
-      const dataUrl = e.target?.result as string;
-      setPreview(dataUrl);
-      const b64 = dataUrl.split(",")[1] || "";
-      setBase64(b64);
-      setMime(file.type || "image/jpeg");
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const analyze = async () => {
-    if (!base64) return;
-    setAnalyzing(true); setError("");
-    try {
-      const formData = new FormData();
-      // Convert base64 back to blob for multipart upload
-      const byteStr = atob(base64);
-      const arr = new Uint8Array(byteStr.length);
-      for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
-      const blob = new Blob([arr], { type: mime });
-      formData.append("image", blob, "student-id.jpg");
-
-      const r = await fetch(`${API}/auth/verify-student-id`, { method: "POST", body: formData });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message || "인증 실패");
-      setResult({ name: data.info.name, studentId: data.info.studentId, major: data.info.major });
-    } catch (err: any) {
-      setError(err.message);
-    }
-    setAnalyzing(false);
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-        <p className="text-sm text-amber-700 font-bold">📋 부산대학교 모바일 학생증 인증</p>
-        <p className="text-xs text-amber-600/80 mt-1.5 leading-relaxed">
-          부산대학교 앱의 모바일 학생증 화면을 캡처해서 업로드해주세요.<br />
-          이름·학번·전공이 확인되어야 가입이 가능합니다.
-        </p>
-      </div>
-
-      {/* Upload area */}
-      <div
-        onClick={() => fileRef.current?.click()}
-        className={cn(
-          "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center gap-3 cursor-pointer transition-all",
-          preview ? "border-[#04346E]/30 bg-[#04346E]/5" : "border-gray-300 hover:border-[#04346E]/50 hover:bg-gray-50"
-        )}
-      >
-        {preview ? (
-          <img src={preview} alt="학생증" className="w-full max-h-48 object-contain rounded-xl" />
-        ) : (
-          <>
-            <Camera className="w-10 h-10 text-gray-300" />
-            <p className="text-sm text-gray-500 text-center">학생증 이미지를 업로드하세요<br /><span className="text-xs text-gray-400">JPG, PNG (최대 10MB)</span></p>
-          </>
-        )}
-      </div>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-
-      {preview && !result && (
-        <button
-          onClick={analyze}
-          disabled={analyzing}
-          className="w-full py-3.5 bg-[#04346E] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:bg-gray-300"
-        >
-          {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> 분석 중...</> : "학생증 인증하기"}
-        </button>
-      )}
-
-      {error && (
-        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
-
-      {result && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 space-y-2">
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
-            <p className="text-sm font-bold text-green-700">학생증 인증 완료</p>
-          </div>
-          {[{ label: "이름", value: result.name }, { label: "학번", value: result.studentId }, { label: "전공", value: result.major }].map(({ label, value }) => (
-            <div key={label} className="flex gap-3">
-              <span className="text-xs text-gray-500 w-12 shrink-0 mt-0.5">{label}</span>
-              <span className="text-sm font-bold text-gray-900">{value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <button
-        onClick={() => result && onNext({ name: result.name, studentId: result.studentId, major: result.major, studentIdBase64: base64 })}
-        disabled={!result}
-        className={cn("w-full py-3.5 rounded-xl font-bold text-white text-sm transition-all",
-          result ? "bg-[#04346E] hover:bg-[#021526] active:scale-[0.98]" : "bg-gray-200 text-gray-400"
-        )}
-      >
-        가입 완료하기
-      </button>
-    </div>
-  );
-}
-
-// ─── 메인 컴포넌트 ────────────────────────────────────────────
 export function RegisterPage() {
   const [, navigate] = useLocation();
-  const { setAuth } = useAuth();
+  const { login } = useAuth();
+
   const [step, setStep] = useState<Step>("account");
-  const [data, setData] = useState<Partial<RegisterData>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const merge = (d: Partial<RegisterData>) => setData(prev => ({ ...prev, ...d }));
+  const [username, setUsername] = useState("");
+  const [usernameOk, setUsernameOk] = useState<boolean | null>(null);
+  const [usernameMsg, setUsernameMsg] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showPwC, setShowPwC] = useState(false);
 
-  const handleAccountNext = (d: Partial<RegisterData>) => { merge(d); setStep("phone"); };
-  const handlePhoneNext = (d: Partial<RegisterData>) => { merge(d); setStep("studentid"); };
+  const [phone, setPhone] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
 
-  const handleStudentIdNext = async (d: Partial<RegisterData>) => {
-    const all = { ...data, ...d };
+  const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const [ocrResult, setOcrResult] = useState<{ name: string; studentId: string; major: string } | null>(null);
+  const [ocrError, setOcrError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const pwHas8 = password.length >= 8;
+  const pwHasEn = /[a-zA-Z]/.test(password);
+  const pwHasNum = /[0-9]/.test(password);
+  const pwOk = pwHas8 && pwHasEn && pwHasNum;
+  const pwMatch = passwordConfirm.length > 0 && password === passwordConfirm;
+
+  const checkUsername = async () => {
+    const u = username.trim();
+    if (!/^[a-zA-Z0-9]{4,20}$/.test(u)) {
+      setUsernameOk(false);
+      setUsernameMsg("영문+숫자 4-20자로 입력하세요.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/auth/check-username?username=${u}`);
+      const d = await r.json();
+      if (d.available) { setUsernameOk(true); setUsernameMsg("사용 가능한 아이디입니다."); }
+      else { setUsernameOk(false); setUsernameMsg("이미 사용 중인 아이디입니다."); }
+    } catch { setUsernameOk(false); setUsernameMsg("확인에 실패했습니다."); }
+    finally { setLoading(false); }
+  };
+
+  const sendOtp = async () => {
+    setError(""); setLoading(true);
+    try {
+      const r = await fetch(`${API}/auth/send-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || "OTP 전송 실패");
+      setOtpSent(true); setOtpCooldown(60);
+      const t = setInterval(() => setOtpCooldown(v => { if (v <= 1) { clearInterval(t); return 0; } return v - 1; }), 1000);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const verifyOtp = async () => {
+    setError(""); setLoading(true);
+    try {
+      const r = await fetch(`${API}/auth/verify-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code: otp })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || "인증 실패");
+      setPhoneVerified(true);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImgFile(f);
+    setImgPreview(URL.createObjectURL(f));
+    setOcrResult(null); setOcrError("");
+  };
+
+  const runOcr = async () => {
+    if (!imgFile) return;
+    setLoading(true); setOcrError("");
+    try {
+      const fd = new FormData();
+      fd.append("image", imgFile);
+      const r = await fetch(`${API}/auth/verify-student-id`, { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok || !d.isValid) throw new Error(d.message || "학생증 인식 실패");
+      setOcrResult({ name: d.name, studentId: d.studentId, major: d.major });
+    } catch (e: any) { setOcrError(e.message || "인식에 실패했습니다."); }
+    finally { setLoading(false); }
+  };
+
+  const doRegister = async () => {
+    if (!ocrResult) return;
     setLoading(true); setError("");
     try {
       const r = await fetch(`${API}/auth/register`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: all.username,
-          password: all.password,
-          phone: all.phone,
-          name: all.name,
-          studentId: all.studentId,
-          major: all.major,
-          studentIdImageBase64: all.studentIdBase64,
-        }),
+        body: JSON.stringify({ username: username.trim(), password, phone, name: ocrResult.name, studentId: ocrResult.studentId, major: ocrResult.major })
       });
-      const res = await r.json();
-      if (!r.ok) throw new Error(res.message);
-      setAuth(res.token, res.user);
-      merge(d);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || "가입 실패");
+      await login(username.trim(), password);
       setStep("done");
-    } catch (err: any) {
-      setError(err.message);
-    }
-    setLoading(false);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const steps: Step[] = ["account", "phone", "studentid", "done"];
-  const currentIdx = steps.indexOf(step);
+  const back = () => {
+    const i = STEPS.indexOf(step);
+    if (i === 0) navigate("/login");
+    else setStep(STEPS[i - 1]);
+    setError("");
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#021526] via-[#04346E] to-[#1A6CAE] flex flex-col items-center justify-center p-5">
-      <div className="w-full max-w-sm bg-white rounded-3xl p-7 shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          {step !== "account" && step !== "done" && (
-            <button onClick={() => setStep(steps[currentIdx - 1])} className="p-1.5 rounded-xl hover:bg-gray-100">
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-          )}
-          <div>
-            <h2 className="text-xl font-black text-gray-900">
-              {step === "account" && "계정 만들기"}
-              {step === "phone" && "전화번호 인증"}
-              {step === "studentid" && "학생증 인증"}
-              {step === "done" && "가입 완료!"}
-            </h2>
-            <p className="text-xs text-gray-400 mt-0.5">부산대학교 학생만 가입 가능합니다</p>
-          </div>
+    <div className="min-h-screen bg-white flex flex-col">
+      {step !== "done" && (
+        <div className="flex items-center px-4 pt-14 pb-4">
+          <button onClick={back} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 -ml-2">
+            <ArrowLeft className="w-5 h-5 text-gray-700" />
+          </button>
+          <span className="ml-2 font-bold text-gray-900 text-base">회원가입</span>
         </div>
+      )}
 
-        {step !== "done" && <StepBar step={step} />}
+      <div className="flex-1 flex flex-col px-5 pt-2 pb-10">
+        {step !== "done" && <ProgressBar current={step} />}
 
-        {step === "account" && <StepAccount onNext={handleAccountNext} />}
-        {step === "phone" && <StepPhone onNext={handlePhoneNext} />}
-        {step === "studentid" && (
-          <div>
-            <StepStudentId onNext={handleStudentIdNext} />
-            {error && (
-              <div className="mt-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        {/* ─── STEP 1: account ─── */}
+        {step === "account" && (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-6">
+              <h2 className="text-[22px] font-black text-gray-900">계정 정보를</h2>
+              <h2 className="text-[22px] font-black text-gray-900">입력해 주세요</h2>
+            </div>
+
+            <div className="space-y-3 flex-1">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5 ml-1">아이디</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={e => { setUsername(e.target.value); setUsernameOk(null); setUsernameMsg(""); }}
+                    placeholder="영문+숫자 4-20자"
+                    className="flex-1 px-4 py-4 bg-gray-50 rounded-2xl text-[15px] outline-none focus:bg-gray-100 transition-colors"
+                  />
+                  <button
+                    onClick={checkUsername}
+                    disabled={loading || !username}
+                    className="px-4 py-4 rounded-2xl bg-[#04346E] text-white text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 whitespace-nowrap"
+                  >
+                    중복확인
+                  </button>
+                </div>
+                {usernameMsg && (
+                  <p className={cn("text-xs mt-1.5 ml-1", usernameOk ? "text-green-500" : "text-red-400")}>{usernameMsg}</p>
+                )}
               </div>
-            )}
-            {loading && (
-              <div className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" /> 가입 처리 중...
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5 ml-1">비밀번호</p>
+                <div className="relative">
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="8자 이상, 영문+숫자 포함"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-4 bg-gray-50 rounded-2xl text-[15px] outline-none focus:bg-gray-100 transition-colors pr-12"
+                  />
+                  <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                    {showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {password.length > 0 && (
+                  <div className="flex gap-3 mt-2 ml-1">
+                    <PwCondition ok={pwHas8} label="8자 이상" />
+                    <PwCondition ok={pwHasEn} label="영문 포함" />
+                    <PwCondition ok={pwHasNum} label="숫자 포함" />
+                  </div>
+                )}
               </div>
-            )}
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5 ml-1">비밀번호 확인</p>
+                <div className="relative">
+                  <input
+                    type={showPwC ? "text" : "password"}
+                    value={passwordConfirm}
+                    onChange={e => setPasswordConfirm(e.target.value)}
+                    placeholder="비밀번호 재입력"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-4 bg-gray-50 rounded-2xl text-[15px] outline-none focus:bg-gray-100 transition-colors pr-12"
+                  />
+                  <button type="button" onClick={() => setShowPwC(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                    {showPwC ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {passwordConfirm.length > 0 && (
+                  <p className={cn("text-xs mt-1.5 ml-1", pwMatch ? "text-green-500" : "text-red-400")}>
+                    {pwMatch ? "비밀번호가 일치합니다." : "비밀번호가 일치하지 않습니다."}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setStep("phone")}
+              disabled={!usernameOk || !pwOk || !pwMatch}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold text-[15px] mt-6 transition-all flex items-center justify-center gap-1",
+                usernameOk && pwOk && pwMatch
+                  ? "bg-[#04346E] text-white shadow-lg shadow-[#04346E]/20"
+                  : "bg-gray-100 text-gray-400"
+              )}
+            >
+              다음 <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <div className="pt-4 text-center">
+              <span className="text-sm text-gray-400">이미 계정이 있으신가요? </span>
+              <button onClick={() => navigate("/login")} className="text-sm font-bold text-[#04346E]">로그인</button>
+            </div>
           </div>
         )}
 
-        {step === "done" && (
-          <div className="text-center py-4">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-              <CheckCircle2 className="w-10 h-10 text-green-500" />
+        {/* ─── STEP 2: phone ─── */}
+        {step === "phone" && (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-6">
+              <h2 className="text-[22px] font-black text-gray-900">전화번호로</h2>
+              <h2 className="text-[22px] font-black text-gray-900">본인인증을 해주세요</h2>
+              <p className="text-sm text-gray-400 mt-2">SMS 인증번호를 발송합니다</p>
             </div>
-            <h3 className="text-xl font-black text-gray-900 mb-2">환영합니다!</h3>
-            <p className="text-gray-500 text-sm mb-1">{data.name}님, 가입이 완료되었습니다.</p>
-            <p className="text-xs text-gray-400 mb-8">{data.major} · {data.studentId}</p>
+
+            {error && (
+              <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-500 mb-3">{error}</div>
+            )}
+
+            <div className="space-y-3 flex-1">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5 ml-1">휴대폰 번호</p>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, ""))}
+                    placeholder="01012345678"
+                    maxLength={11}
+                    disabled={phoneVerified}
+                    className="flex-1 px-4 py-4 bg-gray-50 rounded-2xl text-[15px] outline-none focus:bg-gray-100 transition-colors disabled:text-gray-400"
+                  />
+                  <button
+                    onClick={sendOtp}
+                    disabled={loading || phone.length < 10 || phoneVerified || otpCooldown > 0}
+                    className="px-4 py-4 rounded-2xl bg-[#04346E] text-white text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 whitespace-nowrap min-w-[80px]"
+                  >
+                    {otpCooldown > 0 ? `${otpCooldown}s` : "인증번호"}
+                  </button>
+                </div>
+              </div>
+
+              {otpSent && !phoneVerified && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5 ml-1">인증번호 6자리</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={otp}
+                      onChange={e => setOtp(e.target.value.slice(0, 6))}
+                      placeholder="000000"
+                      className="flex-1 px-4 py-4 bg-gray-50 rounded-2xl text-[15px] tracking-widest outline-none focus:bg-gray-100 transition-colors"
+                    />
+                    <button
+                      onClick={verifyOtp}
+                      disabled={loading || otp.length !== 6}
+                      className="px-4 py-4 rounded-2xl bg-[#04346E] text-white text-sm font-bold disabled:bg-gray-100 disabled:text-gray-400 whitespace-nowrap min-w-[80px]"
+                    >
+                      확인
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {phoneVerified && (
+                <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-4 flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-green-700">인증 완료</p>
+                    <p className="text-xs text-green-500 mt-0.5">{phone}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setStep("studentid")}
+              disabled={!phoneVerified}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold text-[15px] mt-6 transition-all flex items-center justify-center gap-1",
+                phoneVerified
+                  ? "bg-[#04346E] text-white shadow-lg shadow-[#04346E]/20"
+                  : "bg-gray-100 text-gray-400"
+              )}
+            >
+              다음 <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* ─── STEP 3: studentid ─── */}
+        {step === "studentid" && (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-6">
+              <h2 className="text-[22px] font-black text-gray-900">부산대 학생증으로</h2>
+              <h2 className="text-[22px] font-black text-gray-900">재학을 인증해 주세요</h2>
+              <p className="text-sm text-gray-400 mt-2">모바일 학생증 화면을 촬영해 주세요</p>
+            </div>
+
+            {(error || ocrError) && (
+              <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-500 mb-3">
+                {error || ocrError}
+              </div>
+            )}
+
+            <div className="flex-1 space-y-3">
+              <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImage} />
+              <button
+                onClick={() => fileRef.current?.click()}
+                className={cn(
+                  "w-full rounded-3xl overflow-hidden border-2 border-dashed transition-colors",
+                  imgPreview ? "border-transparent" : "border-gray-200 bg-gray-50"
+                )}
+                style={{ minHeight: 200 }}
+              >
+                {imgPreview ? (
+                  <img src={imgPreview} alt="학생증" className="w-full object-cover" style={{ maxHeight: 260 }} />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">🪪</div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-600">학생증 사진 업로드</p>
+                      <p className="text-xs text-gray-400 mt-0.5">탭해서 카메라 또는 갤러리 선택</p>
+                    </div>
+                  </div>
+                )}
+              </button>
+
+              {imgPreview && !ocrResult && (
+                <button
+                  onClick={runOcr}
+                  disabled={loading}
+                  className="w-full py-4 rounded-2xl bg-[#04346E] text-white font-bold text-[15px] disabled:opacity-60 shadow-lg shadow-[#04346E]/20"
+                >
+                  {loading ? "인식 중..." : "학생증 인식하기"}
+                </button>
+              )}
+
+              {ocrResult && (
+                <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-4 space-y-1.5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <span className="text-sm font-bold text-green-700">인증 완료</span>
+                  </div>
+                  <InfoRow label="이름" value={ocrResult.name} />
+                  <InfoRow label="학번" value={ocrResult.studentId} />
+                  <InfoRow label="학과" value={ocrResult.major} />
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={doRegister}
+              disabled={!ocrResult || loading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold text-[15px] mt-4 transition-all",
+                ocrResult && !loading
+                  ? "bg-[#04346E] text-white shadow-lg shadow-[#04346E]/20"
+                  : "bg-gray-100 text-gray-400"
+              )}
+            >
+              {loading ? "가입 중..." : "가입 완료하기"}
+            </button>
+          </div>
+        )}
+
+        {/* ─── STEP 4: done ─── */}
+        {step === "done" && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center pb-10">
+            <div className="w-24 h-24 rounded-full bg-[#04346E]/10 flex items-center justify-center mb-6">
+              <span className="text-5xl">🎉</span>
+            </div>
+            <h2 className="text-2xl font-black text-gray-900 mb-2">가입 완료!</h2>
+            <p className="text-sm text-gray-500 mb-1">부산대학교 캠퍼스라이프에</p>
+            <p className="text-sm text-gray-500 mb-8">오신 것을 환영합니다 👋</p>
             <button
               onClick={() => navigate("/")}
-              className="w-full py-3.5 bg-[#04346E] text-white rounded-xl font-bold text-sm"
+              className="w-full py-4 rounded-2xl bg-[#04346E] text-white font-bold text-[15px] shadow-lg shadow-[#04346E]/20"
             >
-              캠퍼스라이프 시작하기
-            </button>
-          </div>
-        )}
-
-        {step === "account" && (
-          <div className="mt-4 text-center">
-            <span className="text-sm text-gray-500">이미 계정이 있으신가요? </span>
-            <button onClick={() => navigate("/login")} className="text-sm font-bold text-[#04346E] hover:underline">
-              로그인
+              시작하기
             </button>
           </div>
         )}

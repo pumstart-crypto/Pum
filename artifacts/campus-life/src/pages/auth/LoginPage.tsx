@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { Eye, EyeOff, Lock, User } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 export function LoginPage() {
   const [, navigate] = useLocation();
@@ -29,78 +29,70 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#021526] via-[#04346E] to-[#1A6CAE] flex flex-col items-center justify-center p-6">
-      {/* Logo */}
-      <div className="mb-10 flex flex-col items-center">
-        <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur flex items-center justify-center mb-4 shadow-xl">
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Top branding area */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
+        <div className="w-20 h-20 rounded-[28px] bg-[#04346E] flex items-center justify-center mb-5 shadow-lg shadow-[#04346E]/30">
           <span className="text-4xl">🎓</span>
         </div>
-        <h1 className="text-3xl font-black text-white tracking-tight">캠퍼스라이프</h1>
-        <p className="text-white/60 text-sm mt-1">부산대학교 학생 생활 앱</p>
+        <h1 className="text-2xl font-black text-gray-900 tracking-tight">캠퍼스라이프</h1>
+        <p className="text-sm text-gray-400 mt-1">부산대학교 학생 생활 앱</p>
       </div>
 
-      {/* Card */}
-      <div className="w-full max-w-sm bg-white rounded-3xl p-7 shadow-2xl">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">로그인</h2>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">아이디</label>
-            <div className="relative">
-              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="영문+숫자 4-20자"
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10 transition-all"
-              />
-            </div>
+      {/* Form area */}
+      <div className="px-5 pb-10 space-y-3">
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3.5 text-sm text-red-500 text-center">
+            {error}
           </div>
+        )}
 
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">비밀번호</label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type={showPw ? "text" : "password"}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="비밀번호 입력"
-                className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#04346E] focus:ring-2 focus:ring-[#04346E]/10 transition-all"
-              />
-              <button type="button" onClick={() => setShowPw(v => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
+        <div className="space-y-2.5">
+          <input
+            type="text"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="아이디"
+            autoComplete="username"
+            className="w-full px-5 py-4 bg-gray-50 rounded-2xl text-[15px] text-gray-900 placeholder:text-gray-400 outline-none focus:bg-gray-100 transition-colors"
+          />
+          <div className="relative">
+            <input
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="비밀번호"
+              autoComplete="current-password"
+              className="w-full px-5 py-4 bg-gray-50 rounded-2xl text-[15px] text-gray-900 placeholder:text-gray-400 outline-none focus:bg-gray-100 transition-colors pr-14"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400"
+            >
+              {showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
           </div>
+        </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
-              {error}
-            </div>
+        <button
+          onClick={handleSubmit as any}
+          disabled={loading || !username || !password}
+          className={cn(
+            "w-full py-4 rounded-2xl font-bold text-[15px] transition-all",
+            loading || !username || !password
+              ? "bg-gray-100 text-gray-400"
+              : "bg-[#04346E] text-white active:scale-[0.98] shadow-lg shadow-[#04346E]/20"
           )}
+        >
+          {loading ? "로그인 중..." : "로그인"}
+        </button>
 
-          <button
-            type="submit"
-            disabled={loading || !username || !password}
-            className={cn(
-              "w-full py-3.5 rounded-xl font-bold text-white text-sm transition-all",
-              loading || !username || !password
-                ? "bg-gray-300"
-                : "bg-[#04346E] hover:bg-[#021526] active:scale-[0.98]"
-            )}
-          >
-            {loading ? "로그인 중..." : "로그인"}
-          </button>
-        </form>
-
-        <div className="mt-5 text-center">
-          <span className="text-sm text-gray-500">계정이 없으신가요? </span>
+        <div className="pt-2 text-center">
+          <span className="text-sm text-gray-400">계정이 없으신가요? </span>
           <button
             onClick={() => navigate("/register")}
-            className="text-sm font-bold text-[#04346E] hover:underline"
+            className="text-sm font-bold text-[#04346E]"
           >
             회원가입
           </button>
