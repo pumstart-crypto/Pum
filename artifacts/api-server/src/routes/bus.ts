@@ -41,7 +41,7 @@ interface CacheEntry {
 }
 
 const cache: Record<string, CacheEntry> = {};
-const CACHE_TTL = 25 * 1000; // 25 seconds
+const CACHE_TTL = 10 * 1000; // 10 seconds
 
 function parseXml(xml: string, tag: string): string {
   const match = xml.match(new RegExp(`<${tag}>(.*?)<\\/${tag}>`, "s"));

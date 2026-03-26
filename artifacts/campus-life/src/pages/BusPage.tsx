@@ -65,7 +65,7 @@ export function BusPage() {
 
   useEffect(() => {
     fetchRoute();
-    intervalRef.current = setInterval(() => fetchRoute(true), 25_000);
+    intervalRef.current = setInterval(() => fetchRoute(true), 10_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchRoute]);
 
@@ -306,7 +306,7 @@ export function BusPage() {
             </div>
             <div className="flex items-center gap-1 ml-auto">
               <Clock className="w-3 h-3" />
-              25초 자동갱신
+              10초 자동갱신
             </div>
           </div>
         )}
