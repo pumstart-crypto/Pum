@@ -32,8 +32,8 @@ const SETTINGS_SECTIONS = [
 
 export function SettingsPage() {
   return (
-    <Layout>
-      <div className="p-6 pt-12 pb-4">
+    <Layout hideTopBar>
+      <div className="p-6 pt-5 pb-4">
         <p className="text-muted-foreground font-medium mb-1">환경설정</p>
         <h1 className="text-3xl text-foreground">마이페이지 <span className="text-primary">설정</span></h1>
       </div>

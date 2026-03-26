@@ -21,8 +21,8 @@ const BOARD_TABS = ["전체", "공지", "자유", "질문", "거래"];
 
 export function BoardPage() {
   return (
-    <Layout>
-      <div className="p-6 pt-12 pb-4">
+    <Layout hideTopBar>
+      <div className="p-6 pt-5 pb-4">
         <p className="text-muted-foreground font-medium mb-1">커뮤니티</p>
         <h1 className="text-3xl text-foreground">학과 <span className="text-primary">게시판</span></h1>
       </div>

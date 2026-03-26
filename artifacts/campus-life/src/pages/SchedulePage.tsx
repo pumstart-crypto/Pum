@@ -291,9 +291,9 @@ export function SchedulePage() {
   );
 
   return (
-    <Layout>
+    <Layout hideTopBar>
       {/* Header */}
-      <div className="px-6 pt-12 pb-4 flex items-center justify-between">
+      <div className="px-6 pt-5 pb-4 flex items-center justify-between">
         <div>
           {activeTab === "timetable" ? (
             <button
