@@ -446,6 +446,7 @@ export function SchedulePage() {
           year={activeSemester.year}
           semester={activeSemester.semester}
           curriculum={curriculum}
+          existingSchedules={schedules}
           onClose={() => setIsBrowseOpen(false)}
         />
       )}
@@ -709,7 +710,17 @@ function catalogYearFor(timetableYear: number, _semester: string): number {
 
 const CATALOG_CATEGORY_FILTERS = ["전체", "전공필수", "전공기초", "전공선택", "효원핵심교양", "효원균형교양", "효원창의교양", "일반선택", "교직과목"] as const;
 
-function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: number; semester: string; curriculum: Curriculum; onClose: () => void }) {
+type ConflictState = {
+  newCourseName: string;
+  newDay: string;
+  newTime: string;
+  existingCourseName: string;
+  existingDay: string;
+  existingTime: string;
+  resolve: (choice: "keep" | "replace") => void;
+};
+
+function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, onClose }: { year: number; semester: string; curriculum: Curriculum; existingSchedules: Schedule[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const catalogYear = catalogYearFor(year, semester);
   const [departments, setDepartments] = useState<string[]>([]);
@@ -723,12 +734,14 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importDone, setImportDone] = useState(false);
+  const [conflictState, setConflictState] = useState<ConflictState | null>(null);
   const [error, setError] = useState("");
   const [colorIndex, setColorIndex] = useState(0);
   const [showDeptDropdown, setShowDeptDropdown] = useState(false);
   const [deptSearch, setDeptSearch] = useState("");
 
   const createMutation = useCreateSchedule();
+  const deleteMutation = useDeleteSchedule();
 
   useEffect(() => {
     fetchDepartments(catalogYear, semester)
@@ -779,16 +792,34 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
     }
   };
 
+  const timeToMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+  const askConflict = (opts: Omit<ConflictState, "resolve">): Promise<"keep" | "replace"> =>
+    new Promise(resolve => setConflictState({ ...opts, resolve }));
+
   const handleImport = async () => {
     const toImport = courses.filter(c => selected.has(c.id));
     if (toImport.length === 0) return;
     setIsImporting(true);
     let ci = colorIndex;
 
+    // live list of scheduled slots (existing + newly added this session)
+    const liveSchedules: Schedule[] = [...existingSchedules];
+
+    const findConflict = (dayOfWeek: number, startTime: string, endTime: string) => {
+      const ns = timeToMin(startTime);
+      const ne = timeToMin(endTime);
+      return liveSchedules.find(s =>
+        s.year === year && s.semester === semester &&
+        s.dayOfWeek === dayOfWeek &&
+        timeToMin(s.startTime) < ne && timeToMin(s.endTime) > ns
+      );
+    };
+
     for (const course of toImport) {
       if (!course.timeRoom) {
         try {
-          await createMutation.mutateAsync({
+          const created = await createMutation.mutateAsync({
             data: {
               subjectName: course.subjectName,
               professor: course.professor || undefined,
@@ -801,6 +832,7 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
               semester,
             },
           });
+          liveSchedules.push(created as unknown as Schedule);
           ci++;
         } catch {}
         continue;
@@ -809,24 +841,57 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
       const slots = parseTimeSlots(course.timeRoom, course.subjectName, course.professor || "");
       if (slots.length === 0) continue;
       const color = COLORS[ci % COLORS.length];
+
+      let skipCourse = false;
       for (const slot of slots) {
-        try {
-          await createMutation.mutateAsync({
-            data: {
-              subjectName: slot.subjectName,
-              professor: slot.professor || undefined,
-              location: slot.location || undefined,
-              dayOfWeek: slot.dayOfWeek,
-              startTime: slot.startTime,
-              endTime: slot.endTime,
-              color,
-              year,
-              semester,
-            },
+        const conflicting = findConflict(slot.dayOfWeek, slot.startTime, slot.endTime);
+        if (conflicting) {
+          const choice = await askConflict({
+            newCourseName: slot.subjectName,
+            newDay: DAYS[slot.dayOfWeek],
+            newTime: `${slot.startTime}–${slot.endTime}`,
+            existingCourseName: conflicting.subjectName,
+            existingDay: DAYS[conflicting.dayOfWeek],
+            existingTime: `${conflicting.startTime}–${conflicting.endTime}`,
           });
-        } catch {}
+          setConflictState(null);
+
+          if (choice === "keep") {
+            skipCourse = true;
+            break;
+          }
+          // replace: delete the conflicting schedule (and all its siblings)
+          const siblings = liveSchedules.filter(s =>
+            s.subjectName === conflicting.subjectName &&
+            s.year === conflicting.year && s.semester === conflicting.semester
+          );
+          for (const sib of siblings) {
+            await deleteMutation.mutateAsync({ id: sib.id }).catch(() => {});
+            const idx = liveSchedules.findIndex(s => s.id === sib.id);
+            if (idx !== -1) liveSchedules.splice(idx, 1);
+          }
+        }
+
+        if (!skipCourse) {
+          try {
+            const created = await createMutation.mutateAsync({
+              data: {
+                subjectName: slot.subjectName,
+                professor: slot.professor || undefined,
+                location: slot.location || undefined,
+                dayOfWeek: slot.dayOfWeek,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                color,
+                year,
+                semester,
+              },
+            });
+            liveSchedules.push(created as unknown as Schedule);
+          } catch {}
+        }
       }
-      ci++;
+      if (!skipCourse) ci++;
     }
 
     setColorIndex(ci);
@@ -1078,6 +1143,58 @@ function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: nu
           </>
         )}
       </div>
+
+      {/* Conflict resolution modal */}
+      {conflictState && (
+        <div className="absolute inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 rounded-3xl">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-base">시간이 겹쳐요!</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">어떤 수업을 유지할까요?</p>
+              </div>
+            </div>
+
+            {/* existing course */}
+            <div className="rounded-xl border border-border bg-muted/40 p-4 flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">현재 시간표에 있는 수업</span>
+              <span className="font-bold text-sm leading-snug">{conflictState.existingCourseName}</span>
+              <span className="text-xs text-muted-foreground">{conflictState.existingDay}요일 {conflictState.existingTime}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground font-medium">vs</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* new course */}
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider">추가하려는 수업</span>
+              <span className="font-bold text-sm leading-snug">{conflictState.newCourseName}</span>
+              <span className="text-xs text-primary/60">{conflictState.newDay}요일 {conflictState.newTime}</span>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => conflictState.resolve("keep")}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-muted hover:bg-secondary transition-colors"
+              >
+                기존 수업 유지하기
+              </button>
+              <button
+                onClick={() => conflictState.resolve("replace")}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                새 수업으로 교체하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
