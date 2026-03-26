@@ -34,6 +34,9 @@ const SETTINGS_SECTIONS = [
   },
 ];
 
+/** 색상 테마 선택 UI 표시 여부 — true로 바꾸면 즉시 활성화 */
+const SHOW_COLOR_THEME_PICKER = false;
+
 const GRADE_LABEL: Record<string, string> = {
   "1": "1학년", "2": "2학년", "3": "3학년", "4": "4학년",
   "5": "5학년 이상", "grad": "대학원생",
@@ -124,8 +127,8 @@ export function SettingsPage() {
           </div>
         ))}
 
-        {/* ── 시간표 색상 테마 ── */}
-        <div>
+        {/* ── 시간표 색상 테마 (SHOW_COLOR_THEME_PICKER = true 로 바꾸면 활성화) ── */}
+        {SHOW_COLOR_THEME_PICKER && <div>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">
             시간표 색상 테마
           </p>
@@ -181,7 +184,7 @@ export function SettingsPage() {
               })}
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Coming Soon Notice */}
         <div className="bg-muted rounded-2xl p-4 text-center">

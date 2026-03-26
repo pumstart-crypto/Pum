@@ -20,9 +20,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try { return (localStorage.getItem("campus_life_theme") as Theme) || "light"; } catch { return "light"; }
   });
 
-  const [colorTheme, setColorThemeState] = useState<ColorTheme>(() => {
-    try { return (localStorage.getItem("campus_life_color_theme") as ColorTheme) || "A"; } catch { return "A"; }
-  });
+  // 색상 테마 선택 UI가 숨겨진 동안은 항상 "A" 고정
+  // 선택 UI 활성화 시: localStorage.getItem("campus_life_color_theme") as ColorTheme || "A" 로 변경
+  const [colorTheme, setColorThemeState] = useState<ColorTheme>("A");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
