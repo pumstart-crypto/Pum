@@ -60,7 +60,8 @@ interface ParsedSlot {
 
 function parseTimeSlots(timeRoom: string, subject: string, professor: string): ParsedSlot[] {
   if (!timeRoom) return [];
-  const parts = timeRoom.split(/,?\s*<br\s*\/?>\s*/i);
+  // Split on comma followed by a day character OR <br> tag
+  const parts = timeRoom.split(/,\s*(?=[월화수목금토일])|,?\s*<br\s*\/?>\s*/gi);
   const result: ParsedSlot[] = [];
 
   for (const part of parts) {
