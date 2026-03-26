@@ -125,24 +125,24 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.root, { paddingBottom: bottomPad }]}>
+      {/* Fixed Header */}
+      <View style={[styles.header, { paddingTop: topPad }]}>
+        <View style={styles.logoRow}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoP}>P</Text>
+            <Text style={styles.logoUm}>:um</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
+          <Feather name="bell" size={20} color="#374151" />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: topPad + 16 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: 16 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoRow}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoP}>P</Text>
-              <Text style={styles.logoUm}>:um</Text>
-            </View>
-          </View>
-          <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
-            <Feather name="bell" size={20} color="#374151" />
-          </TouchableOpacity>
-        </View>
-
         {/* Date */}
         <View style={styles.dateSection}>
           <Text style={styles.universityLabel}>부산대학교</Text>
@@ -298,7 +298,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   scroll: { paddingHorizontal: 20 },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingBottom: 10,
+    backgroundColor: '#fff',
+  },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logoBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
   logoP: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#fff' },
