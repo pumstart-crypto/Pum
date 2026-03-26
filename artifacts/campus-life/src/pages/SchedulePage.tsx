@@ -153,12 +153,16 @@ const GRAD_CAT_COLORS: Record<string, string> = {
   "일반선택": "bg-slate-400",
 };
 const GRAD_CAT_BG: Record<string, string> = {
-  "전공필수": "bg-blue-50 text-blue-700",
-  "전공기초": "bg-indigo-50 text-indigo-700",
-  "전공선택": "bg-sky-50 text-sky-700",
-  "교양필수": "bg-violet-50 text-violet-700",
-  "교양선택": "bg-purple-50 text-purple-700",
-  "일반선택": "bg-slate-100 text-slate-600",
+  "전공필수":    "bg-blue-50 text-blue-700",
+  "전공기초":    "bg-indigo-50 text-indigo-700",
+  "전공선택":    "bg-sky-50 text-sky-700",
+  "교양필수":    "bg-violet-50 text-violet-700",
+  "교양선택":    "bg-purple-50 text-purple-700",
+  "효원핵심교양": "bg-violet-50 text-violet-700",
+  "효원균형교양": "bg-purple-50 text-purple-700",
+  "효원창의교양": "bg-fuchsia-50 text-fuchsia-700",
+  "일반선택":    "bg-slate-100 text-slate-600",
+  "교직과목":    "bg-amber-50 text-amber-700",
 };
 const GRAD_REQS_KEY = "campus-grad-reqs";
 
@@ -676,7 +680,7 @@ function catalogYearFor(timetableYear: number, _semester: string): number {
   return timetableYear;
 }
 
-const CATALOG_CATEGORY_FILTERS = ["전체", "전공필수", "전공기초", "전공선택", "교양필수", "교양선택", "일반선택"] as const;
+const CATALOG_CATEGORY_FILTERS = ["전체", "전공필수", "전공기초", "전공선택", "효원핵심교양", "효원균형교양", "효원창의교양", "일반선택", "교직과목"] as const;
 
 function CourseBrowserDialog({ year, semester, curriculum, onClose }: { year: number; semester: string; curriculum: Curriculum; onClose: () => void }) {
   const queryClient = useQueryClient();
