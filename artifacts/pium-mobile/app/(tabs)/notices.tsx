@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Linking, ActivityIndicator, Platform,
@@ -10,6 +10,8 @@ import { loadProfileAsync } from '@/hooks/useProfile';
 import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+const PAGE_SIZE = 10;
+const MAX_PAGES = 10;
 
 interface Notice {
   id: number;
@@ -88,22 +90,92 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
 }
 
 /* ── Section Label ── */
-function SectionLabel({ icon, label }: { icon: string; label: string }) {
+function SectionLabel({ label }: { label: string }) {
   return (
     <View style={styles.sectionLabel}>
-      <Ionicons name={icon as any} size={14} color={C.primary} />
+      <Ionicons name="notifications" size={14} color={C.primary} />
       <Text style={styles.sectionLabelText}>{label}</Text>
     </View>
   );
 }
 
+/* ── Pagination ── */
+function Pagination({
+  current, total, onChange, scrollRef,
+}: {
+  current: number;
+  total: number;
+  onChange: (p: number) => void;
+  scrollRef: React.RefObject<ScrollView | null>;
+}) {
+  if (total <= 1) return null;
+
+  const WINDOW = 5;
+  let start = Math.max(1, current - Math.floor(WINDOW / 2));
+  let end = start + WINDOW - 1;
+  if (end > total) { end = total; start = Math.max(1, end - WINDOW + 1); }
+  const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+  const go = (p: number) => {
+    onChange(p);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  return (
+    <View style={styles.pagination}>
+      {/* First */}
+      <TouchableOpacity
+        style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]}
+        onPress={() => go(1)} disabled={current === 1}
+      >
+        <Ionicons name="play-skip-back" size={11} color={current === 1 ? '#D1D5DB' : '#374151'} />
+      </TouchableOpacity>
+      {/* Prev */}
+      <TouchableOpacity
+        style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]}
+        onPress={() => go(current - 1)} disabled={current === 1}
+      >
+        <Ionicons name="chevron-back" size={14} color={current === 1 ? '#D1D5DB' : '#374151'} />
+      </TouchableOpacity>
+
+      {start > 1 && <Text style={styles.ellipsis}>…</Text>}
+
+      {pages.map(p => (
+        <TouchableOpacity
+          key={p}
+          style={[styles.pageBtn, current === p && styles.pageBtnActive]}
+          onPress={() => go(p)}
+        >
+          <Text style={[styles.pageBtnText, current === p && styles.pageBtnTextActive]}>{p}</Text>
+        </TouchableOpacity>
+      ))}
+
+      {end < total && <Text style={styles.ellipsis}>…</Text>}
+
+      {/* Next */}
+      <TouchableOpacity
+        style={[styles.pageBtn, current === total && styles.pageBtnDisabled]}
+        onPress={() => go(current + 1)} disabled={current === total}
+      >
+        <Ionicons name="chevron-forward" size={14} color={current === total ? '#D1D5DB' : '#374151'} />
+      </TouchableOpacity>
+      {/* Last */}
+      <TouchableOpacity
+        style={[styles.pageBtn, current === total && styles.pageBtnDisabled]}
+        onPress={() => go(total)} disabled={current === total}
+      >
+        <Ionicons name="play-skip-forward" size={11} color={current === total ? '#D1D5DB' : '#374151'} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 /* ── School Notices ── */
-function SchoolNotices({ search }: { search: string }) {
+function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React.RefObject<ScrollView | null> }) {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
-  const PER_PAGE = 15;
 
   const fetch_ = useCallback(async () => {
     setLoading(true); setError('');
@@ -133,8 +205,10 @@ function SchoolNotices({ search }: { search: string }) {
   const kw = search.trim().toLowerCase();
   const pinned = notices.filter(n => n.isPinned && (!kw || n.title.toLowerCase().includes(kw)));
   const regular = notices.filter(n => !n.isPinned && (!kw || n.title.toLowerCase().includes(kw)));
-  const paged = regular.slice(0, page * PER_PAGE);
-  const hasMore = paged.length < regular.length;
+
+  const pool = regular.slice(0, MAX_PAGES * PAGE_SIZE);
+  const totalPages = Math.min(Math.ceil(pool.length / PAGE_SIZE), MAX_PAGES);
+  const paged = kw ? pool : pool.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   if (pinned.length === 0 && regular.length === 0) return (
     <View style={styles.emptyBox}>
@@ -147,28 +221,29 @@ function SchoolNotices({ search }: { search: string }) {
     <>
       {pinned.length > 0 && (
         <>
-          <SectionLabel icon="notifications" label="고정 공지" />
+          <SectionLabel label="고정 공지" />
           {pinned.map((n, i) => <NoticeCard key={`p-${i}`} item={n} type="school" />)}
         </>
       )}
       {paged.map((n, i) => <NoticeCard key={`r-${i}`} item={n} type="school" />)}
-      {hasMore && (
-        <TouchableOpacity style={styles.moreBtn} onPress={() => setPage(p => p + 1)}>
-          <Text style={styles.moreBtnText}>더 보기</Text>
-          <Feather name="chevron-down" size={15} color={C.primary} />
-        </TouchableOpacity>
+      {!kw && (
+        <Pagination
+          current={page}
+          total={totalPages}
+          onChange={setPage}
+          scrollRef={scrollRef}
+        />
       )}
     </>
   );
 }
 
 /* ── Dept Notices ── */
-function DeptNotices({ search }: { search: string }) {
+function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.RefObject<ScrollView | null> }) {
   const [deptNotices, setDeptNotices] = useState<DeptNotice[]>([]);
   const [loading, setLoading] = useState(false);
   const [userDept, setUserDept] = useState('');
   const [page, setPage] = useState(1);
-  const PER_PAGE = 15;
 
   useEffect(() => {
     loadProfileAsync().then(p => setUserDept(p.department || ''));
@@ -200,25 +275,29 @@ function DeptNotices({ search }: { search: string }) {
   if (loading) return <ActivityIndicator color={C.primary} style={{ marginTop: 40 }} />;
 
   const kw = search.trim().toLowerCase();
-  const filtered = deptNotices.filter(n => !kw || n.title.toLowerCase().includes(kw) || (n.department || '').toLowerCase().includes(kw));
-  const paged = filtered.slice(0, page * PER_PAGE);
-  const hasMore = paged.length < filtered.length;
+  const pool = deptNotices
+    .filter(n => !kw || n.title.toLowerCase().includes(kw) || (n.department || '').toLowerCase().includes(kw))
+    .slice(0, MAX_PAGES * PAGE_SIZE);
+  const totalPages = Math.min(Math.ceil(pool.length / PAGE_SIZE), MAX_PAGES);
+  const paged = kw ? pool : pool.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  if (filtered.length === 0) return (
+  if (pool.length === 0) return (
     <View style={styles.emptyBox}>
       <Feather name="bell-off" size={36} color="#D1D5DB" />
-      <Text style={styles.emptyText}>공지가 없습니다</Text>
+      <Text style={styles.emptyText}>{kw ? '검색 결과가 없습니다' : '공지가 없습니다'}</Text>
     </View>
   );
 
   return (
     <>
       {paged.map((n, i) => <NoticeCard key={i} item={n} type="dept" />)}
-      {hasMore && (
-        <TouchableOpacity style={styles.moreBtn} onPress={() => setPage(p => p + 1)}>
-          <Text style={styles.moreBtnText}>더 보기</Text>
-          <Feather name="chevron-down" size={15} color={C.primary} />
-        </TouchableOpacity>
+      {!kw && (
+        <Pagination
+          current={page}
+          total={totalPages}
+          onChange={setPage}
+          scrollRef={scrollRef}
+        />
       )}
     </>
   );
@@ -235,6 +314,7 @@ export default function NoticesScreen() {
   const [search, setSearch] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -248,7 +328,6 @@ export default function NoticesScreen() {
     <View style={[styles.root, { paddingTop: topPad }]}>
       {/* ── Sticky Header ── */}
       <View style={styles.header}>
-        {/* Title row */}
         <View style={styles.titleRow}>
           <View>
             <Text style={styles.subTitle}>부산대학교</Text>
@@ -258,7 +337,7 @@ export default function NoticesScreen() {
           </View>
         </View>
 
-        {/* Tab selector */}
+        {/* Tab segment */}
         <View style={styles.tabSegment}>
           {(['school', 'dept'] as Tab[]).map(t => (
             <TouchableOpacity
@@ -274,7 +353,7 @@ export default function NoticesScreen() {
           ))}
         </View>
 
-        {/* Search bar */}
+        {/* Search */}
         <View style={styles.searchBox}>
           <Feather name="search" size={15} color="#9CA3AF" />
           <TextInput
@@ -294,6 +373,7 @@ export default function NoticesScreen() {
 
       {/* ── Content ── */}
       <ScrollView
+        ref={scrollRef}
         key={`${tab}-${refreshKey}`}
         style={{ flex: 1 }}
         contentContainerStyle={styles.listContent}
@@ -301,8 +381,8 @@ export default function NoticesScreen() {
         showsVerticalScrollIndicator={false}
       >
         {tab === 'school'
-          ? <SchoolNotices search={search} />
-          : <DeptNotices search={search} />
+          ? <SchoolNotices search={search} scrollRef={scrollRef} />
+          : <DeptNotices search={search} scrollRef={scrollRef} />
         }
         <View style={{ height: isWeb ? 34 : 110 }} />
       </ScrollView>
@@ -338,14 +418,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 16,
     padding: 4,
-    gap: 4,
   },
-  tabSegItem: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
+  tabSegItem: { flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center' },
   tabSegItemActive: {
     backgroundColor: '#fff',
     shadowColor: '#000',
@@ -359,13 +433,9 @@ const styles = StyleSheet.create({
 
   /* Search */
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#F3F4F6', borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: 13, color: '#111827', fontFamily: 'Inter_400Regular' },
 
@@ -374,26 +444,17 @@ const styles = StyleSheet.create({
 
   /* Section label */
   sectionLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-    marginTop: 4,
-    marginBottom: 2,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 4, paddingHorizontal: 2,
+    marginTop: 4, marginBottom: 2,
   },
   sectionLabelText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 0.3 },
 
   /* Card */
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    backgroundColor: '#fff', borderRadius: 16, padding: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   badges: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
@@ -406,12 +467,21 @@ const styles = StyleSheet.create({
   cardDate: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   metaDot: { color: '#D1D5DB', fontSize: 12 },
 
-  /* More button */
-  moreBtn: {
+  /* Pagination */
+  pagination: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 16,
+    flexWrap: 'wrap', gap: 6, paddingVertical: 20,
   },
-  moreBtnText: { fontSize: 14, color: C.primary, fontFamily: 'Inter_600SemiBold' },
+  pageBtn: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pageBtnActive: { backgroundColor: C.primary },
+  pageBtnDisabled: { opacity: 0.35 },
+  pageBtnText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#374151' },
+  pageBtnTextActive: { color: '#fff' },
+  ellipsis: { fontSize: 13, color: '#9CA3AF', paddingHorizontal: 2 },
 
   /* Empty state */
   emptyBox: { alignItems: 'center', paddingVertical: 60, gap: 12 },
