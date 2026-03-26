@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { parse } from "node-html-parser";
 import { DEPT_LINKS } from "../data/dept-links";
+import https from "https";
 
 const router: IRouter = Router();
 
@@ -11,6 +12,29 @@ const HEADERS = {
 const MAX_PAGES = 20;
 const CUTOFF_DATE = "2026-01-01";
 const CACHE_TTL_MS = 30 * 60 * 1000;
+
+function fetchInsecure(url: string, opts?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const options = {
+      hostname: parsed.hostname,
+      port: 443,
+      path: parsed.pathname + parsed.search,
+      method: opts?.method ?? "GET",
+      headers: { ...HEADERS, ...(opts?.headers ?? {}) },
+      rejectUnauthorized: false,
+    };
+    const req = https.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    if (opts?.body) req.write(opts.body);
+    req.end();
+  });
+}
 
 interface DeptNotice {
   id: string;
@@ -35,6 +59,62 @@ interface BoardCache {
 
 const boardMetaCache: Record<string, BoardMeta> = {};
 const dataCache: Record<string, BoardCache> = {};
+
+/* ── 기계공학부 (PHP board) ── */
+const ME_NOTICE_BASE = "https://me.pusan.ac.kr/new/sub05/sub01_01.php";
+const ME_JOBS_BASE   = "https://me.pusan.ac.kr/new/sub05/sub05.php";
+
+async function fetchMeBoard(basePhpUrl: string): Promise<DeptNotice[]> {
+  const items: DeptNotice[] = [];
+  const seen = new Set<string>();
+  let lastHtml = "";
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    let html: string;
+    if (page === 1) {
+      html = await fetchInsecure(basePhpUrl);
+      lastHtml = html;
+    } else {
+      const csrfMatch = lastHtml.match(/id="csrf_token"[^>]*value="([^"]+)"/);
+      const csrf = csrfMatch?.[1] ?? "";
+      const body = new URLSearchParams({ db: "hakbunotice", page: String(page), perPage: "10", CSRFToken: csrf }).toString();
+      html = await fetchInsecure(basePhpUrl, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": basePhpUrl } });
+      lastHtml = html;
+    }
+
+    const root = parse(html);
+    const rows = root.querySelectorAll("tbody tr");
+    if (rows.length === 0) break;
+
+    let hitCutoff = false;
+    for (const row of rows) {
+      const anchor = row.querySelector("td.title a");
+      if (!anchor) continue;
+      const href = anchor.getAttribute("href") ?? "";
+      const idMatch = href.match(/goDetail\((\d+)\)/);
+      if (!idMatch) continue;
+      const id = idMatch[1];
+      if (seen.has(id)) continue;
+      seen.add(id);
+
+      anchor.querySelector(".type")?.remove();
+      anchor.querySelector(".mobile-info")?.remove();
+      const rawTitle = anchor.text.replace(/\s+/g, " ").trim();
+      const dateTd = row.querySelector("td.date");
+      const writerTd = row.querySelector("td.writer");
+      const hitTd = row.querySelector("td.hit");
+      const date = dateTd?.text.trim() ?? "";
+      const writer = writerTd?.text.replace(/\s+/g, " ").trim() ?? "";
+      const views = parseInt(hitTd?.text.trim() ?? "0", 10) || 0;
+      const articleUrl = `${basePhpUrl}?page_mode=view&seq=${id}`;
+
+      if (date && date < CUTOFF_DATE) { hitCutoff = true; continue; }
+      items.push({ id, title: rawTitle, date, writer, views, isNew: false, url: articleUrl });
+    }
+    if (hitCutoff) break;
+  }
+  return items;
+}
 
 async function discoverBoard(subviewUrl: string): Promise<BoardMeta> {
   if (boardMetaCache[subviewUrl]) return boardMetaCache[subviewUrl];
@@ -144,7 +224,10 @@ router.get("/dept-notices", async (req, res) => {
   }
 
   try {
-    const notices = await fetchDeptBoard(subviewUrl);
+    const isME = subviewUrl.includes("me.pusan.ac.kr") && subviewUrl.endsWith(".php");
+    const notices = isME
+      ? await fetchMeBoard(subviewUrl)
+      : await fetchDeptBoard(subviewUrl);
     dataCache[cacheKey] = { data: notices, fetchedAt: now };
     return res.json({ notices, total: notices.length, fetchedAt: new Date(now).toISOString(), cached: false });
   } catch (err) {
