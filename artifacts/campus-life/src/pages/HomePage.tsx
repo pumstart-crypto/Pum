@@ -18,6 +18,8 @@ const QUICK_LINKS = [
   { label: "식단",     icon: "restaurant",      href: "/meals", external: false },
   { label: "학사일정", icon: "event_note",      href: "/academic-calendar", external: false },
   { label: "학생지원", icon: "help_center",     href: "https://student.pusan.ac.kr", external: true },
+  { label: "버스",     icon: "directions_bus",  href: "/bus", external: false },
+  { label: "캠퍼스맵", icon: "map",             href: "/campus-map", external: false },
 ];
 
 // ── Todo Types ────────────────────────────────────────────────────────

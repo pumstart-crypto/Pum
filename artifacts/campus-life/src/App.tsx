@@ -13,6 +13,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { NoticesPage } from "./pages/NoticesPage";
 import { ProfileEditPage } from "./pages/ProfileEditPage";
 import { AcademicCalendarPage } from "./pages/AcademicCalendarPage";
+import { BusPage } from "./pages/BusPage";
+import { CampusMapPage } from "./pages/CampusMapPage";
 import { Layout } from "./components/Layout";
 
 const queryClient = new QueryClient({
@@ -51,6 +53,8 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/settings/profile" component={ProfileEditPage} />
       <Route path="/academic-calendar" component={AcademicCalendarPage} />
+      <Route path="/bus" component={BusPage} />
+      <Route path="/campus-map" component={CampusMapPage} />
       <Route component={NotFound} />
     </Switch>
   );
