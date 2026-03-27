@@ -21,10 +21,8 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-router.use(requireAuth);
-
 // ── GET /schedule ──────────────────────────────────────────────
-router.get("/schedule", async (req, res) => {
+router.get("/schedule", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).userId as number;
     const schedules = await db
@@ -40,7 +38,7 @@ router.get("/schedule", async (req, res) => {
 });
 
 // ── POST /schedule ─────────────────────────────────────────────
-router.post("/schedule", async (req, res) => {
+router.post("/schedule", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).userId as number;
     const data = insertScheduleSchema.parse({ ...req.body, userId });
@@ -53,7 +51,7 @@ router.post("/schedule", async (req, res) => {
 });
 
 // ── PUT /schedule/:id ──────────────────────────────────────────
-router.put("/schedule/:id", async (req, res) => {
+router.put("/schedule/:id", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).userId as number;
     const id = parseInt(req.params.id);
@@ -75,7 +73,7 @@ router.put("/schedule/:id", async (req, res) => {
 });
 
 // ── DELETE /schedule/:id ───────────────────────────────────────
-router.delete("/schedule/:id", async (req, res) => {
+router.delete("/schedule/:id", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).userId as number;
     const id = parseInt(req.params.id);
