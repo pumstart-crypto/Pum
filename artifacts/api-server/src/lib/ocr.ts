@@ -1,16 +1,3 @@
-import OpenAI from "openai";
-
-// ── Replit AI 클라이언트 (텍스트 파싱용) ──────────────────────
-let openaiClient: OpenAI | null = null;
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const baseURL = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
-    const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] || "dummy";
-    openaiClient = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
-  }
-  return openaiClient;
-}
-
 export interface StudentIdInfo {
   name: string;
   studentId: string;
@@ -48,52 +35,77 @@ async function extractTextWithVision(base64Image: string): Promise<string> {
   return data.responses?.[0]?.fullTextAnnotation?.text ?? "";
 }
 
-// ── Replit AI로 추출 텍스트 파싱 (이미지 없이 텍스트만) ─────────
-async function parseStudentIdText(rawText: string): Promise<StudentIdInfo> {
-  const openai = getOpenAIClient();
+// ── 정규식으로 학생증 정보 파싱 (무료, AI 없음) ─────────────────
+function parseStudentIdText(text: string): StudentIdInfo {
+  const normalized = text.replace(/\s+/g, " ").trim();
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "user",
-        content: `다음은 학생증 이미지 OCR로 추출한 텍스트입니다. 부산대학교 학생증인지 판단하고 정보를 추출해주세요.
+  // 1. 부산대학교 확인
+  const isPNU =
+    /부산대학교/.test(normalized) ||
+    /Pusan\s*National\s*University/i.test(normalized) ||
+    /PNU/i.test(normalized);
 
-[추출된 텍스트]
-${rawText}
+  if (!isPNU) {
+    return {
+      name: "", studentId: "", major: "", university: "",
+      isValid: false,
+      reason: "부산대학교 학생증이 아닙니다.",
+    };
+  }
 
-반드시 아래 JSON 형식으로만 응답하세요:
-{
-  "isValid": true/false,
-  "reason": "유효하지 않은 경우 이유",
-  "name": "이름",
-  "studentId": "학번(숫자)",
-  "major": "학과/전공명",
-  "university": "대학교명"
-}
+  // 2. 학번 추출 (20로 시작하는 9자리 숫자)
+  const studentIdMatch = normalized.match(/\b(20\d{7})\b/);
+  const studentId = studentIdMatch ? studentIdMatch[1] : "";
 
-판단 기준:
-- 부산대학교(Pusan National University) 관련 텍스트가 있어야 합니다
-- 이름, 학번, 학과가 모두 식별 가능해야 합니다
-- 위 조건 미충족 시 isValid: false`,
-      },
-    ],
-    max_tokens: 300,
-  });
+  // 3. 이름 추출
+  //    - "이름 홍길동", "성명 홍길동", "홍길동 님" 패턴
+  //    - 또는 단독 2~4자 한글 (학과명이 아닌 것)
+  let name = "";
+  const namePatterns = [
+    /(?:이름|성명)[:\s]*([가-힣]{2,4})/,
+    /([가-힣]{2,4})\s*(?:님|학생)/,
+  ];
+  for (const pat of namePatterns) {
+    const m = normalized.match(pat);
+    if (m) { name = m[1]; break; }
+  }
+  // 패턴 매칭 실패 시 학번 근처 한글 추출
+  if (!name) {
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (/부산대|학과|학번|전공|대학/.test(line)) continue;
+      const m = line.match(/^([가-힣]{2,4})$/);
+      if (m) { name = m[1]; break; }
+    }
+  }
 
-  const content = response.choices[0]?.message?.content ?? "";
+  // 4. 학과/전공 추출
+  let major = "";
+  const majorPatterns = [
+    /(?:학과|전공|학부)[:\s]*([가-힣A-Za-z\s]+?)(?:\s|$)/,
+    /([가-힣]{2,15}(?:학과|전공|학부|대학원|계열))/,
+    /([가-힣]{2,15}(?:공학|과학|교육|경영|경제|법학|의학|간호|약학|사학|철학|문학|심리|사회|행정|체육|음악|미술|디자인))/,
+  ];
+  for (const pat of majorPatterns) {
+    const m = normalized.match(pat);
+    if (m) { major = m[1].trim(); break; }
+  }
 
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("파싱 결과 없음");
-  const parsed = JSON.parse(jsonMatch[0]);
+  // 5. 유효성 판단
+  if (!studentId) {
+    return {
+      name, studentId: "", major, university: "부산대학교",
+      isValid: false,
+      reason: "학번을 인식할 수 없습니다. 선명한 사진을 사용해주세요.",
+    };
+  }
 
   return {
-    name: parsed.name || "",
-    studentId: parsed.studentId || "",
-    major: parsed.major || "",
-    university: parsed.university || "",
-    isValid: parsed.isValid === true,
-    reason: parsed.reason,
+    name: name || "",
+    studentId,
+    major: major || "",
+    university: "부산대학교",
+    isValid: true,
   };
 }
 
@@ -102,16 +114,15 @@ export async function extractStudentIdInfo(
   base64Image: string,
   _mimeType: string = "image/jpeg"
 ): Promise<StudentIdInfo> {
-  // 1단계: Cloud Vision으로 텍스트 추출
   const rawText = await extractTextWithVision(base64Image);
 
   if (!rawText.trim()) {
     return {
       name: "", studentId: "", major: "", university: "",
-      isValid: false, reason: "이미지에서 텍스트를 읽을 수 없습니다. 선명한 사진을 사용해주세요.",
+      isValid: false,
+      reason: "이미지에서 텍스트를 읽을 수 없습니다. 선명한 사진을 사용해주세요.",
     };
   }
 
-  // 2단계: Replit AI로 텍스트 파싱 및 유효성 검사
-  return await parseStudentIdText(rawText);
+  return parseStudentIdText(rawText);
 }
