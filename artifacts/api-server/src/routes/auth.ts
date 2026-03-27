@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { db, usersTable, phoneVerificationsTable, sessionsTable } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword, signToken, verifyToken, generateOTP, normalizePhone } from "../lib/auth";
 import { sendOTP } from "../lib/sms";
 import { extractStudentIdInfo } from "../lib/ocr";
@@ -9,6 +9,32 @@ import { z } from "zod";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// ── IP 기반 OTP 요청 제한 (기기당 하루 5회) ─────────────────────
+const OTP_LIMIT_PER_DAY = 5;
+const otpIpMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkIpOtpLimit(ip: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = otpIpMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    otpIpMap.set(ip, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
+    return { allowed: true, remaining: OTP_LIMIT_PER_DAY - 1 };
+  }
+  if (entry.count >= OTP_LIMIT_PER_DAY) {
+    return { allowed: false, remaining: 0 };
+  }
+  entry.count++;
+  return { allowed: true, remaining: OTP_LIMIT_PER_DAY - entry.count };
+}
+
+// 오래된 항목 정리 (매 시간)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of otpIpMap.entries()) {
+    if (now > entry.resetAt) otpIpMap.delete(ip);
+  }
+}, 60 * 60 * 1000);
 
 // ── 아이디 중복 확인 ──────────────────────────────────────────
 router.get("/auth/check-username", async (req, res) => {
@@ -32,7 +58,24 @@ router.post("/auth/send-otp", async (req, res) => {
     res.status(400).json({ message: "올바른 휴대폰 번호를 입력하세요." }); return;
   }
 
-  // 이미 가입된 번호인지 확인
+  // ① 기기(IP) 기반 하루 5회 제한
+  const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  const ipCheck = checkIpOtpLimit(clientIp);
+  if (!ipCheck.allowed) {
+    res.status(429).json({ message: "하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+  }
+
+  // ② 동일 전화번호 기준 하루 5회 제한 (DB 기반)
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [phoneCount] = await db
+    .select({ count: sql<number>`cast(count(*) as int)` })
+    .from(phoneVerificationsTable)
+    .where(and(eq(phoneVerificationsTable.phone, phone), gt(phoneVerificationsTable.createdAt, oneDayAgo)));
+  if ((phoneCount?.count ?? 0) >= OTP_LIMIT_PER_DAY) {
+    res.status(429).json({ message: "해당 번호로 하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+  }
+
+  // ③ 이미 가입된 번호인지 확인
   const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, phone));
   if (existing) {
     res.status(409).json({ message: "이미 가입된 번호입니다. 해당 번호로는 계정을 하나만 만들 수 있습니다." }); return;
