@@ -61,8 +61,8 @@ interface Schedule {
   year?: number; semester?: string; credits?: number;
 }
 interface Grade {
-  id: number; subject: string; professor: string; grade: string;
-  creditHours: number; semester: string; year: number;
+  id: number; subjectName: string; grade: string;
+  credits: number; semester: string; year: number; category?: string;
 }
 const GRADE_POINTS: Record<string, number> = {
   'A+': 4.5, 'A': 4.0, 'A0': 4.0, 'B+': 3.5, 'B': 3.0, 'B0': 3.0,
@@ -371,7 +371,7 @@ export default function ScheduleScreen() {
     try {
       const r = await fetch(`${API}/grades`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: gSubject.trim(), professor: gProf.trim(), grade: gGrade, creditHours: Number(gCredits), semester: gSemester, year: Number(gYear) }),
+        body: JSON.stringify({ subjectName: gSubject.trim(), grade: gGrade, credits: Number(gCredits), semester: gSemester, year: Number(gYear) }),
       });
       if (r.ok) {
         const ng = await r.json();
@@ -422,7 +422,7 @@ export default function ScheduleScreen() {
       const currentGrades: Grade[] = gRes.ok ? await gRes.json() : grades;
 
       const gradeKeyMap = new Map<string, number>(
-        currentGrades.map(g => [`${g.year}-${g.semester}-${g.subject}`, g.id])
+        currentGrades.map(g => [`${g.year}-${g.semester}-${g.subjectName}`, g.id])
       );
       const scheduleKeySet = new Set(uniqueSubjects.map(s => `${s.year}-${s.semester}-${s.subject}`));
 
@@ -433,14 +433,14 @@ export default function ScheduleScreen() {
           .map(s => fetch(`${API}/grades`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subject: s.subject, professor: s.professor, grade: 'A+', creditHours: s.credits, semester: s.semester, year: s.year }),
+            body: JSON.stringify({ subjectName: s.subject, grade: 'A+', credits: s.credits, semester: s.semester, year: s.year }),
           }))
       );
 
       // 삭제: 성적에는 있지만 시간표에 없는 과목
       await Promise.all(
         currentGrades
-          .filter(g => !scheduleKeySet.has(`${g.year}-${g.semester}-${g.subject}`))
+          .filter(g => !scheduleKeySet.has(`${g.year}-${g.semester}-${g.subjectName}`))
           .map(g => fetch(`${API}/grades/${g.id}`, { method: 'DELETE' }))
       );
 
@@ -450,10 +450,10 @@ export default function ScheduleScreen() {
   }, [gradeSyncing, schedules, grades, fetchGrades]);
 
   const eligible = grades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
-  const totalCredits = eligible.reduce((s, g) => s + g.creditHours, 0);
-  const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.creditHours, 0);
+  const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
+  const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
-  const totalCreditCount = grades.reduce((s, g) => s + g.creditHours, 0);
+  const totalCreditCount = grades.reduce((s, g) => s + g.credits, 0);
 
   const totalSlots = (END_HOUR - START_HOUR) * 2;
   const totalH = totalSlots * SLOT_H;
@@ -635,8 +635,8 @@ export default function ScheduleScreen() {
                             return (
                               <View key={g.id} style={styles.gradeRow}>
                                 <View style={styles.gradeInfo}>
-                                  <Text style={styles.gradeSubject}>{g.subject}</Text>
-                                  <Text style={styles.gradeMeta}>{g.professor ? `${g.professor} · ` : ''}{g.creditHours}학점</Text>
+                                  <Text style={styles.gradeSubject}>{g.subjectName}</Text>
+                                  <Text style={styles.gradeMeta}>{g.credits}학점{g.category ? ` · ${g.category}` : ''}</Text>
                                 </View>
                                 <View style={[styles.gradeBadge, { backgroundColor: gc + '18' }]}>
                                   <Text style={[styles.gradeBadgeText, { color: gc }]}>{g.grade}</Text>
@@ -1050,7 +1050,6 @@ export default function ScheduleScreen() {
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>성적 추가</Text>
             <TextInput style={styles.dInput} value={gSubject} onChangeText={setGSubject} placeholder="과목명 *" placeholderTextColor="#9CA3AF" />
-            <TextInput style={styles.dInput} value={gProf} onChangeText={setGProf} placeholder="교수명" placeholderTextColor="#9CA3AF" />
             <Text style={styles.dLabel}>성적</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
