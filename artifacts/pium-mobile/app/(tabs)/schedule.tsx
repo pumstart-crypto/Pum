@@ -58,6 +58,7 @@ function getCurrentSemester(): Semester {
 interface Schedule {
   id: number; subjectName: string; professor: string; location: string;
   dayOfWeek: number; startTime: string; endTime: string; credit: number;
+  year?: number; semester?: string; credits?: number;
 }
 interface Grade {
   id: number; subject: string; professor: string; grade: string;
@@ -392,6 +393,62 @@ export default function ScheduleScreen() {
     ]);
   };
 
+  const [gradeSyncing, setGradeSyncing] = useState(false);
+
+  const syncGradesWithSchedule = useCallback(async () => {
+    if (gradeSyncing) return;
+    setGradeSyncing(true);
+    try {
+      const allSchedules = schedules as Schedule[];
+
+      // 시간표에서 고유 과목 목록 추출 (year+semester+subjectName 기준)
+      const seen = new Set<string>();
+      const uniqueSubjects: { year: number; semester: string; subject: string; professor: string; credits: number }[] = [];
+      for (const s of allSchedules) {
+        if (!s.year || !s.semester) continue;
+        const key = `${s.year}-${s.semester}-${s.subjectName}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueSubjects.push({
+            year: s.year, semester: s.semester,
+            subject: s.subjectName, professor: s.professor || '',
+            credits: s.credits ?? 3,
+          });
+        }
+      }
+
+      // 현재 성적 목록 조회 (최신)
+      const gRes = await fetch(`${API}/grades`);
+      const currentGrades: Grade[] = gRes.ok ? await gRes.json() : grades;
+
+      const gradeKeyMap = new Map<string, number>(
+        currentGrades.map(g => [`${g.year}-${g.semester}-${g.subject}`, g.id])
+      );
+      const scheduleKeySet = new Set(uniqueSubjects.map(s => `${s.year}-${s.semester}-${s.subject}`));
+
+      // 추가: 시간표에 있지만 성적에 없는 과목
+      await Promise.all(
+        uniqueSubjects
+          .filter(s => !gradeKeyMap.has(`${s.year}-${s.semester}-${s.subject}`))
+          .map(s => fetch(`${API}/grades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject: s.subject, professor: s.professor, grade: 'A+', creditHours: s.credits, semester: s.semester, year: s.year }),
+          }))
+      );
+
+      // 삭제: 성적에는 있지만 시간표에 없는 과목
+      await Promise.all(
+        currentGrades
+          .filter(g => !scheduleKeySet.has(`${g.year}-${g.semester}-${g.subject}`))
+          .map(g => fetch(`${API}/grades/${g.id}`, { method: 'DELETE' }))
+      );
+
+      await fetchGrades();
+    } catch { Alert.alert('오류', '동기화 실패'); }
+    finally { setGradeSyncing(false); }
+  }, [gradeSyncing, schedules, grades, fetchGrades]);
+
   const eligible = grades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.creditHours, 0);
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.creditHours, 0);
@@ -497,9 +554,20 @@ export default function ScheduleScreen() {
       ) : (
         <>
           <View style={styles.gradeHeader}>
-            <Text style={styles.gradeTitle}>학기별 성적 관리</Text>
-            <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowAddGrade(true)}>
-              <Ionicons name="options-outline" size={20} color="#374151" />
+            <View>
+              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>시간 관리</Text>
+              <Text style={[styles.gradeTitle, { color: colors.text }]}>학기별 <Text style={{ color: C.primary }}>성적 관리</Text></Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: colors.inputBg }]}
+              onPress={syncGradesWithSchedule}
+              disabled={gradeSyncing}
+              activeOpacity={0.7}
+            >
+              {gradeSyncing
+                ? <ActivityIndicator size="small" color={C.primary} />
+                : <Feather name="refresh-cw" size={18} color={colors.textSecondary} />
+              }
             </TouchableOpacity>
           </View>
           <View style={styles.segWrapper}><TabBar /></View>
@@ -617,17 +685,17 @@ export default function ScheduleScreen() {
                     <Ionicons name="calendar-outline" size={18} color={selectedSemIdx === i ? '#fff' : C.primary} />
                     <Text style={[styles.semRowText, selectedSemIdx === i && { color: '#fff' }]}>{s.year}년 {s.sem}학기</Text>
                   </TouchableOpacity>
-                  {selectedSemIdx === i
-                    ? <Feather name="check" size={18} color="#fff" />
-                    : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    {selectedSemIdx === i && <Feather name="check" size={16} color="#fff" />}
+                    {semesters.length > 1 && (
                       <TouchableOpacity
                         onPress={() => deleteSemester(i)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Feather name="trash-2" size={16} color="#EF4444" />
+                        <Feather name="trash-2" size={16} color={selectedSemIdx === i ? 'rgba(255,255,255,0.7)' : '#EF4444'} />
                       </TouchableOpacity>
-                    )
-                  }
+                    )}
+                  </View>
                 </View>
               ))}
             </ScrollView>
@@ -1037,7 +1105,7 @@ const styles = StyleSheet.create({
   addCircleBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center' },
 
   gradeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
-  gradeTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#111827' },
+  gradeTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
   settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
 
   segWrapper: { paddingHorizontal: 20, paddingBottom: 12 },

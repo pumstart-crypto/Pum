@@ -80,7 +80,7 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
         </View>
       )}
       {/* Title + external link on the same row */}
-      <View style={styles.titleRow}>
+      <View style={styles.cardTitleRow}>
         <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
         <Feather name="external-link" size={13} color="#D1D5DB" style={{ marginTop: 2 }} />
       </View>
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   badgeRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap', marginBottom: 6 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   badgePrimary: { backgroundColor: C.primary, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   badgeNew: { backgroundColor: '#3B82F6', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   badgeDept: { backgroundColor: '#EEF4FF', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
