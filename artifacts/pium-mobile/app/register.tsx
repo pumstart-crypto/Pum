@@ -77,7 +77,7 @@ export default function RegisterScreen() {
     if (digits.length < 10) { setError('올바른 번호를 입력하세요.'); return; }
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${API}/auth/send-verification-code`, {
+      const r = await fetch(`${API}/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: digits }),
@@ -92,7 +92,7 @@ export default function RegisterScreen() {
     const digits = phone.replace(/-/g, '');
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${API}/auth/verify-code`, {
+      const r = await fetch(`${API}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: digits, code }),
