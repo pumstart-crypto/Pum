@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Platform,
+  ScrollView, ActivityIndicator, Platform, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -82,8 +82,19 @@ export default function RegisterScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: digits }),
       });
-      if (!r.ok) throw new Error((await r.json()).message || '발송 실패');
-      setCodeSent(true);
+      const data = await r.json();
+      if (!r.ok) {
+        if (data.devCode) {
+          // 개발 환경: SMS 실패해도 코드 표시
+          setCodeSent(true);
+          setCode(data.devCode);
+          Alert.alert('개발 모드 인증코드', `SMS 발송 실패 - 테스트 코드: ${data.devCode}\n\n오류: ${data.devError || '알 수 없음'}`);
+        } else {
+          throw new Error(data.message || '발송 실패');
+        }
+      } else {
+        setCodeSent(true);
+      }
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };

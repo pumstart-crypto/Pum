@@ -46,9 +46,13 @@ router.post("/auth/send-otp", async (req, res) => {
   try {
     await sendOTP(phone, code);
     res.json({ message: "인증번호를 발송했습니다." });
-  } catch (err) {
-    req.log.error({ err }, "SMS send failed");
-    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+  } catch (err: any) {
+    req.log.error({ err, phone, errMsg: err?.message, errData: err?.data }, "SMS send failed");
+    const isDev = process.env.NODE_ENV !== "production";
+    res.status(500).json({
+      message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      ...(isDev && { devCode: code, devError: err?.message }),
+    });
   }
 });
 
