@@ -333,20 +333,18 @@ export default function NoticesScreen() {
     <View style={[styles.root, { paddingTop: topPad, backgroundColor: colors.background }]}>
       {/* ── Sticky Header ── */}
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        {/* Top bar: refresh button 우상단 */}
-        <View style={styles.topBar}>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity
-            onPress={onRefresh}
-            disabled={refreshing}
-            style={[styles.refreshBtn, { backgroundColor: colors.card }]}
-            activeOpacity={0.7}
-          >
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
+        {/* 새로고침 버튼 — 헤더 우상단 절대 위치 */}
+        <TouchableOpacity
+          onPress={onRefresh}
+          disabled={refreshing}
+          style={[styles.refreshBtn, { backgroundColor: colors.card, position: 'absolute', top: 8, right: 16, zIndex: 10 }]}
+          activeOpacity={0.7}
+        >
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
+          </Animated.View>
+        </TouchableOpacity>
+
         <View style={styles.titleRow}>
           <View>
             <Text style={[styles.subTitle, { color: colors.textSecondary }]}>부산대학교</Text>
@@ -419,18 +417,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     gap: 10,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingTop: 6,
-    paddingBottom: 2,
-  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 2,
-    paddingBottom: 4,
+    paddingTop: 14,
   },
   subTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', letterSpacing: 0, marginBottom: 2 },
   pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
