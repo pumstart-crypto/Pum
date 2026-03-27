@@ -335,6 +335,35 @@ export default function ScheduleScreen() {
     setShowAddSem(false);
   };
 
+  const deleteSemester = (idx: number) => {
+    const target = semesters[idx];
+    const label = `${target.year}년 ${target.sem}학기`;
+    const semSchedules = (schedules as Schedule[]).filter(
+      s => s.year === target.year && s.semester === target.sem
+    );
+    const msg = semSchedules.length > 0
+      ? `${label} 시간표와 수업 ${semSchedules.length}개가 모두 삭제됩니다.`
+      : `${label} 시간표를 삭제하시겠습니까?`;
+    Alert.alert('학기 삭제', msg, [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: async () => {
+        await Promise.all(
+          semSchedules.map(s => fetch(`${API}/schedule/${s.id}`, { method: 'DELETE', headers: { ...authHeader } }))
+        );
+        setSemesters(prev => {
+          const next = prev.filter((_, i) => i !== idx);
+          setSelectedSemIdx(i => {
+            if (i === idx) return Math.max(0, idx - 1);
+            if (i > idx) return i - 1;
+            return i;
+          });
+          return next;
+        });
+        refetch();
+      }},
+    ]);
+  };
+
   const addGrade = async () => {
     if (!gSubject.trim()) return;
     setGSubmitting(true);
@@ -579,14 +608,27 @@ export default function ScheduleScreen() {
             </View>
             <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
               {semesters.map((s, i) => (
-                <TouchableOpacity key={i} style={[styles.semRow, selectedSemIdx === i && styles.semRowActive]}
-                  onPress={() => { setSelectedSemIdx(i); setShowSemModal(false); }}>
-                  <View style={styles.semRowLeft}>
+                <View key={i} style={[styles.semRow, selectedSemIdx === i && styles.semRowActive]}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}
+                    onPress={() => { setSelectedSemIdx(i); setShowSemModal(false); }}
+                    activeOpacity={0.8}
+                  >
                     <Ionicons name="calendar-outline" size={18} color={selectedSemIdx === i ? '#fff' : C.primary} />
                     <Text style={[styles.semRowText, selectedSemIdx === i && { color: '#fff' }]}>{s.year}년 {s.sem}학기</Text>
-                  </View>
-                  {selectedSemIdx === i && <Feather name="check" size={18} color="#fff" />}
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  {selectedSemIdx === i
+                    ? <Feather name="check" size={18} color="#fff" />
+                    : (
+                      <TouchableOpacity
+                        onPress={() => deleteSemester(i)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="trash-2" size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    )
+                  }
+                </View>
               ))}
             </ScrollView>
             {!showAddSem ? (
@@ -622,33 +664,6 @@ export default function ScheduleScreen() {
               </View>
             )}
 
-            {/* 수업 목록 삭제 */}
-            {(schedules as Schedule[]).length > 0 && (
-              <>
-                <View style={styles.scheduleListDivider} />
-                <Text style={styles.scheduleListTitle}>현재 학기 수업 목록</Text>
-                <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
-                  {(schedules as Schedule[]).map(s => (
-                    <View key={s.id} style={styles.scheduleListRow}>
-                      <View style={[styles.scheduleListDot, { backgroundColor: getColor(s.subjectName) }]} />
-                      <Text style={styles.scheduleListName} numberOfLines={1}>{s.subjectName}</Text>
-                      <Text style={styles.scheduleListTime}>{['월','화','수','목','금'][s.dayOfWeek]} {s.startTime}</Text>
-                      <TouchableOpacity
-                        style={styles.scheduleListDelete}
-                        onPress={() => {
-                          Alert.alert('삭제', `'${s.subjectName}' 수업을 삭제하시겠습니까?`, [
-                            { text: '취소', style: 'cancel' },
-                            { text: '삭제', style: 'destructive', onPress: () => deleteSchedule(s.id) },
-                          ]);
-                        }}
-                      >
-                        <Feather name="trash-2" size={15} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </ScrollView>
-              </>
-            )}
           </TouchableOpacity>
         </TouchableOpacity>
         </KeyboardAvoidingView>
