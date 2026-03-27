@@ -270,7 +270,7 @@ export default function RegisterScreen() {
             <Text style={styles.stepTitle}>학생 정보</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="이름" placeholderTextColor="#9CA3AF" />
             <TextInput style={styles.input} value={studentId} onChangeText={setStudentId}
-              placeholder="학번 (예: 20231234)" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
+              placeholder="학번 (예: 201234567)" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
             <TextInput style={styles.input} value={major} onChangeText={setMajor}
               placeholder="전공 (예: 컴퓨터공학과)" placeholderTextColor="#9CA3AF" />
             <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
