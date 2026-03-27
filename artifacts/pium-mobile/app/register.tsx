@@ -247,7 +247,7 @@ export default function RegisterScreen() {
             <Text style={styles.stepTitle}>전화번호 인증</Text>
             <View style={styles.rowInput}>
               <TextInput style={[styles.input, { flex: 1 }]} value={phone} onChangeText={setPhone}
-                placeholder="010-1234-5678" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" />
+                placeholder="01012345678" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" />
               <TouchableOpacity style={styles.sendBtn} onPress={handleSendCode} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.sendBtnText}>{codeSent ? '재발송' : '발송'}</Text>}
               </TouchableOpacity>
