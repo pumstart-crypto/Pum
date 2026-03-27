@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, RefreshControl, Linking, ActivityIndicator, Platform,
+  TextInput, RefreshControl, Linking, ActivityIndicator, Platform, Animated,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -298,12 +298,34 @@ export default function NoticesScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const spinningRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const startSpin = useCallback(() => {
+    spinAnim.setValue(0);
+    spinningRef.current = Animated.loop(
+      Animated.timing(spinAnim, { toValue: 1, duration: 700, useNativeDriver: true })
+    );
+    spinningRef.current.start();
+  }, [spinAnim]);
+
+  const stopSpin = useCallback(() => {
+    spinningRef.current?.stop();
+    spinAnim.setValue(0);
+  }, [spinAnim]);
 
   const onRefresh = useCallback(async () => {
+    if (refreshing) return;
     setRefreshing(true);
+    startSpin();
     setRefreshKey(k => k + 1);
-    setTimeout(() => setRefreshing(false), 800);
-  }, []);
+    setTimeout(() => {
+      setRefreshing(false);
+      stopSpin();
+    }, 1200);
+  }, [refreshing, startSpin, stopSpin]);
+
+  const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   const handleTabChange = (t: Tab) => { setTab(t); setSearch(''); };
 
@@ -318,6 +340,16 @@ export default function NoticesScreen() {
               공지 <Text style={styles.pageTitleAccent}>사항</Text>
             </Text>
           </View>
+          <TouchableOpacity
+            onPress={onRefresh}
+            disabled={refreshing}
+            style={[styles.refreshBtn, { backgroundColor: colors.inputBg }]}
+            activeOpacity={0.7}
+          >
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
+            </Animated.View>
+          </TouchableOpacity>
         </View>
 
         {/* Tab segment */}
@@ -387,13 +419,20 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 14,
   },
   subTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', letterSpacing: 0, marginBottom: 2 },
   pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
   pageTitleAccent: { color: C.primary },
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   /* Tab segment */
   tabSegment: {
