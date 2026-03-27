@@ -8,6 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetSchedules } from '@workspace/api-client-react';
+import { useAuth } from '@/contexts/AuthContext';
 import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -111,6 +112,9 @@ export default function ScheduleScreen() {
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : 0;
+
+  const { token } = useAuth();
+  const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
 
   const [tab, setTab] = useState<Tab>('timetable');
   const { data: schedules = [], refetch, isLoading } = useGetSchedules();
@@ -223,13 +227,14 @@ export default function ScheduleScreen() {
     setDSubmitting(true);
     try {
       await Promise.all(dDays.map(d =>
-        fetch(`${API}/schedules`, {
+        fetch(`${API}/schedule`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeader },
           body: JSON.stringify({
             subjectName: dName.trim(), professor: dProf.trim(),
             location: dLoc.trim(), dayOfWeek: d,
-            startTime: dStart, endTime: dEnd, credit: dCredit,
+            startTime: dStart, endTime: dEnd, credits: dCredit,
+            year: currentSem.year, semester: currentSem.sem,
           }),
         })
       ));
@@ -245,7 +250,7 @@ export default function ScheduleScreen() {
     Alert.alert('수업 삭제', '이 수업을 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => {
-        await fetch(`${API}/schedules/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/schedule/${id}`, { method: 'DELETE', headers: { ...authHeader } });
         refetch();
       }},
     ]);
@@ -295,7 +300,7 @@ export default function ScheduleScreen() {
         return slots.map(slot =>
           fetch(`${API}/schedule`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({
               subjectName: course.subjectName,
               professor: course.professor || '',
@@ -304,6 +309,8 @@ export default function ScheduleScreen() {
               startTime: slot.startTime,
               endTime: slot.endTime,
               credits: course.credits || 0,
+              year: currentSem.year,
+              semester: currentSem.sem,
             }),
           })
         );
@@ -558,6 +565,7 @@ export default function ScheduleScreen() {
 
       {/* ── 학기 관리 Modal ── */}
       <Modal visible={showSemModal} transparent animationType="slide" onRequestClose={() => setShowSemModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSemModal(false)}>
           <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
             <View style={styles.sheetHandle} />
@@ -613,6 +621,7 @@ export default function ScheduleScreen() {
             )}
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 수업 추가 방식 선택 Modal ── */}
