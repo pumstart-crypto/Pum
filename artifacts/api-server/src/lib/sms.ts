@@ -1,14 +1,18 @@
-import { SolapiMessageService } from "coolsms-node-sdk";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 
 const apiKey = process.env["COOLSMS_API_KEY"] || "";
 const apiSecret = process.env["COOLSMS_API_SECRET"] || "";
 const senderPhone = process.env["COOLSMS_SENDER_PHONE"] || "";
 
-let service: SolapiMessageService | null = null;
+let service: any = null;
 
-function getService(): SolapiMessageService {
+function getService(): any {
   if (!service) {
-    service = new SolapiMessageService(apiKey, apiSecret);
+    const sdk = require("coolsms-node-sdk");
+    const Ctor = sdk.SolapiMessageService ?? sdk.default?.SolapiMessageService ?? sdk.default;
+    service = new Ctor(apiKey, apiSecret);
   }
   return service;
 }
@@ -22,6 +26,6 @@ export async function sendOTP(phone: string, code: string): Promise<void> {
   await svc.sendOne({
     to: phone,
     from: senderPhone,
-    text: `[캠퍼스라이프] 인증번호는 [${code}]입니다. 5분 내로 입력해주세요.`,
+    text: `[P:um] 인증번호는 [${code}]입니다. 5분 내로 입력해주세요.`,
   });
 }
