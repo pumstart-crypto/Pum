@@ -321,25 +321,28 @@ export default function RegisterScreen() {
               </Text>
               <Feather name="chevron-down" size={16} color="#9CA3AF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-              <Feather name="camera" size={20} color={C.primary} />
-              <Text style={styles.imagePickerText}>
-                {imageUri ? '이미지 선택됨 ✓' : '학생증 사진 첨부 (선택)'}
-              </Text>
+            <TouchableOpacity
+              style={[styles.imagePickerBtn, imageUri && styles.imagePickerBtnDone]}
+              onPress={pickImage}
+            >
+              <Feather name="camera" size={20} color={imageUri ? C.primary : '#6B7280'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.imagePickerText, imageUri && { color: C.primary }]}>
+                  {imageUri ? '이미지 선택됨 ✓' : '학생증 사진 첨부'}
+                </Text>
+                {!imageUri && (
+                  <Text style={{ fontSize: 11, color: '#EF4444', fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                    * 가입에 필수입니다
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btn, (!name || !studentId || !major || loading) && styles.btnDisabled]}
-              disabled={!name || !studentId || !major || loading}
+              style={[styles.btn, (!name || !studentId || !major || !imageUri || loading) && styles.btnDisabled]}
+              disabled={!name || !studentId || !major || !imageUri || loading}
               onPress={handleRegister}
             >
-              {loading ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.btnText, { fontSize: 13 }]}>{loadingMsg}</Text>
-                </View>
-              ) : (
-                <Text style={styles.btnText}>가입 완료</Text>
-              )}
+              <Text style={styles.btnText}>가입 완료</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -365,6 +368,19 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* 학생증 인증 중 로딩 팝업 */}
+      <Modal visible={loading && step === 'studentid'} transparent animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={C.primary} style={{ marginBottom: 20 }} />
+            <Text style={styles.loadingCardTitle}>학생증을 확인하는 중입니다</Text>
+            <Text style={styles.loadingCardSub}>
+              확인이 완료되면 알림을 보내드립니다.{'\n'}잠시만 기다려 주세요.
+            </Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* 전공 선택 모달 */}
       <Modal visible={showDeptPicker} animationType="slide" transparent onRequestClose={() => setShowDeptPicker(false)}>
@@ -483,6 +499,11 @@ const styles = StyleSheet.create({
   loginRow: { flexDirection: 'row', justifyContent: 'center', paddingTop: 24 },
   loginHint: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular' },
   loginLink: { fontSize: 14, fontFamily: 'Inter_700Bold', color: C.primary },
+  imagePickerBtnDone: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
+  loadingOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  loadingCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
+  loadingCardTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center', marginBottom: 10 },
+  loadingCardSub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280', textAlign: 'center', lineHeight: 22 },
   selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   selectBtnText: { fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
