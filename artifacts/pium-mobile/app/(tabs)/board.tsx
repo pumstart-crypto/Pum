@@ -126,7 +126,7 @@ export default function BoardScreen() {
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }, { paddingTop: topPad }]}>
       {/* Header */}
-      <View style={[styles.headerArea, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={[styles.headerArea, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <Text style={[styles.envLabel, { color: colors.textSecondary }]}>학생 커뮤니티</Text>
         <Text style={[styles.pageTitle, { color: colors.text }]}>커뮤니티 <Text style={styles.titlePrimary}>게시판</Text></Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabContainer}>

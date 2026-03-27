@@ -332,7 +332,21 @@ export default function NoticesScreen() {
   return (
     <View style={[styles.root, { paddingTop: topPad, backgroundColor: colors.background }]}>
       {/* ── Sticky Header ── */}
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        {/* Top bar: refresh button 우상단 */}
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity
+            onPress={onRefresh}
+            disabled={refreshing}
+            style={[styles.refreshBtn, { backgroundColor: colors.card }]}
+            activeOpacity={0.7}
+          >
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
+            </Animated.View>
+          </TouchableOpacity>
+        </View>
         <View style={styles.titleRow}>
           <View>
             <Text style={[styles.subTitle, { color: colors.textSecondary }]}>부산대학교</Text>
@@ -340,16 +354,6 @@ export default function NoticesScreen() {
               공지 <Text style={styles.pageTitleAccent}>사항</Text>
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={onRefresh}
-            disabled={refreshing}
-            style={[styles.refreshBtn, { backgroundColor: colors.inputBg }]}
-            activeOpacity={0.7}
-          >
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
-            </Animated.View>
-          </TouchableOpacity>
         </View>
 
         {/* Tab segment */}
@@ -410,18 +414,23 @@ const styles = StyleSheet.create({
 
   /* Header */
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
     gap: 10,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingTop: 6,
+    paddingBottom: 2,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 14,
+    paddingTop: 2,
+    paddingBottom: 4,
   },
   subTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', letterSpacing: 0, marginBottom: 2 },
   pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
