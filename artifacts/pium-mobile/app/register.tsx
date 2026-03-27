@@ -7,8 +7,19 @@ import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import C from '@/constants/colors';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
@@ -21,6 +32,7 @@ export default function RegisterScreen() {
   const { setAuth } = useAuth();
   const [step, setStep] = useState<Step>('account');
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('');
   const [error, setError] = useState('');
 
   // Account step
@@ -49,13 +61,17 @@ export default function RegisterScreen() {
   const [deptSearch, setDeptSearch] = useState('');
 
   useEffect(() => {
-    if (step === 'studentid' && departments.length === 0) {
-      setDeptLoading(true);
-      fetch(`${API}/courses/departments`)
-        .then(r => r.json())
-        .then(data => setDepartments(Array.isArray(data) ? data : []))
-        .catch(() => {})
-        .finally(() => setDeptLoading(false));
+    if (step === 'studentid') {
+      // 알림 권한 미리 요청
+      Notifications.requestPermissionsAsync().catch(() => {});
+      if (departments.length === 0) {
+        setDeptLoading(true);
+        fetch(`${API}/courses/departments`)
+          .then(r => r.json())
+          .then(data => setDepartments(Array.isArray(data) ? data : []))
+          .catch(() => {})
+          .finally(() => setDeptLoading(false));
+      }
     }
   }, [step]);
 
@@ -142,6 +158,7 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     setLoading(true); setError('');
+    setLoadingMsg(imageUri ? '학생증을 확인하는 중입니다...' : '가입 처리 중...');
     try {
       const formData = new FormData();
       formData.append('username', username);
@@ -164,9 +181,18 @@ export default function RegisterScreen() {
       if (data.token) {
         setAuth(data.token, data.user);
       }
+      // 인증 완료 알림 발송
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '학생증 인증 완료 ✓',
+          body: `${name}님, P:um 가입이 완료되었습니다. 환영합니다!`,
+          sound: true,
+        },
+        trigger: null, // 즉시 발송
+      }).catch(() => {});
       setStep('done');
     } catch (e: any) { setError(e.message); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setLoadingMsg(''); }
   };
 
   return (
@@ -306,7 +332,14 @@ export default function RegisterScreen() {
               disabled={!name || !studentId || !major || loading}
               onPress={handleRegister}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>가입 완료</Text>}
+              {loading ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={[styles.btnText, { fontSize: 13 }]}>{loadingMsg}</Text>
+                </View>
+              ) : (
+                <Text style={styles.btnText}>가입 완료</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
