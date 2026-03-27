@@ -355,7 +355,7 @@ export default function NoticesScreen() {
         </View>
 
         {/* Tab segment */}
-        <View style={styles.tabSegment}>
+        <View style={[styles.tabSegment, { borderColor: colors.border }]}>
           {(['school', 'dept'] as Tab[]).map(t => (
             <TouchableOpacity
               key={t}
@@ -371,7 +371,7 @@ export default function NoticesScreen() {
         </View>
 
         {/* Search */}
-        <View style={[styles.searchBox, { backgroundColor: colors.inputBg }]}>
+        <View style={[styles.searchBox, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
           <Feather name="search" size={15} color={colors.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
@@ -439,6 +439,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 16,
     padding: 4,
+    borderWidth: 1,
   },
   tabSegItem: { flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center' },
   tabSegItemActive: {
@@ -457,6 +458,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#F3F4F6', borderRadius: 14,
     paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1,
   },
   searchInput: { flex: 1, fontSize: 13, color: '#111827', fontFamily: 'Inter_400Regular' },
 

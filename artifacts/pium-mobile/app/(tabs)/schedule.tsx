@@ -373,7 +373,7 @@ export default function ScheduleScreen() {
   const totalH = totalSlots * SLOT_H;
 
   const TabBar = () => (
-    <View style={styles.segContainer}>
+    <View style={[styles.segContainer, { borderColor: colors.border }]}>
       <TouchableOpacity style={[styles.segBtn, tab === 'timetable' && styles.segBtnActive]} onPress={() => onTabChange('timetable')}>
         <Ionicons name="grid-outline" size={15} color={tab === 'timetable' ? C.primary : '#9CA3AF'} />
         <Text style={[styles.segText, tab === 'timetable' && styles.segTextActive]}>시간표</Text>
@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
   settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
 
   segWrapper: { paddingHorizontal: 20, paddingBottom: 12 },
-  segContainer: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 14, padding: 3, gap: 2 },
+  segContainer: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 14, padding: 3, gap: 2, borderWidth: 1 },
   segBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 11 },
   segBtnActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   segText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#9CA3AF' },
