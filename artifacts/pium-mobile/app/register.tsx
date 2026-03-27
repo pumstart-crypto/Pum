@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Platform, Alert, Modal, FlatList,
+  ScrollView, ActivityIndicator, Platform, Alert, Modal, FlatList, KeyboardAvoidingView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -335,6 +335,7 @@ export default function RegisterScreen() {
 
       {/* 전공 선택 모달 */}
       <Modal visible={showDeptPicker} animationType="slide" transparent onRequestClose={() => setShowDeptPicker(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.modalOverlay}>
           <View style={[styles.deptModal, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.deptModalHeader}>
@@ -377,6 +378,7 @@ export default function RegisterScreen() {
             />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
