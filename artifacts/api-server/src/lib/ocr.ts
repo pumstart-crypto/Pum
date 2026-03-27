@@ -1,13 +1,12 @@
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
-const baseUrl = process.env["AI_INTEGRATIONS_GEMINI_BASE_URL"] || "";
-const apiKey = process.env["AI_INTEGRATIONS_GEMINI_API_KEY"] || "dummy";
+const apiKey = process.env["OPENAI_API_KEY"] || "";
 
-let client: GoogleGenAI | null = null;
+let client: OpenAI | null = null;
 
-function getClient(): GoogleGenAI {
+function getClient(): OpenAI {
   if (!client) {
-    client = new GoogleGenAI({ apiKey, httpOptions: baseUrl ? { baseUrl } : undefined });
+    client = new OpenAI({ apiKey });
   }
   return client;
 }
@@ -22,25 +21,27 @@ export interface StudentIdInfo {
 }
 
 export async function extractStudentIdInfo(base64Image: string, mimeType: string = "image/jpeg"): Promise<StudentIdInfo> {
-  if (!baseUrl && apiKey === "dummy") {
+  if (!apiKey) {
     return { name: "", studentId: "", major: "", university: "", isValid: false, reason: "OCR 서비스가 설정되지 않았습니다." };
   }
 
-  const ai = getClient();
+  const openai = getClient();
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
       {
         role: "user",
-        parts: [
+        content: [
           {
-            inlineData: {
-              mimeType,
-              data: base64Image,
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${base64Image}`,
+              detail: "high",
             },
           },
           {
+            type: "text",
             text: `이 이미지가 부산대학교(Pusan National University) 모바일 학생증인지 확인하고, 아래 정보를 JSON으로 추출해주세요.
 
 반드시 아래 JSON 형식으로만 응답하세요:
@@ -62,10 +63,10 @@ export async function extractStudentIdInfo(base64Image: string, mimeType: string
         ],
       },
     ],
-    config: { maxOutputTokens: 8192 },
+    max_tokens: 500,
   });
 
-  const content = response.text ?? "";
+  const content = response.choices[0]?.message?.content || "";
 
   try {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
