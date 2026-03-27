@@ -14,8 +14,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.get("/auth/check-username", async (req, res) => {
   const { username } = req.query as { username?: string };
   if (!username) { res.status(400).json({ message: "username 필요" }); return; }
-  if (!/^[a-zA-Z0-9]{4,20}$/.test(username)) {
-    res.status(400).json({ message: "아이디는 영문+숫자 4-20자리만 가능합니다.", available: false }); return;
+  if (!/^[a-zA-Z0-9_]{4,20}$/.test(username)) {
+    res.status(400).json({ message: "아이디는 영문·숫자·밑줄(_) 4~20자리만 가능합니다.", available: false }); return;
   }
   const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
   res.json({ available: !existing });

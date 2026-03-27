@@ -28,6 +28,9 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [usernameChecked, setUsernameChecked] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState(false);
 
   // Phone step
   const [phone, setPhone] = useState('');
@@ -46,6 +49,28 @@ export default function RegisterScreen() {
   const pwOk = password.length >= 8;
   const pwMatch = password === passwordConfirm;
   const usernameOk = /^[a-zA-Z0-9_]{4,20}$/.test(username);
+
+  const handleUsernameChange = (text: string) => {
+    setUsername(text);
+    setUsernameChecked(false);
+    setUsernameAvailable(false);
+  };
+
+  const handleCheckUsername = async () => {
+    if (!usernameOk) return;
+    setCheckingUsername(true); setError('');
+    try {
+      const r = await fetch(`${API}/auth/check-username?username=${encodeURIComponent(username)}`);
+      const data = await r.json();
+      setUsernameChecked(true);
+      setUsernameAvailable(!!data.available);
+      if (!data.available) setError(data.message || '이미 사용 중인 아이디입니다.');
+    } catch {
+      setError('중복 확인 중 오류가 발생했습니다.');
+    } finally {
+      setCheckingUsername(false);
+    }
+  };
 
   const handleSendCode = async () => {
     const digits = phone.replace(/-/g, '');
@@ -167,11 +192,25 @@ export default function RegisterScreen() {
         {step === 'account' && (
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>계정 정보</Text>
-            <TextInput style={styles.input} value={username} onChangeText={setUsername}
-              placeholder="아이디 (4~20자, 영문·숫자·_)" placeholderTextColor="#9CA3AF"
-              autoCapitalize="none" autoCorrect={false} />
+            <View style={styles.rowInput}>
+              <TextInput style={[styles.input, { flex: 1 }]} value={username} onChangeText={handleUsernameChange}
+                placeholder="아이디 (4~20자, 영문·숫자·_)" placeholderTextColor="#9CA3AF"
+                autoCapitalize="none" autoCorrect={false} />
+              <TouchableOpacity
+                style={[styles.sendBtn, (!usernameOk || checkingUsername) && styles.btnDisabled]}
+                onPress={handleCheckUsername}
+                disabled={!usernameOk || checkingUsername}
+              >
+                {checkingUsername
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.sendBtnText}>중복확인</Text>}
+              </TouchableOpacity>
+            </View>
             {username.length > 0 && !usernameOk && (
               <Text style={styles.hint}>4~20자, 영문·숫자·밑줄(_)만 가능합니다</Text>
+            )}
+            {usernameChecked && usernameAvailable && (
+              <Text style={styles.hintOk}>사용 가능한 아이디입니다 ✓</Text>
             )}
             <TextInput style={styles.input} value={password} onChangeText={setPassword}
               placeholder="비밀번호 (8자 이상)" placeholderTextColor="#9CA3AF"
@@ -182,8 +221,8 @@ export default function RegisterScreen() {
             {password.length > 0 && !pwOk && <Text style={styles.hint}>비밀번호는 8자 이상이어야 합니다</Text>}
             {passwordConfirm.length > 0 && !pwMatch && <Text style={styles.hint}>비밀번호가 일치하지 않습니다</Text>}
             <TouchableOpacity
-              style={[styles.btn, (!usernameOk || !pwOk || !pwMatch) && styles.btnDisabled]}
-              disabled={!usernameOk || !pwOk || !pwMatch}
+              style={[styles.btn, (!usernameOk || !usernameChecked || !usernameAvailable || !pwOk || !pwMatch) && styles.btnDisabled]}
+              disabled={!usernameOk || !usernameChecked || !usernameAvailable || !pwOk || !pwMatch}
               onPress={() => { setError(''); setStep('phone'); }}
             >
               <Text style={styles.btnText}>다음</Text>
@@ -298,6 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular',
   },
   hint: { fontSize: 12, color: '#EF4444', fontFamily: 'Inter_400Regular', marginLeft: 4 },
+  hintOk: { fontSize: 12, color: '#10B981', fontFamily: 'Inter_500Medium', marginLeft: 4 },
   btn: {
     backgroundColor: C.primary, borderRadius: 16,
     paddingVertical: 17, alignItems: 'center', marginTop: 8,
