@@ -154,15 +154,19 @@ router.post("/auth/verify-student-id", upload.single("image"), async (req, res) 
 });
 
 // ── 회원가입 ──────────────────────────────────────────────────
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", upload.single("studentIdImage"), async (req, res) => {
+  // 학생증 이미지 필수
+  if (!req.file) {
+    res.status(400).json({ message: "학생증 사진을 첨부해주세요." }); return;
+  }
+
   const schema = z.object({
-    username: z.string().regex(/^[a-zA-Z0-9]{4,20}$/, "아이디는 영문+숫자 4-20자"),
+    username: z.string().regex(/^[a-zA-Z0-9_]{4,20}$/, "아이디는 영문·숫자·밑줄 4-20자"),
     password: z.string().min(8, "비밀번호는 8자 이상"),
     phone: z.string(),
     name: z.string().min(1),
     studentId: z.string().min(1),
     major: z.string().min(1),
-    studentIdImageBase64: z.string().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -170,7 +174,7 @@ router.post("/auth/register", async (req, res) => {
     res.status(400).json({ message: parsed.error.errors[0]?.message || "입력값을 확인하세요." }); return;
   }
 
-  const { username, password, name, studentId, major, studentIdImageBase64 } = parsed.data;
+  const { username, password, name, studentId, major } = parsed.data;
   const phone = normalizePhone(parsed.data.phone);
 
   // 아이디 중복
@@ -189,6 +193,19 @@ router.post("/auth/register", async (req, res) => {
     .limit(1);
   if (!verifiedPhone) { res.status(400).json({ message: "전화번호 인증을 먼저 완료해주세요." }); return; }
 
+  // 학생증 OCR 인증
+  try {
+    const base64 = req.file.buffer.toString("base64");
+    const mimeType = req.file.mimetype || "image/jpeg";
+    const info = await extractStudentIdInfo(base64, mimeType);
+    if (!info.isValid) {
+      res.status(400).json({ message: info.reason || "유효한 부산대학교 학생증이 아닙니다." }); return;
+    }
+  } catch (err) {
+    req.log.error({ err }, "OCR failed during register");
+    res.status(500).json({ message: "학생증 분석에 실패했습니다. 다시 시도해주세요." }); return;
+  }
+
   const passwordHash = await hashPassword(password);
   const [user] = await db.insert(usersTable).values({
     username,
@@ -198,7 +215,7 @@ router.post("/auth/register", async (req, res) => {
     studentId,
     major,
     isVerified: true,
-    studentIdImageUrl: studentIdImageBase64 ? "verified" : null,
+    studentIdImageUrl: "verified",
   }).returning();
 
   const token = signToken({ userId: user.id, username: user.username });

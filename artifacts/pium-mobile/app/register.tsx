@@ -175,7 +175,14 @@ export default function RegisterScreen() {
           type: `image/${ext}`,
         } as any);
       }
-      const r = await fetch(`${API}/auth/register`, { method: 'POST', body: formData });
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 90000);
+      let r: Response;
+      try {
+        r = await fetch(`${API}/auth/register`, { method: 'POST', body: formData, signal: controller.signal });
+      } finally {
+        clearTimeout(fetchTimeout);
+      }
       const data = await r.json();
       if (!r.ok) throw new Error(data.message || '가입 실패');
       if (data.token) {
