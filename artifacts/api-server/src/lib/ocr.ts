@@ -1,12 +1,12 @@
 import OpenAI from "openai";
 
-const apiKey = process.env["OPENAI_API_KEY"] || "";
-
 let client: OpenAI | null = null;
 
 function getClient(): OpenAI {
   if (!client) {
-    client = new OpenAI({ apiKey });
+    const baseURL = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
+    const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] || process.env["OPENAI_API_KEY"] || "";
+    client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
   }
   return client;
 }
@@ -21,10 +21,6 @@ export interface StudentIdInfo {
 }
 
 export async function extractStudentIdInfo(base64Image: string, mimeType: string = "image/jpeg"): Promise<StudentIdInfo> {
-  if (!apiKey) {
-    return { name: "", studentId: "", major: "", university: "", isValid: false, reason: "OCR 서비스가 설정되지 않았습니다." };
-  }
-
   const openai = getClient();
 
   const response = await openai.chat.completions.create({
