@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Platform, Alert,
+  ScrollView, ActivityIndicator, Platform, Alert, Modal, FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -43,6 +43,21 @@ export default function RegisterScreen() {
   const [studentId, setStudentId] = useState('');
   const [major, setMajor] = useState('');
   const [imageUri, setImageUri] = useState('');
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [deptLoading, setDeptLoading] = useState(false);
+  const [showDeptPicker, setShowDeptPicker] = useState(false);
+  const [deptSearch, setDeptSearch] = useState('');
+
+  useEffect(() => {
+    if (step === 'studentid' && departments.length === 0) {
+      setDeptLoading(true);
+      fetch(`${API}/courses/departments`)
+        .then(r => r.json())
+        .then(data => setDepartments(Array.isArray(data) ? data : []))
+        .catch(() => {})
+        .finally(() => setDeptLoading(false));
+    }
+  }, [step]);
 
   const idx = STEPS.indexOf(step);
 
@@ -271,8 +286,15 @@ export default function RegisterScreen() {
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="이름" placeholderTextColor="#9CA3AF" />
             <TextInput style={styles.input} value={studentId} onChangeText={setStudentId}
               placeholder="학번 (예: 201234567)" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
-            <TextInput style={styles.input} value={major} onChangeText={setMajor}
-              placeholder="전공 (예: 컴퓨터공학과)" placeholderTextColor="#9CA3AF" />
+            <TouchableOpacity
+              style={[styles.input, styles.selectBtn]}
+              onPress={() => { setDeptSearch(''); setShowDeptPicker(true); }}
+            >
+              <Text style={[styles.selectBtnText, !major && { color: '#9CA3AF' }]}>
+                {major || (deptLoading ? '학과 목록 불러오는 중...' : '전공 선택')}
+              </Text>
+              <Feather name="chevron-down" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
               <Feather name="camera" size={20} color={C.primary} />
               <Text style={styles.imagePickerText}>
@@ -310,6 +332,52 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* 전공 선택 모달 */}
+      <Modal visible={showDeptPicker} animationType="slide" transparent onRequestClose={() => setShowDeptPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.deptModal, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.deptModalHeader}>
+              <Text style={styles.deptModalTitle}>전공 선택</Text>
+              <TouchableOpacity onPress={() => setShowDeptPicker(false)}>
+                <Feather name="x" size={22} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.deptSearch}>
+              <Feather name="search" size={16} color="#9CA3AF" />
+              <TextInput
+                style={styles.deptSearchInput}
+                value={deptSearch}
+                onChangeText={setDeptSearch}
+                placeholder="학과 검색..."
+                placeholderTextColor="#9CA3AF"
+                autoFocus
+              />
+            </View>
+            <FlatList
+              data={departments.filter(d => d.includes(deptSearch))}
+              keyExtractor={item => item}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.deptItem, item === major && styles.deptItemActive]}
+                  onPress={() => { setMajor(item); setShowDeptPicker(false); }}
+                >
+                  <Text style={[styles.deptItemText, item === major && styles.deptItemTextActive]}>{item}</Text>
+                  {item === major && <Feather name="check" size={16} color={C.primary} />}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingTop: 32 }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14 }}>
+                    {deptLoading ? '불러오는 중...' : '검색 결과가 없습니다'}
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -380,4 +448,16 @@ const styles = StyleSheet.create({
   loginRow: { flexDirection: 'row', justifyContent: 'center', paddingTop: 24 },
   loginHint: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular' },
   loginLink: { fontSize: 14, fontFamily: 'Inter_700Bold', color: C.primary },
+  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectBtnText: { fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', flex: 1 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  deptModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
+  deptModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+  deptModalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#111827' },
+  deptSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginBottom: 8 },
+  deptSearchInput: { flex: 1, fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular' },
+  deptItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
+  deptItemActive: { backgroundColor: '#EEF4FF' },
+  deptItemText: { fontSize: 15, color: '#374151', fontFamily: 'Inter_400Regular', flex: 1 },
+  deptItemTextActive: { color: C.primary, fontFamily: 'Inter_600SemiBold' },
 });
