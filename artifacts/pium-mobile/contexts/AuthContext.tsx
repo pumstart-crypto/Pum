@@ -10,6 +10,7 @@ export interface AuthUser {
   name: string;
   studentId: string;
   major: string;
+  college?: string | null;
 }
 
 interface AuthCtx {

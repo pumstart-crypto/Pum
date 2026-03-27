@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetSchedules } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -114,6 +115,7 @@ export default function ScheduleScreen() {
   const bottomPad = isWeb ? 34 : 0;
 
   const { token } = useAuth();
+  const { colors } = useTheme();
   const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
 
   const [tab, setTab] = useState<Tab>('timetable');
@@ -384,17 +386,17 @@ export default function ScheduleScreen() {
   );
 
   return (
-    <View style={[styles.root, { paddingTop: topPad }]}>
+    <View style={[styles.root, { paddingTop: topPad, backgroundColor: colors.background }]}>
       {tab === 'timetable' ? (
         <>
-          <View style={styles.ttHeader}>
-            <View style={styles.ttTitleRow}>
-              <Text style={styles.ttTitle}>{semLabel} 시간표</Text>
-              <Feather name="chevron-down" size={18} color="#374151" style={{ marginLeft: 4, marginTop: 3 }} />
+          <View style={[styles.ttHeader, { backgroundColor: colors.background }]}>
+            <View>
+              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>시간 관리</Text>
+              <Text style={[styles.ttTitle, { color: colors.text }]}>{currentSem.year}년 {currentSem.sem}학기 <Text style={{ color: C.primary }}>시간표</Text></Text>
             </View>
             <View style={styles.ttHeaderRight}>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => setShowSemModal(true)}>
-                <Feather name="list" size={18} color="#374151" />
+              <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.inputBg }]} onPress={() => setShowSemModal(true)}>
+                <Feather name="list" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.addCircleBtn} onPress={() => setShowAddMethod(true)}>
                 <Feather name="plus" size={20} color="#fff" />
@@ -618,6 +620,34 @@ export default function ScheduleScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+            )}
+
+            {/* 수업 목록 삭제 */}
+            {(schedules as Schedule[]).length > 0 && (
+              <>
+                <View style={styles.scheduleListDivider} />
+                <Text style={styles.scheduleListTitle}>현재 학기 수업 목록</Text>
+                <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+                  {(schedules as Schedule[]).map(s => (
+                    <View key={s.id} style={styles.scheduleListRow}>
+                      <View style={[styles.scheduleListDot, { backgroundColor: getColor(s.subjectName) }]} />
+                      <Text style={styles.scheduleListName} numberOfLines={1}>{s.subjectName}</Text>
+                      <Text style={styles.scheduleListTime}>{['월','화','수','목','금'][s.dayOfWeek]} {s.startTime}</Text>
+                      <TouchableOpacity
+                        style={styles.scheduleListDelete}
+                        onPress={() => {
+                          Alert.alert('삭제', `'${s.subjectName}' 수업을 삭제하시겠습니까?`, [
+                            { text: '취소', style: 'cancel' },
+                            { text: '삭제', style: 'destructive', onPress: () => deleteSchedule(s.id) },
+                          ]);
+                        }}
+                      >
+                        <Feather name="trash-2" size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
             )}
           </TouchableOpacity>
         </TouchableOpacity>
@@ -986,7 +1016,7 @@ const styles = StyleSheet.create({
 
   ttHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
   ttTitleRow: { flexDirection: 'row', alignItems: 'center' },
-  ttTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#111827' },
+  ttTitle: { fontSize: 26, fontFamily: 'Inter_700Bold', marginTop: 2 },
   ttHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   addCircleBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center' },
@@ -1121,4 +1151,16 @@ const styles = StyleSheet.create({
   cancelBtn: { alignItems: 'center', paddingVertical: 14 },
   cancelBtn2: { alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: '#F3F4F6' },
   cancelText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_500Medium' },
+
+  // Header
+  envLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+
+  // Schedule list in semester modal
+  scheduleListDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
+  scheduleListTitle: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  scheduleListRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
+  scheduleListDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  scheduleListName: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
+  scheduleListTime: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+  scheduleListDelete: { padding: 6 },
 });

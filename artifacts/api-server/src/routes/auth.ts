@@ -194,6 +194,7 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
   if (!verifiedPhone) { res.status(400).json({ message: "전화번호 인증을 먼저 완료해주세요." }); return; }
 
   // 학생증 OCR 인증
+  let ocrCollege = "";
   try {
     const base64 = req.file.buffer.toString("base64");
     const mimeType = req.file.mimetype || "image/jpeg";
@@ -201,6 +202,7 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
     if (!info.isValid) {
       res.status(400).json({ message: info.reason || "유효한 부산대학교 학생증이 아닙니다." }); return;
     }
+    ocrCollege = info.college || "";
   } catch (err) {
     req.log.error({ err }, "OCR failed during register");
     res.status(500).json({ message: "학생증 분석에 실패했습니다. 다시 시도해주세요." }); return;
@@ -214,6 +216,7 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
     name,
     studentId,
     major,
+    college: ocrCollege || null,
     isVerified: true,
     studentIdImageUrl: "verified",
   }).returning();
@@ -225,7 +228,7 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
   res.status(201).json({
     message: "회원가입 완료",
     token,
-    user: { id: user.id, username: user.username, name: user.name, studentId: user.studentId, major: user.major },
+    user: { id: user.id, username: user.username, name: user.name, studentId: user.studentId, major: user.major, college: user.college },
   });
 });
 
@@ -247,7 +250,7 @@ router.post("/auth/login", async (req, res) => {
 
   res.json({
     token,
-    user: { id: user.id, username: user.username, name: user.name, studentId: user.studentId, major: user.major },
+    user: { id: user.id, username: user.username, name: user.name, studentId: user.studentId, major: user.major, college: user.college },
   });
 });
 
@@ -262,7 +265,7 @@ router.get("/auth/me", async (req, res) => {
   const [user] = await db.select({
     id: usersTable.id, username: usersTable.username,
     name: usersTable.name, studentId: usersTable.studentId,
-    major: usersTable.major, phone: usersTable.phone,
+    major: usersTable.major, college: usersTable.college, phone: usersTable.phone,
   }).from(usersTable).where(eq(usersTable.id, payload.userId));
 
   if (!user) { res.status(401).json({ message: "사용자를 찾을 수 없습니다." }); return; }

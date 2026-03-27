@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetSchedules } from '@workspace/api-client-react';
 import C from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
@@ -60,6 +61,7 @@ function getSubjectColor(name: string) {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const { data: schedules = [], refetch: refetchSchedules } = useGetSchedules();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
@@ -125,9 +127,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={[styles.root, { paddingBottom: bottomPad }]}>
+    <View style={[styles.root, { paddingBottom: bottomPad, backgroundColor: colors.background }]}>
       {/* Fixed Header */}
-      <View style={[styles.header, { paddingTop: topPad }, scrolled && styles.headerScrolled]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }, scrolled && styles.headerScrolled]}>
         <View style={styles.logoRow}>
           <View style={styles.logoBox}>
             <Text style={styles.logoP}>P</Text>
@@ -135,7 +137,7 @@ export default function HomeScreen() {
           </View>
         </View>
         <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
-          <Feather name="bell" size={20} color="#374151" />
+          <Feather name="bell" size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -150,10 +152,10 @@ export default function HomeScreen() {
         <View style={styles.dateSection}>
           <Text style={styles.universityLabel}>부산대학교</Text>
           <View style={styles.dateRow}>
-            <Text style={styles.dateText}>
+            <Text style={[styles.dateText, { color: colors.text }]}>
               {today.getMonth() + 1}월 {today.getDate()}일{' '}
             </Text>
-            <Text style={styles.dayText}>{DAYS_FULL[today.getDay()]}</Text>
+            <Text style={[styles.dayText, { color: colors.textSecondary }]}>{DAYS_FULL[today.getDay()]}</Text>
           </View>
         </View>
 
@@ -168,13 +170,13 @@ export default function HomeScreen() {
                 else if ('screen' in link && link.screen) router.push(link.screen as any);
               }}
             >
-              <View style={styles.quickIcon}>
+              <View style={[styles.quickIcon, { backgroundColor: colors.card }]}>
                 {link.set === 'ionicons'
                   ? <Ionicons name={link.icon as any} size={24} color={C.primary} />
                   : <Feather name={link.icon as any} size={22} color={C.primary} />
                 }
               </View>
-              <Text style={styles.quickLabel}>{link.label}</Text>
+              <Text style={[styles.quickLabel, { color: colors.text }]}>{link.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -182,27 +184,27 @@ export default function HomeScreen() {
         {/* Today Timetable */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>오늘 시간표</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>오늘 시간표</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/schedule')}>
               <Text style={styles.sectionLink}>전체 보기</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {todaySchedules.length === 0 ? (
               <View style={styles.emptyState}>
-                <Feather name="calendar" size={32} color="#D1D5DB" />
-                <Text style={styles.emptyText}>오늘 수업이 없어요</Text>
+                <Feather name="calendar" size={32} color={colors.textTertiary} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>오늘 수업이 없어요</Text>
               </View>
             ) : (
               todaySchedules.slice(0, 4).map((s: any) => (
                 <View key={s.id} style={[styles.scheduleItem, { borderLeftColor: getSubjectColor(s.subjectName) }]}>
                   <View style={styles.scheduleTime}>
-                    <Text style={styles.scheduleTimeText}>{s.startTime}</Text>
-                    <Text style={styles.scheduleTimeEnd}>{s.endTime}</Text>
+                    <Text style={[styles.scheduleTimeText, { color: colors.text }]}>{s.startTime}</Text>
+                    <Text style={[styles.scheduleTimeEnd, { color: colors.textSecondary }]}>{s.endTime}</Text>
                   </View>
                   <View style={styles.scheduleInfo}>
-                    <Text style={styles.scheduleName} numberOfLines={1}>{s.subjectName}</Text>
-                    {s.location && <Text style={styles.scheduleLocation} numberOfLines={1}>{s.location}</Text>}
+                    <Text style={[styles.scheduleName, { color: colors.text }]} numberOfLines={1}>{s.subjectName}</Text>
+                    {s.location && <Text style={[styles.scheduleLocation, { color: colors.textSecondary }]} numberOfLines={1}>{s.location}</Text>}
                   </View>
                 </View>
               ))
@@ -213,27 +215,27 @@ export default function HomeScreen() {
         {/* Todo */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>할일</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>할일</Text>
             <TouchableOpacity onPress={() => setShowAddTodo(true)}>
               <Text style={styles.sectionLink}>+ 추가</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {todosLoading ? (
               <ActivityIndicator color={C.primary} style={{ marginVertical: 16 }} />
             ) : pendingTodos.length === 0 ? (
               <View style={styles.emptyState}>
-                <Feather name="check-circle" size={32} color="#D1D5DB" />
-                <Text style={styles.emptyText}>할 일을 추가해보세요</Text>
+                <Feather name="check-circle" size={32} color={colors.textTertiary} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>할 일을 추가해보세요</Text>
               </View>
             ) : (
               pendingTodos.slice(0, 5).map(todo => (
-                <View key={todo.id} style={styles.todoItem}>
+                <View key={todo.id} style={[styles.todoItem, { borderBottomColor: colors.border }]}>
                   <TouchableOpacity onPress={() => toggleTodo(todo.id, true)} style={styles.todoCheck}>
-                    <Feather name="circle" size={20} color="#D1D5DB" />
+                    <Feather name="circle" size={20} color={colors.textTertiary} />
                   </TouchableOpacity>
                   <View style={styles.todoInfo}>
-                    <Text style={styles.todoTitle} numberOfLines={1}>{todo.title}</Text>
+                    <Text style={[styles.todoTitle, { color: colors.text }]} numberOfLines={1}>{todo.title}</Text>
                     <View style={[styles.todoCat, { backgroundColor: CAT_COLORS[todo.category]?.bg || '#F3F4F6' }]}>
                       <Text style={[styles.todoCatText, { color: CAT_COLORS[todo.category]?.text || '#6B7280' }]}>
                         {todo.category}
@@ -241,7 +243,7 @@ export default function HomeScreen() {
                     </View>
                   </View>
                   <TouchableOpacity onPress={() => deleteTodo(todo.id)} style={styles.todoDelete}>
-                    <Feather name="x" size={16} color="#D1D5DB" />
+                    <Feather name="x" size={16} color={colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
               ))
@@ -255,34 +257,34 @@ export default function HomeScreen() {
       {/* Add Todo Modal */}
       <Modal visible={showAddTodo} transparent animationType="slide" onRequestClose={() => setShowAddTodo(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddTodo(false)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
-            <Text style={styles.modalTitle}>할 일 추가</Text>
+          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>할 일 추가</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
               value={newTitle}
               onChangeText={setNewTitle}
               placeholder="할 일을 입력하세요"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textTertiary}
               autoFocus
             />
-            <Text style={styles.modalLabel}>카테고리</Text>
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>카테고리</Text>
             <View style={styles.catRow}>
               {TODO_CATEGORIES.map(cat => (
                 <TouchableOpacity
                   key={cat}
-                  style={[styles.catChip, newCategory === cat && styles.catChipActive]}
+                  style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
                   onPress={() => setNewCategory(cat)}
                 >
-                  <Text style={[styles.catChipText, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
+                  <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
               value={newDueDate}
               onChangeText={setNewDueDate}
               placeholder="마감일 (선택, YYYY-MM-DD)"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textTertiary}
             />
             <TouchableOpacity
               style={[styles.btn, !newTitle.trim() && styles.btnDisabled]}

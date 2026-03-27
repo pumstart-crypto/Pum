@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
@@ -62,6 +63,7 @@ export default function BoardScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<BoardTab>('전체');
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,14 +124,15 @@ export default function BoardScreen() {
   const hasMore = paged.length < posts.length;
 
   return (
-    <View style={[styles.root, { paddingTop: topPad }]}>
+    <View style={[{ flex: 1, backgroundColor: colors.background }, { paddingTop: topPad }]}>
       {/* Header */}
-      <View style={styles.headerArea}>
-        <Text style={styles.pageTitle}>커뮤니티</Text>
+      <View style={[styles.headerArea, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <Text style={[styles.envLabel, { color: colors.textSecondary }]}>학생 커뮤니티</Text>
+        <Text style={[styles.pageTitle, { color: colors.text }]}>커뮤니티 <Text style={styles.titlePrimary}>게시판</Text></Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabContainer}>
           {TABS.map(tab => (
             <TouchableOpacity key={tab} style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]} onPress={() => setActiveTab(tab)}>
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+              <Text style={[styles.tabText, { color: colors.textTertiary }, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -137,7 +140,7 @@ export default function BoardScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
       >
@@ -145,42 +148,40 @@ export default function BoardScreen() {
           <ActivityIndicator color={C.primary} style={{ marginTop: 40 }} />
         ) : posts.length === 0 ? (
           <View style={styles.empty}>
-            <Feather name="message-square" size={40} color="#D1D5DB" />
-            <Text style={styles.emptyText}>게시글이 없습니다</Text>
+            <Feather name="message-square" size={40} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textTertiary }]}>게시글이 없습니다</Text>
           </View>
         ) : (
           <>
             {paged.map(post => (
               <TouchableOpacity
                 key={post.id}
-                style={styles.postCard}
+                style={[styles.postCard, { backgroundColor: colors.card }]}
                 onPress={() => router.push(`/post/${post.id}` as any)}
                 activeOpacity={0.7}
               >
                 <View style={styles.postHeader}>
-                  {CAT_STYLE[post.category] ? (
-                    <View style={[styles.catBadge, { backgroundColor: CAT_STYLE[post.category].bg }]}>
-                      <Text style={[styles.catText, { color: CAT_STYLE[post.category].text }]}>{post.category}</Text>
+                  {post.category && post.category !== '전체' && (
+                    <View style={[styles.catBadge, { backgroundColor: (CAT_STYLE[post.category]?.bg || '#F3F4F6') }]}>
+                      <Text style={[styles.catText, { color: CAT_STYLE[post.category]?.text || '#6B7280' }]}>{post.category}</Text>
                     </View>
-                  ) : null}
-                  {post.subCategory ? (
-                    <Text style={styles.subCat}>{post.subCategory}</Text>
-                  ) : null}
+                  )}
+                  {post.subCategory && <Text style={[styles.subCat, { color: colors.textTertiary }]}>{post.subCategory}</Text>}
                 </View>
-                <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
-                <Text style={styles.postContent} numberOfLines={2}>{post.content}</Text>
+                <Text style={[styles.postTitle, { color: colors.text }]} numberOfLines={2}>{post.title}</Text>
+                <Text style={[styles.postContent, { color: colors.textSecondary }]} numberOfLines={2}>{post.content}</Text>
                 <View style={styles.postMeta}>
-                  <Text style={styles.metaText}>{post.author}</Text>
-                  <Text style={styles.metaDot}>·</Text>
-                  <Text style={styles.metaText}>{relTime(post.createdAt)}</Text>
-                  <Text style={styles.metaDot}>·</Text>
-                  <Feather name="eye" size={12} color="#9CA3AF" />
-                  <Text style={styles.metaText}>{post.views}</Text>
+                  <Text style={[styles.metaText, { color: colors.textTertiary }]}>{post.author}</Text>
+                  <Text style={[styles.metaDot, { color: colors.textTertiary }]}>·</Text>
+                  <Text style={[styles.metaText, { color: colors.textTertiary }]}>{relTime(post.createdAt)}</Text>
+                  <Text style={[styles.metaDot, { color: colors.textTertiary }]}>·</Text>
+                  <Feather name="eye" size={12} color={colors.textTertiary} />
+                  <Text style={[styles.metaText, { color: colors.textTertiary }]}>{post.views}</Text>
                   {(post.commentCount ?? 0) > 0 && (
                     <>
-                      <Text style={styles.metaDot}>·</Text>
-                      <Feather name="message-circle" size={12} color="#9CA3AF" />
-                      <Text style={styles.metaText}>{post.commentCount}</Text>
+                      <Text style={[styles.metaDot, { color: colors.textTertiary }]}>·</Text>
+                      <Feather name="message-circle" size={12} color={colors.textTertiary} />
+                      <Text style={[styles.metaText, { color: colors.textTertiary }]}>{post.commentCount}</Text>
                     </>
                   )}
                 </View>
@@ -205,28 +206,28 @@ export default function BoardScreen() {
       {/* Write Modal */}
       <Modal visible={showWrite} transparent animationType="slide" onRequestClose={() => setShowWrite(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>글 작성</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>글 작성</Text>
               <TouchableOpacity onPress={() => setShowWrite(false)}>
-                <Feather name="x" size={22} color="#6B7280" />
+                <Feather name="x" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalLabel}>카테고리</Text>
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>카테고리</Text>
             <View style={styles.catRow}>
               {(['공지', '질문', '모집', '거래'] as BoardTab[]).map(cat => (
-                <TouchableOpacity key={cat} style={[styles.catChip, writeCat === cat && styles.catChipActive]} onPress={() => setWriteCat(cat)}>
-                  <Text style={[styles.catChipText, writeCat === cat && styles.catChipTextActive]}>{cat}</Text>
+                <TouchableOpacity key={cat} style={[styles.catChip, { backgroundColor: colors.inputBg }, writeCat === cat && styles.catChipActive]} onPress={() => setWriteCat(cat)}>
+                  <Text style={[styles.catChipText, { color: colors.textSecondary }, writeCat === cat && styles.catChipTextActive]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.titleInput} value={writeTitle} onChangeText={setWriteTitle} placeholder="제목" placeholderTextColor="#9CA3AF" />
+            <TextInput style={[styles.titleInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={writeTitle} onChangeText={setWriteTitle} placeholder="제목" placeholderTextColor={colors.textTertiary} />
             <TextInput
-              style={styles.contentInput}
+              style={[styles.contentInput, { backgroundColor: colors.inputBg, color: colors.text }]}
               value={writeContent}
               onChangeText={setWriteContent}
               placeholder="내용을 입력하세요"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textTertiary}
               multiline
               numberOfLines={5}
               textAlignVertical="top"
@@ -246,28 +247,29 @@ export default function BoardScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F7FA' },
-  headerArea: { backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  pageTitle: { fontSize: 26, fontFamily: 'Inter_700Bold', color: '#111827', paddingBottom: 12 },
+  envLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', marginTop: 2, marginBottom: 10 },
+  titlePrimary: { color: C.primary },
+  headerArea: { paddingHorizontal: 16, paddingTop: 8, borderBottomWidth: 1 },
   tabScroll: { marginBottom: -1 },
   tabContainer: { gap: 4, paddingBottom: 0 },
   tabBtn: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActive: { borderBottomColor: C.primary },
-  tabText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+  tabText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   tabTextActive: { color: C.primary },
   list: { paddingHorizontal: 16, paddingTop: 12 },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  postCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  emptyText: { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  postCard: { borderRadius: 16, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   postHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   catBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   catText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
-  subCat: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  postTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#111827', lineHeight: 21 },
-  postContent: { fontSize: 13, color: '#6B7280', lineHeight: 18, marginTop: 4, fontFamily: 'Inter_400Regular' },
+  subCat: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  postTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', lineHeight: 21 },
+  postContent: { fontSize: 13, lineHeight: 18, marginTop: 4, fontFamily: 'Inter_400Regular' },
   postMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, flexWrap: 'wrap' },
-  metaText: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  metaDot: { color: '#D1D5DB', fontSize: 12 },
+  metaText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  metaDot: { fontSize: 12 },
   moreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 16 },
   moreBtnText: { fontSize: 14, color: C.primary, fontFamily: 'Inter_600SemiBold' },
   fab: {
@@ -276,17 +278,17 @@ const styles = StyleSheet.create({
     shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
   },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' },
+  modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
-  modalLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280', marginBottom: 8 },
+  modalTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  modalLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', marginBottom: 8 },
   catRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 1.5, borderColor: 'transparent' },
+  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: 'transparent' },
   catChipActive: { backgroundColor: '#EEF4FF', borderColor: C.primary },
-  catChipText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6B7280' },
+  catChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
   catChipTextActive: { color: C.primary, fontFamily: 'Inter_600SemiBold' },
-  titleInput: { backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', marginBottom: 10 },
-  contentInput: { backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, color: '#111827', fontFamily: 'Inter_400Regular', minHeight: 100, marginBottom: 14 },
+  titleInput: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, fontFamily: 'Inter_400Regular', marginBottom: 10 },
+  contentInput: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Inter_400Regular', minHeight: 100, marginBottom: 14 },
   submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
   submitBtnDisabled: { backgroundColor: '#D1D5DB' },
   submitBtnText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },

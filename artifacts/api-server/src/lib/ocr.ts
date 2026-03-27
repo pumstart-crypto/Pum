@@ -2,6 +2,7 @@ export interface StudentIdInfo {
   name: string;
   studentId: string;
   major: string;
+  college: string;
   university: string;
   isValid: boolean;
   reason?: string;
@@ -47,7 +48,7 @@ function parseStudentIdText(text: string): StudentIdInfo {
 
   if (!isPNU) {
     return {
-      name: "", studentId: "", major: "", university: "",
+      name: "", studentId: "", major: "", college: "", university: "",
       isValid: false,
       reason: "부산대학교 학생증이 아닙니다.",
     };
@@ -79,7 +80,19 @@ function parseStudentIdText(text: string): StudentIdInfo {
     }
   }
 
-  // 4. 학과/전공 추출
+  // 4. 단과대학 추출
+  let college = "";
+  const collegePatterns = [
+    /([가-힣]{2,10}대학)\s+[가-힣]/,
+    /(?:소속|단과대)[:\s]*([가-힣]{2,15}대학)/,
+    /([가-힣]{2,10}대학)(?=학|원|과|\s)/,
+  ];
+  for (const pat of collegePatterns) {
+    const m = normalized.match(pat);
+    if (m) { college = m[1].trim(); break; }
+  }
+
+  // 5. 학과/전공 추출
   let major = "";
   const majorPatterns = [
     /(?:학과|전공|학부)[:\s]*([가-힣A-Za-z\s]+?)(?:\s|$)/,
@@ -91,10 +104,10 @@ function parseStudentIdText(text: string): StudentIdInfo {
     if (m) { major = m[1].trim(); break; }
   }
 
-  // 5. 유효성 판단
+  // 6. 유효성 판단
   if (!studentId) {
     return {
-      name, studentId: "", major, university: "부산대학교",
+      name, studentId: "", major, college, university: "부산대학교",
       isValid: false,
       reason: "학번을 인식할 수 없습니다. 선명한 사진을 사용해주세요.",
     };
@@ -104,6 +117,7 @@ function parseStudentIdText(text: string): StudentIdInfo {
     name: name || "",
     studentId,
     major: major || "",
+    college: college || "",
     university: "부산대학교",
     isValid: true,
   };

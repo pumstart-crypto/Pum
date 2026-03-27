@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { loadProfileAsync } from '@/hooks/useProfile';
 import C from '@/constants/colors';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const PAGE_SIZE = 10;
@@ -222,10 +224,16 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
   const [loading, setLoading] = useState(false);
   const [userDept, setUserDept] = useState('');
   const [page, setPage] = useState(1);
+  const { user } = useAuth();
 
   useEffect(() => {
-    loadProfileAsync().then(p => setUserDept(p.department || ''));
-  }, []);
+    // Prefer auth user's major (from registration), fallback to profile.department
+    if (user?.major) {
+      setUserDept(user.major);
+    } else {
+      loadProfileAsync().then(p => setUserDept(p.department || ''));
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!userDept) return;
@@ -242,11 +250,7 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
   if (!userDept) return (
     <View style={styles.emptyBox}>
       <Feather name="info" size={36} color="#D1D5DB" />
-      <Text style={styles.emptyText}>학과를 설정하면{'\n'}학과 공지를 볼 수 있어요</Text>
-      <TouchableOpacity style={styles.setDeptBtn} onPress={() => router.push('/profile-edit' as any)}>
-        <Text style={styles.setDeptBtnText}>프로필에서 학과 설정하기</Text>
-        <Feather name="arrow-right" size={13} color={C.primary} />
-      </TouchableOpacity>
+      <Text style={styles.emptyText}>학과 공지를 불러오는 중{'\n'}학번 인증 정보 기반으로 자동 설정됩니다</Text>
     </View>
   );
 
@@ -288,6 +292,7 @@ export default function NoticesScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
+  const { colors } = useTheme();
   const [tab, setTab] = useState<Tab>('school');
   const [search, setSearch] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -303,13 +308,13 @@ export default function NoticesScreen() {
   const handleTabChange = (t: Tab) => { setTab(t); setSearch(''); };
 
   return (
-    <View style={[styles.root, { paddingTop: topPad }]}>
+    <View style={[styles.root, { paddingTop: topPad, backgroundColor: colors.background }]}>
       {/* ── Sticky Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.titleRow}>
           <View>
-            <Text style={styles.subTitle}>부산대학교</Text>
-            <Text style={styles.pageTitle}>
+            <Text style={[styles.subTitle, { color: colors.textSecondary }]}>부산대학교</Text>
+            <Text style={[styles.pageTitle, { color: colors.text }]}>
               공지 <Text style={styles.pageTitleAccent}>사항</Text>
             </Text>
           </View>
@@ -332,18 +337,18 @@ export default function NoticesScreen() {
         </View>
 
         {/* Search */}
-        <View style={styles.searchBox}>
-          <Feather name="search" size={15} color="#9CA3AF" />
+        <View style={[styles.searchBox, { backgroundColor: colors.inputBg }]}>
+          <Feather name="search" size={15} color={colors.textTertiary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             value={search}
             onChangeText={setSearch}
             placeholder="공지 제목 검색..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textTertiary}
           />
           {!!search && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={15} color="#9CA3AF" />
+              <Feather name="x" size={15} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
@@ -386,9 +391,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 14,
   },
-  subTitle: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF', letterSpacing: 0.3, marginBottom: 2 },
-  pageTitle: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#111827' },
-  pageTitleAccent: { color: C.primary, fontFamily: 'Inter_800ExtraBold' },
+  subTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', letterSpacing: 0, marginBottom: 2 },
+  pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
+  pageTitleAccent: { color: C.primary },
 
   /* Tab segment */
   tabSegment: {

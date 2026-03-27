@@ -10,6 +10,7 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   studentId: varchar("student_id", { length: 20 }).notNull(),
   major: text("major").notNull(),
+  college: text("college"),
   isVerified: boolean("is_verified").notNull().default(false),
   studentIdImageUrl: text("student_id_image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
