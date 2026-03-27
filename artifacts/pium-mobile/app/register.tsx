@@ -376,7 +376,7 @@ export default function RegisterScreen() {
             <ActivityIndicator size="large" color={C.primary} style={{ marginBottom: 20 }} />
             <Text style={styles.loadingCardTitle}>학생증을 확인하는 중입니다</Text>
             <Text style={styles.loadingCardSub}>
-              확인이 완료되면 알림을 보내드립니다.{'\n'}잠시만 기다려 주세요.
+              확인이 완료되면 알림을 보내드립니다.{'\n'}잠시만 기다려 주시거나,{'\n'}화면을 나가셔도 괜찮습니다.
             </Text>
           </View>
         </View>
