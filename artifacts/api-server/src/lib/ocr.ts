@@ -27,6 +27,10 @@ export async function extractStudentIdInfo(base64Image: string, mimeType: string
 
   const openai = getClient();
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -37,7 +41,7 @@ export async function extractStudentIdInfo(base64Image: string, mimeType: string
             type: "image_url",
             image_url: {
               url: `data:${mimeType};base64,${base64Image}`,
-              detail: "high",
+              detail: "low",
             },
           },
           {
