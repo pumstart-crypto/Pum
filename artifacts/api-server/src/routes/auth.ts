@@ -58,21 +58,27 @@ router.post("/auth/send-otp", async (req, res) => {
     res.status(400).json({ message: "올바른 휴대폰 번호를 입력하세요." }); return;
   }
 
-  // ① 기기(IP) 기반 하루 5회 제한
-  const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
-  const ipCheck = checkIpOtpLimit(clientIp);
-  if (!ipCheck.allowed) {
-    res.status(429).json({ message: "하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
-  }
+  // 개발용 예외 번호 (제한 없음)
+  const EXEMPT_PHONES = ["01033126934"];
+  const isExempt = EXEMPT_PHONES.includes(phone);
 
-  // ② 동일 전화번호 기준 하루 5회 제한 (DB 기반)
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [phoneCount] = await db
-    .select({ count: sql<number>`cast(count(*) as int)` })
-    .from(phoneVerificationsTable)
-    .where(and(eq(phoneVerificationsTable.phone, phone), gt(phoneVerificationsTable.createdAt, oneDayAgo)));
-  if ((phoneCount?.count ?? 0) >= OTP_LIMIT_PER_DAY) {
-    res.status(429).json({ message: "해당 번호로 하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+  if (!isExempt) {
+    // ① 기기(IP) 기반 하루 5회 제한
+    const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+    const ipCheck = checkIpOtpLimit(clientIp);
+    if (!ipCheck.allowed) {
+      res.status(429).json({ message: "하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+    }
+
+    // ② 동일 전화번호 기준 하루 5회 제한 (DB 기반)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [phoneCount] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(phoneVerificationsTable)
+      .where(and(eq(phoneVerificationsTable.phone, phone), gt(phoneVerificationsTable.createdAt, oneDayAgo)));
+    if ((phoneCount?.count ?? 0) >= OTP_LIMIT_PER_DAY) {
+      res.status(429).json({ message: "해당 번호로 하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+    }
   }
 
   // ③ 이미 가입된 번호인지 확인
