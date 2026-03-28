@@ -4,6 +4,7 @@ import {
   Modal, TextInput, Platform, Alert, ActivityIndicator,
   RefreshControl, KeyboardAvoidingView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -161,6 +162,43 @@ export default function ScheduleScreen() {
   const [newSemYear, setNewSemYear] = useState(String(initSem.year));
   const [newSemSem, setNewSemSem] = useState<string>('1');
   const [showAddSem, setShowAddSem] = useState(false);
+
+  // 졸업요건 설정 (m값 편집 가능)
+  const [gradReqRequired, setGradReqRequired] = useState<Record<string, number>>(
+    Object.fromEntries(GRAD_REQS.map(r => [r.label, r.required]))
+  );
+  const [showGradSettings, setShowGradSettings] = useState(false);
+  const [gradSettingsDraft, setGradSettingsDraft] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    AsyncStorage.getItem('pium_grad_req_settings').then(val => {
+      if (val) {
+        try {
+          const saved: Record<string, number> = JSON.parse(val);
+          setGradReqRequired(prev => ({ ...prev, ...saved }));
+        } catch {}
+      }
+    });
+  }, []);
+
+  const openGradSettings = () => {
+    setGradSettingsDraft(Object.fromEntries(
+      GRAD_REQS.map(r => [r.label, String(gradReqRequired[r.label] ?? r.required)])
+    ));
+    setShowGradSettings(true);
+  };
+
+  const saveGradSettings = async () => {
+    const parsed: Record<string, number> = {};
+    for (const [k, v] of Object.entries(gradSettingsDraft)) {
+      const n = parseInt(v);
+      if (!isNaN(n) && n >= 0) parsed[k] = n;
+    }
+    const next = { ...gradReqRequired, ...parsed };
+    setGradReqRequired(next);
+    await AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(next));
+    setShowGradSettings(false);
+  };
 
   const currentSem = semesters[selectedSemIdx] ?? initSem;
 
@@ -526,7 +564,9 @@ export default function ScheduleScreen() {
   }
   const getEarned = (req: typeof GRAD_REQS[0]) =>
     req.categories.reduce((s, cat) => s + (earnedByCategory[cat] || 0), 0);
-  const totalEarned = GRAD_REQS.reduce((s, req) => s + Math.min(getEarned(req), req.required), 0);
+  const getRequired = (req: typeof GRAD_REQS[0]) => gradReqRequired[req.label] ?? req.required;
+  const totalRequired = GRAD_REQS.reduce((s, req) => s + getRequired(req), 0);
+  const totalEarned = GRAD_REQS.reduce((s, req) => s + Math.min(getEarned(req), getRequired(req)), 0);
 
   const totalSlots = (END_HOUR - START_HOUR) * 2;
   const totalH = totalSlots * SLOT_H;
@@ -637,17 +677,26 @@ export default function ScheduleScreen() {
               <Text style={[styles.envLabel, { color: colors.textSecondary }]}>시간 관리</Text>
               <Text style={[styles.gradeTitle, { color: colors.text }]}>학기별 <Text style={{ color: C.primary }}>성적 관리</Text></Text>
             </View>
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: colors.inputBg }]}
-              onPress={syncGradesWithSchedule}
-              disabled={gradeSyncing}
-              activeOpacity={0.7}
-            >
-              {gradeSyncing
-                ? <ActivityIndicator size="small" color={C.primary} />
-                : <Feather name="refresh-cw" size={18} color={colors.textSecondary} />
-              }
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.iconBtn, { backgroundColor: colors.inputBg }]}
+                onPress={openGradSettings}
+                activeOpacity={0.7}
+              >
+                <Feather name="sliders" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.iconBtn, { backgroundColor: colors.inputBg }]}
+                onPress={syncGradesWithSchedule}
+                disabled={gradeSyncing}
+                activeOpacity={0.7}
+              >
+                {gradeSyncing
+                  ? <ActivityIndicator size="small" color={C.primary} />
+                  : <Feather name="refresh-cw" size={18} color={colors.textSecondary} />
+                }
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.segWrapper}><TabBar /></View>
           <ScrollView
@@ -675,7 +724,7 @@ export default function ScheduleScreen() {
                     <View style={styles.gradReqTitleRow}>
                       <Ionicons name="trending-up-outline" size={16} color="#374151" />
                       <Text style={styles.gradReqTitle}>졸업요건 이수현황</Text>
-                      <View style={styles.gradReqBadge}><Text style={styles.gradReqBadgeText}>{totalEarned}/{TOTAL_GRAD}학점</Text></View>
+                      <View style={styles.gradReqBadge}><Text style={styles.gradReqBadgeText}>{totalEarned}/{totalRequired}학점</Text></View>
                     </View>
                     <Ionicons name={gradReqOpen ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" />
                   </TouchableOpacity>
@@ -683,11 +732,12 @@ export default function ScheduleScreen() {
                     <View style={styles.gradReqBody}>
                       {GRAD_REQS.map((req, i) => {
                         const earned = getEarned(req);
-                        const done = earned >= req.required;
+                        const reqCr = getRequired(req);
+                        const done = earned >= reqCr;
                         return (
                           <View key={req.label} style={[styles.gradReqRow, i === GRAD_REQS.length - 1 && { borderBottomWidth: 0 }]}>
                             <Text style={[styles.gradReqLabel, { color: req.color, flex: 1, flexWrap: 'wrap' }]}>{req.label}</Text>
-                            <Text style={[styles.gradReqValue, done && { color: '#059669', fontFamily: 'Inter_600SemiBold' }]}>{earned}/{req.required}학점{done ? ' ✓' : ''}</Text>
+                            <Text style={[styles.gradReqValue, done && { color: '#059669', fontFamily: 'Inter_600SemiBold' }]}>{earned}/{reqCr}학점{done ? ' ✓' : ''}</Text>
                           </View>
                         );
                       })}
@@ -774,6 +824,46 @@ export default function ScheduleScreen() {
           </ScrollView>
         </>
       )}
+
+      {/* ── 졸업요건 설정 Modal ── */}
+      <Modal visible={showGradSettings} transparent animationType="slide" onRequestClose={() => setShowGradSettings(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>졸업요건 이수학점 설정</Text>
+                <TouchableOpacity onPress={() => setShowGradSettings(false)}>
+                  <Feather name="x" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 16 }}>
+                각 항목의 필요 이수학점(m)을 직접 입력할 수 있어요.
+              </Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {GRAD_REQS.map((req) => (
+                  <View key={req.label} style={{ marginBottom: 14 }}>
+                    <Text style={{ fontSize: 14, color: req.color, fontFamily: 'Inter_600SemiBold', marginBottom: 6 }}>{req.label}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, color: colors.text, backgroundColor: colors.inputBg }]}
+                        value={gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required)}
+                        onChangeText={v => setGradSettingsDraft(prev => ({ ...prev, [req.label]: v }))}
+                        keyboardType="numeric"
+                        placeholder={String(req.required)}
+                        placeholderTextColor={colors.textSecondary}
+                      />
+                      <Text style={{ fontSize: 14, color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>학점</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={[styles.addBtn, { marginTop: 8 }]} onPress={saveGradSettings}>
+                <Text style={styles.addBtnText}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── 시간표 관리 Modal ── */}
       <Modal visible={showSemModal} transparent animationType="slide" onRequestClose={() => setShowSemModal(false)}>
