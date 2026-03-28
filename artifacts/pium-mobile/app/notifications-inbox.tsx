@@ -20,19 +20,11 @@ interface NotifItem {
 const ICON_MAP = { notice: 'bell', community: 'message-circle', schedule: 'calendar', system: 'settings' } as const;
 const COLOR_MAP: Record<string, string> = { notice: '#3B82F6', community: '#8B5CF6', schedule: '#059669', system: '#6B7280' };
 
-const SAMPLE_NOTIFS: NotifItem[] = [
-  { id: 1, type: 'notice', title: '학교 공지사항', body: '[공지] 2025학년도 1학기 수강신청 안내', time: '10분 전', read: false },
-  { id: 2, type: 'community', title: '내 게시글에 댓글', body: '"컴공 스터디 모집" 글에 새 댓글이 달렸습니다', time: '1시간 전', read: false },
-  { id: 3, type: 'schedule', title: '수업 시작 알림', body: '알고리즘 수업이 15분 후 시작됩니다 - IT대학 301호', time: '2시간 전', read: true },
-  { id: 4, type: 'notice', title: '학과 공지사항', body: '[학과] 논문 심사 일정 변경 안내', time: '3시간 전', read: true },
-  { id: 5, type: 'system', title: 'P:um 업데이트', body: 'P:um v1.0.1이 출시되었습니다. 새로운 기능을 확인해보세요!', time: '어제', read: true },
-];
-
 export default function NotificationsInboxScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
-  const [notifs, setNotifs] = useState<NotifItem[]>(SAMPLE_NOTIFS);
+  const [notifs, setNotifs] = useState<NotifItem[]>([]);
 
   const unreadCount = notifs.filter(n => !n.read).length;
 
