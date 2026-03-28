@@ -91,12 +91,12 @@ const GRADE_POINTS: Record<string, number> = {
   'F': 0, 'P': 0, 'NP': 0,
 };
 const GRAD_REQS = [
-  { label: '전공필수', color: '#2563EB', required: 39 },
-  { label: '전공기초', color: '#2563EB', required: 15 },
-  { label: '전공선택', color: '#2563EB', required: 21 },
-  { label: '효원핵심교양', color: '#7C3AED', required: 21 },
-  { label: '효원균형·창의교양', color: '#7C3AED', required: 9 },
-  { label: '일반선택', color: '#374151', required: 30 },
+  { label: '전공필수', color: '#2563EB', required: 39, categories: ['전공필수'] },
+  { label: '전공기초', color: '#2563EB', required: 15, categories: ['전공기초'] },
+  { label: '전공선택', color: '#2563EB', required: 21, categories: ['전공선택'] },
+  { label: '효원핵심교양(교양필수)', color: '#7C3AED', required: 21, categories: ['효원핵심교양', '교양필수'] },
+  { label: '효원균형·창의교양(교양선택)', color: '#7C3AED', required: 9, categories: ['효원균형교양', '효원창의교양', '교양선택'] },
+  { label: '일반선택', color: '#374151', required: 30, categories: ['일반선택'] },
 ];
 const TOTAL_GRAD = GRAD_REQS.reduce((s, r) => s + r.required, 0);
 const ISU_OPTIONS = ['전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
@@ -506,11 +506,27 @@ export default function ScheduleScreen() {
     finally { setGradeSyncing(false); }
   }, [gradeSyncing, schedules, grades, fetchGrades]);
 
+  const [collapsedSems, setCollapsedSems] = useState<Set<string>>(new Set());
+  const toggleSemCollapse = (key: string) => setCollapsedSems(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
   const eligible = grades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
   const totalCreditCount = grades.reduce((s, g) => s + g.credits, 0);
+
+  // 졸업요건 이수학점 자동 계산
+  const earnedByCategory: Record<string, number> = {};
+  for (const g of grades) {
+    if (g.category) earnedByCategory[g.category] = (earnedByCategory[g.category] || 0) + g.credits;
+  }
+  const getEarned = (req: typeof GRAD_REQS[0]) =>
+    req.categories.reduce((s, cat) => s + (earnedByCategory[cat] || 0), 0);
+  const totalEarned = GRAD_REQS.reduce((s, req) => s + Math.min(getEarned(req), req.required), 0);
 
   const totalSlots = (END_HOUR - START_HOUR) * 2;
   const totalH = totalSlots * SLOT_H;
@@ -659,18 +675,22 @@ export default function ScheduleScreen() {
                     <View style={styles.gradReqTitleRow}>
                       <Ionicons name="trending-up-outline" size={16} color="#374151" />
                       <Text style={styles.gradReqTitle}>졸업요건 이수현황</Text>
-                      <View style={styles.gradReqBadge}><Text style={styles.gradReqBadgeText}>0/{TOTAL_GRAD}학점</Text></View>
+                      <View style={styles.gradReqBadge}><Text style={styles.gradReqBadgeText}>{totalEarned}/{TOTAL_GRAD}학점</Text></View>
                     </View>
                     <Ionicons name={gradReqOpen ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" />
                   </TouchableOpacity>
                   {gradReqOpen && (
                     <View style={styles.gradReqBody}>
-                      {GRAD_REQS.map((req, i) => (
-                        <View key={req.label} style={[styles.gradReqRow, i === GRAD_REQS.length - 1 && { borderBottomWidth: 0 }]}>
-                          <Text style={[styles.gradReqLabel, { color: req.color }]}>{req.label}</Text>
-                          <Text style={styles.gradReqValue}>0/{req.required}학점</Text>
-                        </View>
-                      ))}
+                      {GRAD_REQS.map((req, i) => {
+                        const earned = getEarned(req);
+                        const done = earned >= req.required;
+                        return (
+                          <View key={req.label} style={[styles.gradReqRow, i === GRAD_REQS.length - 1 && { borderBottomWidth: 0 }]}>
+                            <Text style={[styles.gradReqLabel, { color: req.color, flex: 1, flexWrap: 'wrap' }]}>{req.label}</Text>
+                            <Text style={[styles.gradReqValue, done && { color: '#059669', fontFamily: 'Inter_600SemiBold' }]}>{earned}/{req.required}학점{done ? ' ✓' : ''}</Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
@@ -687,12 +707,42 @@ export default function ScheduleScreen() {
                       if (!acc[key]) acc[key] = [];
                       acc[key].push(g);
                       return acc;
-                    }, {} as Record<string, Grade[]>)).sort(([a], [b]) => b.localeCompare(a)).map(([key, gs]) => {
+                    }, {} as Record<string, Grade[]>))
+                    .sort(([a], [b]) => {
+                      const [ay, as_] = a.split('-'); const [by, bs] = b.split('-');
+                      if (by !== ay) return parseInt(by) - parseInt(ay);
+                      return (SEM_ORDER[as_] ?? 99) - (SEM_ORDER[bs] ?? 99);
+                    })
+                    .map(([key, gs]) => {
                       const [year, sem] = key.split('-');
+                      const collapsed = collapsedSems.has(key);
+                      const semEl = gs.filter(g => g.grade !== 'P' && g.grade !== 'NP');
+                      const semTotalCr = semEl.reduce((s, g) => s + g.credits, 0);
+                      const semGpa = semTotalCr > 0
+                        ? (semEl.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.credits, 0) / semTotalCr).toFixed(2)
+                        : '—';
+                      const semTotalCredits = gs.reduce((s, g) => s + g.credits, 0);
                       return (
                         <View key={key} style={styles.semesterGroup}>
-                          <Text style={styles.semesterTitle}>{year}년 {SEM_LABELS[sem] ?? sem}</Text>
-                          {gs.map(g => {
+                          <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                            onPress={() => toggleSemCollapse(key)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.semesterTitle}>{year}년 {SEM_LABELS[sem] ?? sem}</Text>
+                              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 1, fontFamily: 'Inter_400Regular' }}>
+                                평점 {semGpa} · {semTotalCredits}학점
+                              </Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 12, color: C.primary, fontFamily: 'Inter_500Medium' }}>
+                                {collapsed ? '자세히보기' : '닫기'}
+                              </Text>
+                              <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={14} color={C.primary} />
+                            </View>
+                          </TouchableOpacity>
+                          {!collapsed && gs.map(g => {
                             const point = GRADE_POINTS[g.grade] ?? 0;
                             const gc = point >= 4 ? '#059669' : point >= 3 ? '#2563EB' : point >= 2 ? '#D97706' : '#DC2626';
                             return (
