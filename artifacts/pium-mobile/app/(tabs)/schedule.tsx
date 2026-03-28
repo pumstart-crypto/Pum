@@ -80,7 +80,7 @@ function getCurrentSemester(): Semester {
 interface Schedule {
   id: number; subjectName: string; professor: string; location: string;
   dayOfWeek: number; startTime: string; endTime: string; credit: number;
-  year?: number; semester?: string; credits?: number;
+  year?: number; semester?: string; credits?: number; category?: string;
 }
 interface Grade {
   id: number; subjectName: string; grade: string;
@@ -331,6 +331,7 @@ export default function ScheduleScreen() {
             location: dLoc.trim(), dayOfWeek: d,
             startTime: dStart, endTime: dEnd, credits: dCredit,
             year: currentSem.year, semester: currentSem.sem,
+            category: dIsu,
           }),
         })
       ));
@@ -407,6 +408,7 @@ export default function ScheduleScreen() {
               credits: course.credits || 0,
               year: currentSem.year,
               semester: currentSem.sem,
+              category: course.category || '',
             }),
           })
         );
@@ -498,7 +500,7 @@ export default function ScheduleScreen() {
 
       // 시간표에서 고유 과목 목록 추출 (year+semester+subjectName 기준)
       const seen = new Set<string>();
-      const uniqueSubjects: { year: number; semester: string; subject: string; professor: string; credits: number }[] = [];
+      const uniqueSubjects: { year: number; semester: string; subject: string; professor: string; credits: number; category?: string }[] = [];
       for (const s of allSchedules) {
         if (!s.year || !s.semester) continue;
         const key = `${s.year}-${s.semester}-${s.subjectName}`;
@@ -508,6 +510,7 @@ export default function ScheduleScreen() {
             year: s.year, semester: s.semester,
             subject: s.subjectName, professor: s.professor || '',
             credits: s.credits ?? 3,
+            category: s.category,
           });
         }
       }
@@ -528,7 +531,7 @@ export default function ScheduleScreen() {
           .map(s => fetch(`${API}/grades`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subjectName: s.subject, grade: 'A+', credits: s.credits, semester: s.semester, year: s.year }),
+            body: JSON.stringify({ subjectName: s.subject, grade: 'A+', credits: s.credits, semester: s.semester, year: s.year, category: s.category }),
           }))
       );
 
@@ -557,10 +560,15 @@ export default function ScheduleScreen() {
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
   const totalCreditCount = grades.reduce((s, g) => s + g.credits, 0);
 
-  // 졸업요건 이수학점 자동 계산
+  // 졸업요건 이수학점: schedules의 category 기준으로 중복 제거 후 계산
   const earnedByCategory: Record<string, number> = {};
-  for (const g of grades) {
-    if (g.category) earnedByCategory[g.category] = (earnedByCategory[g.category] || 0) + g.credits;
+  const seenSchedKeys = new Set<string>();
+  for (const s of (schedules as Schedule[])) {
+    if (!s.category || !s.credits || !s.year || !s.semester) continue;
+    const key = `${s.year}-${s.semester}-${s.subjectName}`;
+    if (seenSchedKeys.has(key)) continue;
+    seenSchedKeys.add(key);
+    earnedByCategory[s.category] = (earnedByCategory[s.category] || 0) + s.credits;
   }
   const getEarned = (req: typeof GRAD_REQS[0]) =>
     req.categories.reduce((s, cat) => s + (earnedByCategory[cat] || 0), 0);
@@ -830,34 +838,46 @@ export default function ScheduleScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>졸업요건 이수학점 설정</Text>
-                <TouchableOpacity onPress={() => setShowGradSettings(false)}>
-                  <Feather name="x" size={22} color={colors.textSecondary} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>졸업 필요학점 설정</Text>
+                <TouchableOpacity onPress={() => setShowGradSettings(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 16 }}>
-                각 항목의 필요 이수학점(m)을 직접 입력할 수 있어요.
+              <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 20 }}>
+                학과별로 다를 수 있어요. 직접 조정하세요.
               </Text>
               <ScrollView showsVerticalScrollIndicator={false}>
-                {GRAD_REQS.map((req) => (
-                  <View key={req.label} style={{ marginBottom: 14 }}>
-                    <Text style={{ fontSize: 14, color: req.color, fontFamily: 'Inter_600SemiBold', marginBottom: 6 }}>{req.label}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <TextInput
-                        style={[styles.input, { flex: 1, color: colors.text, backgroundColor: colors.inputBg }]}
-                        value={gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required)}
-                        onChangeText={v => setGradSettingsDraft(prev => ({ ...prev, [req.label]: v }))}
-                        keyboardType="numeric"
-                        placeholder={String(req.required)}
-                        placeholderTextColor={colors.textSecondary}
-                      />
-                      <Text style={{ fontSize: 14, color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>학점</Text>
+                {GRAD_REQS.map((req) => {
+                  const cur = parseInt(gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required), 10) || 0;
+                  const adjust = (delta: number) => {
+                    const next = Math.max(0, cur + delta);
+                    setGradSettingsDraft(prev => ({ ...prev, [req.label]: String(next) }));
+                  };
+                  return (
+                    <View key={req.label} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.inputBg }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: req.color, marginRight: 10, marginTop: 1 }} />
+                      <Text style={{ flex: 1, fontSize: 14, color: colors.text, fontFamily: 'Inter_500Medium' }}>{req.label}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        <TouchableOpacity onPress={() => adjust(-1)} style={{ width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.inputBg }}>
+                          <Feather name="minus" size={14} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={{ width: 44, textAlign: 'center', fontSize: 15, color: colors.text, fontFamily: 'Inter_600SemiBold', paddingVertical: 4 }}
+                          value={gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required)}
+                          onChangeText={v => setGradSettingsDraft(prev => ({ ...prev, [req.label]: v.replace(/[^0-9]/g, '') }))}
+                          keyboardType="numeric"
+                        />
+                        <TouchableOpacity onPress={() => adjust(1)} style={{ width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.inputBg }}>
+                          <Feather name="plus" size={14} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginLeft: 4 }}>학점</Text>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
-              <TouchableOpacity style={[styles.addBtn, { marginTop: 8 }]} onPress={saveGradSettings}>
+              <TouchableOpacity style={[styles.addBtn, { marginTop: 20 }]} onPress={saveGradSettings}>
                 <Text style={styles.addBtnText}>저장</Text>
               </TouchableOpacity>
             </View>
