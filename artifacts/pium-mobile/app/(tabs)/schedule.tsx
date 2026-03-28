@@ -23,7 +23,7 @@ type Tab = 'timetable' | 'grades';
 
 interface Semester { year: number; sem: string; }
 
-const PALETTE = ['#4F46E5','#0891B2','#059669','#D97706','#DC2626','#7C3AED','#DB2777','#0F766E','#EA580C','#0284C7'];
+const PALETTE = ['#14B8A6','#FB923C','#BE185D','#7C3AED','#A3E635','#22D3EE','#DC2626','#FBBF24'];
 function getColor(name: string) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
