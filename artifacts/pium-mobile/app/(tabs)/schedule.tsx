@@ -101,7 +101,12 @@ const GRAD_REQS = [
 const TOTAL_GRAD = GRAD_REQS.reduce((s, r) => s + r.required, 0);
 const ISU_OPTIONS = ['전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
 const YEAR_FILTERS = ['전체', '1학년', '2학년', '3학년', '4학년'];
-const CATEGORY_FILTERS = ['전체', '전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
+function getCategoryFilters(year: number): string[] {
+  if (year < 2025) {
+    return ['전체', '전공필수', '전공기초', '전공선택', '교양필수', '교양선택', '일반선택', '교직과목'];
+  }
+  return ['전체', '전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
+}
 const DAY_MAP: Record<string, number> = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
 
 function parseTimeRoom(timeRoom: string, addMinutesFn: (t: string, m: number) => string) {
@@ -200,10 +205,18 @@ export default function ScheduleScreen() {
   const [showIsuPicker, setShowIsuPicker] = useState(false);
 
   // Course search
+  const categoryFilters = getCategoryFilters(currentSem.year);
   const [csDept, setCsDept] = useState('');
   const [csDeptSearch, setCsDeptSearch] = useState('');
   const [csYear, setCsYear] = useState('전체');
   const [csCategory, setCsCategory] = useState('전체');
+
+  // 학기 연도 변경 시 유효하지 않은 카테고리 자동 초기화
+  useEffect(() => {
+    if (!getCategoryFilters(currentSem.year).includes(csCategory)) {
+      setCsCategory('전체');
+    }
+  }, [currentSem.year]);
   const [csKeyword, setCsKeyword] = useState('');
   const [csResults, setCsResults] = useState<any[]>([]);
   const [csLoading, setCsLoading] = useState(false);
@@ -872,7 +885,7 @@ export default function ScheduleScreen() {
             {/* Category filter */}
             <View style={styles.filterRow}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-                {CATEGORY_FILTERS.map(c => (
+                {categoryFilters.map(c => (
                   <TouchableOpacity key={c} style={[styles.filterChip, csCategory === c && styles.filterChipActive]} onPress={() => setCsCategory(c)}>
                     <Text style={[styles.filterChipText, csCategory === c && styles.filterChipTextActive]}>{c}</Text>
                   </TouchableOpacity>
