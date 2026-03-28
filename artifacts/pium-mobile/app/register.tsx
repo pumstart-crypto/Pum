@@ -316,34 +316,50 @@ export default function RegisterScreen() {
         {step === 'studentid' && (
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>학생 정보</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="이름" placeholderTextColor="#9CA3AF" />
-            <TextInput style={styles.input} value={studentId} onChangeText={setStudentId}
-              placeholder="학번 (예: 201234567)" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
-            <TouchableOpacity
-              style={[styles.input, styles.selectBtn]}
-              onPress={() => { setDeptSearch(''); setShowDeptPicker(true); }}
-            >
-              <Text style={[styles.selectBtnText, !major && { color: '#9CA3AF' }]}>
-                {major || (deptLoading ? '학과 목록 불러오는 중...' : '전공 선택')}
-              </Text>
-              <Feather name="chevron-down" size={16} color="#9CA3AF" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.imagePickerBtn, imageUri && styles.imagePickerBtnDone]}
-              onPress={pickImage}
-            >
-              <Feather name="camera" size={20} color={imageUri ? C.primary : '#6B7280'} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.imagePickerText, imageUri && { color: C.primary }]}>
-                  {imageUri ? '이미지 선택됨 ✓' : '학생증 사진 첨부'}
+            <Text style={styles.requiredNote}><Text style={styles.requiredStar}>*</Text> 표시 항목은 필수입니다</Text>
+            <View>
+              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 이름</Text>
+              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor="#9CA3AF" />
+            </View>
+            <View>
+              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 학번</Text>
+              <TextInput style={styles.input} value={studentId} onChangeText={setStudentId}
+                placeholder="201234567" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
+            </View>
+            <View>
+              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 전공</Text>
+              <TouchableOpacity
+                style={[styles.input, styles.selectBtn]}
+                onPress={() => { setDeptSearch(''); setShowDeptPicker(true); }}
+              >
+                <Text style={[styles.selectBtnText, !major && { color: '#9CA3AF' }]}>
+                  {major || (deptLoading ? '학과 목록 불러오는 중...' : '전공 선택')}
                 </Text>
-                {!imageUri && (
-                  <Text style={{ fontSize: 11, color: '#EF4444', fontFamily: 'Inter_400Regular', marginTop: 2 }}>
-                    * 가입에 필수입니다
+                <Feather name="chevron-down" size={16} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            <View>
+              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 학생증 사진</Text>
+              <TouchableOpacity
+                style={[styles.imagePickerBtn, imageUri && styles.imagePickerBtnDone]}
+                onPress={pickImage}
+              >
+                <Feather name="camera" size={20} color={imageUri ? C.primary : '#6B7280'} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.imagePickerText, imageUri && { color: C.primary }]}>
+                    {imageUri ? '이미지 선택됨 ✓' : '학생증 사진 첨부 (단과대학 자동 인식)'}
                   </Text>
-                )}
+                </View>
+              </TouchableOpacity>
+            </View>
+            {(!name || !studentId || !major || !imageUri) && (
+              <View style={styles.validationBox}>
+                <Feather name="alert-circle" size={14} color="#F59E0B" />
+                <Text style={styles.validationText}>
+                  {[!name && '이름', !studentId && '학번', !major && '전공', !imageUri && '학생증 사진'].filter(Boolean).join(', ')}을(를) 입력해주세요
+                </Text>
               </View>
-            </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.btn, (!name || !studentId || !major || !imageUri || loading) && styles.btnDisabled]}
               disabled={!name || !studentId || !major || !imageUri || loading}
@@ -511,6 +527,15 @@ const styles = StyleSheet.create({
   loadingCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
   loadingCardTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center', marginBottom: 10 },
   loadingCardSub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280', textAlign: 'center', lineHeight: 22 },
+  requiredNote: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 4 },
+  requiredStar: { color: '#EF4444', fontFamily: 'Inter_600SemiBold' },
+  fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#374151', marginBottom: 6, marginLeft: 2 },
+  validationBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#FFFBEB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: '#FCD34D',
+  },
+  validationText: { fontSize: 13, color: '#92400E', flex: 1, fontFamily: 'Inter_400Regular' },
   selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   selectBtnText: { fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

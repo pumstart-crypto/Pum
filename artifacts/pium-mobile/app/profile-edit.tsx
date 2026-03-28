@@ -121,92 +121,53 @@ export default function ProfileEditScreen() {
               </View>
             )}
 
-            {/* 인증된 소속 정보 (전공만) */}
-            {authMajor ? (
-              <View style={styles.section}>
-                <View style={styles.sectionTitleRow}>
-                  <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>인증된 소속 정보</Text>
-                  <View style={styles.verifiedBadge}>
-                    <Feather name="shield" size={10} color={C.primary} />
-                    <Text style={styles.verifiedBadgeText}>학생증 인증</Text>
-                  </View>
-                </View>
-                <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
-                  <View style={styles.fieldRow}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>전공</Text>
-                    <View style={styles.readonlyRow}>
-                      <Text style={[styles.readonlyValue, { color: colors.text }]}>{authMajor}</Text>
-                      <Feather name="lock" size={13} color={colors.textTertiary} />
-                    </View>
-                  </View>
-                </View>
-                <Text style={[styles.readonlyHint, { color: colors.textTertiary }]}>학생증 인증 정보는 수정할 수 없습니다</Text>
-              </View>
-            ) : null}
-
-            {/* 기본 정보 — 이름·학번·단과대학 잠금 */}
+            {/* 인증된 소속 정보 — 이름·학번·단과대·전공 (항상 잠금) */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>기본 정보</Text>
+              <View style={styles.sectionTitleRow}>
+                <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>인증된 소속 정보</Text>
+                <View style={styles.verifiedBadge}>
+                  <Feather name="shield" size={10} color={C.primary} />
+                  <Text style={styles.verifiedBadgeText}>학생증 인증</Text>
+                </View>
+              </View>
               <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
-                {/* 이름 — 항상 잠금 */}
+                {/* 이름 */}
                 <View style={styles.fieldRow}>
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>이름</Text>
                   <View style={styles.readonlyRow}>
-                    <Text style={[styles.readonlyValue, { color: colors.text }]}>{user?.name || profile.name || '—'}</Text>
+                    <Text style={[styles.readonlyValue, { color: colors.text }]}>{user?.name || '—'}</Text>
                     <Feather name="lock" size={13} color={colors.textTertiary} />
                   </View>
                 </View>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                {/* 학번 — 항상 잠금 */}
+                {/* 학번 */}
                 <View style={styles.fieldRow}>
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>학번</Text>
                   <View style={styles.readonlyRow}>
-                    <Text style={[styles.readonlyValue, { color: colors.text }]}>{user?.studentId || profile.studentId || '—'}</Text>
+                    <Text style={[styles.readonlyValue, { color: colors.text }]}>{user?.studentId || '—'}</Text>
                     <Feather name="lock" size={13} color={colors.textTertiary} />
                   </View>
                 </View>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                {/* 단과대학 — 인증 정보 잠금, 없으면 직접 입력 */}
-                {authCollege ? (
-                  <View style={styles.fieldRow}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>단과대학</Text>
-                    <View style={styles.readonlyRow}>
-                      <Text style={[styles.readonlyValue, { color: colors.text }]}>{authCollege}</Text>
-                      <Feather name="lock" size={13} color={colors.textTertiary} />
-                    </View>
+                {/* 단과대학 */}
+                <View style={styles.fieldRow}>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>단과대학</Text>
+                  <View style={styles.readonlyRow}>
+                    <Text style={[styles.readonlyValue, { color: colors.text }]}>{authCollege || '—'}</Text>
+                    <Feather name="lock" size={13} color={colors.textTertiary} />
                   </View>
-                ) : (
-                  <View style={styles.fieldRow}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>단과대학</Text>
-                    <TextInput
-                      style={[styles.fieldInput, { color: colors.text }]}
-                      value={profile.department}
-                      onChangeText={v => update('department', v)}
-                      placeholder="단과대학 입력"
-                      placeholderTextColor={colors.textTertiary}
-                    />
+                </View>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                {/* 전공 */}
+                <View style={styles.fieldRow}>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>전공</Text>
+                  <View style={styles.readonlyRow}>
+                    <Text style={[styles.readonlyValue, { color: colors.text }]}>{authMajor || '—'}</Text>
+                    <Feather name="lock" size={13} color={colors.textTertiary} />
                   </View>
-                )}
-                {/* 전공 — 미인증 시 직접 입력 */}
-                {!authMajor && (
-                  <>
-                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                    <View style={styles.fieldRow}>
-                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>전공</Text>
-                      <TextInput
-                        style={[styles.fieldInput, { color: colors.text }]}
-                        value={profile.major}
-                        onChangeText={v => update('major', v)}
-                        placeholder="전공 입력"
-                        placeholderTextColor={colors.textTertiary}
-                      />
-                    </View>
-                  </>
-                )}
+                </View>
               </View>
-              {(user?.name || user?.studentId || authCollege) && (
-                <Text style={[styles.readonlyHint, { color: colors.textTertiary }]}>이름·학번·단과대학은 계정 정보로 자동 설정됩니다</Text>
-              )}
+              <Text style={[styles.readonlyHint, { color: colors.textTertiary }]}>학생증 인증 정보는 수정할 수 없습니다</Text>
             </View>
 
             <View style={styles.section}>

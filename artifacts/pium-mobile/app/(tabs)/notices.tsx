@@ -218,16 +218,20 @@ function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React
   );
 }
 
+type DeptTab = 'notice' | 'jobs';
+
 /* ── Dept Notices ── */
 function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.RefObject<ScrollView | null> }) {
   const [deptNotices, setDeptNotices] = useState<DeptNotice[]>([]);
   const [loading, setLoading] = useState(false);
+  const [noJobsBoard, setNoJobsBoard] = useState(false);
   const [userDept, setUserDept] = useState('');
+  const [deptTab, setDeptTab] = useState<DeptTab>('notice');
   const [page, setPage] = useState(1);
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   useEffect(() => {
-    // Prefer auth user's major (from registration), fallback to profile.department
     if (user?.major) {
       setUserDept(user.major);
     } else {
@@ -238,14 +242,18 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
   useEffect(() => {
     if (!userDept) return;
     setLoading(true);
-    fetch(`${API}/dept-notices?dept=${encodeURIComponent(userDept)}`)
+    setNoJobsBoard(false);
+    fetch(`${API}/dept-notices?dept=${encodeURIComponent(userDept)}&type=${deptTab}`)
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => setDeptNotices(Array.isArray(data) ? data : (data.notices ?? [])))
+      .then(data => {
+        if (data.noJobsBoard) { setNoJobsBoard(true); setDeptNotices([]); }
+        else setDeptNotices(Array.isArray(data) ? data : (data.notices ?? []));
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [userDept]);
+  }, [userDept, deptTab]);
 
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, deptTab]);
 
   if (!userDept) return (
     <View style={styles.emptyBox}>
@@ -254,8 +262,6 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
     </View>
   );
 
-  if (loading) return <ActivityIndicator color={C.primary} style={{ marginTop: 40 }} />;
-
   const kw = search.trim().toLowerCase();
   const pool = deptNotices
     .filter(n => !kw || n.title.toLowerCase().includes(kw) || (n.department || '').toLowerCase().includes(kw))
@@ -263,27 +269,74 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
   const totalPages = Math.min(Math.ceil(pool.length / PAGE_SIZE), MAX_PAGES);
   const paged = kw ? pool : pool.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  if (pool.length === 0) return (
-    <View style={styles.emptyBox}>
-      <Feather name="bell-off" size={36} color="#D1D5DB" />
-      <Text style={styles.emptyText}>{kw ? '검색 결과가 없습니다' : '공지가 없습니다'}</Text>
-    </View>
-  );
-
   return (
     <>
-      {paged.map((n, i) => <NoticeCard key={i} item={n} type="dept" />)}
-      {!kw && (
-        <Pagination
-          current={page}
-          total={totalPages}
-          onChange={setPage}
-          scrollRef={scrollRef}
-        />
+      {/* 공지사항 / 취업공지 서브 토글 */}
+      <View style={[deptStyles.subSegment, { borderColor: colors.border }]}>
+        {(['notice', 'jobs'] as DeptTab[]).map(t => (
+          <TouchableOpacity
+            key={t}
+            style={[deptStyles.subSegItem, deptTab === t && deptStyles.subSegItemActive]}
+            onPress={() => setDeptTab(t)}
+            activeOpacity={0.8}
+          >
+            <Text style={[deptStyles.subSegText, deptTab === t && deptStyles.subSegTextActive]}>
+              {t === 'notice' ? '공지사항' : '취업공지'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {loading ? (
+        <ActivityIndicator color={C.primary} style={{ marginTop: 32 }} />
+      ) : noJobsBoard ? (
+        <View style={styles.emptyBox}>
+          <Feather name="briefcase" size={36} color="#D1D5DB" />
+          <Text style={styles.emptyText}>이 학과는 취업공지 게시판이{'\n'}없거나 지원되지 않습니다</Text>
+        </View>
+      ) : pool.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Feather name="bell-off" size={36} color="#D1D5DB" />
+          <Text style={styles.emptyText}>{kw ? '검색 결과가 없습니다' : '공지가 없습니다'}</Text>
+        </View>
+      ) : (
+        <>
+          {paged.map((n, i) => <NoticeCard key={i} item={n} type="dept" />)}
+          {!kw && (
+            <Pagination
+              current={page}
+              total={totalPages}
+              onChange={setPage}
+              scrollRef={scrollRef}
+            />
+          )}
+        </>
       )}
     </>
   );
 }
+
+const deptStyles = StyleSheet.create({
+  subSegment: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    padding: 3,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  subSegItem: { flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: 'center' },
+  subSegItemActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  subSegText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+  subSegTextActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
+});
 
 /* ══════════════════════════════
    Main Screen
