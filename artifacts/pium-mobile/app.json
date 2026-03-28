@@ -14,7 +14,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["pnusc", "smartcampus", "pnu"]
+      }
     },
     "android": {},
     "web": {

@@ -16,14 +16,21 @@ const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
 async function openPlatoLink() {
   const webUrl = 'https://plato.pusan.ac.kr';
+  // 부산대학교 스마트캠퍼스 앱 (App Store id454665714)
   try {
     if (Platform.OS === 'android') {
-      const intentUrl = 'intent://plato.pusan.ac.kr#Intent;scheme=https;package=kr.ac.pusan.plato;end';
+      const intentUrl = 'intent://plato.pusan.ac.kr#Intent;scheme=https;package=kr.ac.pusan.smartcampus;end';
       const can = await Linking.canOpenURL(intentUrl);
       if (can) { await Linking.openURL(intentUrl); return; }
     } else if (Platform.OS === 'ios') {
-      const can = await Linking.canOpenURL('plato://');
-      if (can) { await Linking.openURL('plato://'); return; }
+      // 스마트캠퍼스 앱 URL 스킴 시도
+      const schemes = ['pnusc://', 'smartcampus://', 'pnu://'];
+      for (const scheme of schemes) {
+        try {
+          const can = await Linking.canOpenURL(scheme);
+          if (can) { await Linking.openURL(scheme); return; }
+        } catch {}
+      }
     }
   } catch {}
   await Linking.openURL(webUrl);
