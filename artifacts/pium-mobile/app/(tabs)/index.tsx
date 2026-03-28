@@ -14,6 +14,21 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
+async function openPlatoLink() {
+  const webUrl = 'https://plato.pusan.ac.kr';
+  try {
+    if (Platform.OS === 'android') {
+      const intentUrl = 'intent://plato.pusan.ac.kr#Intent;scheme=https;package=kr.ac.pusan.plato;end';
+      const can = await Linking.canOpenURL(intentUrl);
+      if (can) { await Linking.openURL(intentUrl); return; }
+    } else if (Platform.OS === 'ios') {
+      const can = await Linking.canOpenURL('plato://');
+      if (can) { await Linking.openURL('plato://'); return; }
+    }
+  } catch {}
+  await Linking.openURL(webUrl);
+}
+
 const QUICK_LINKS = [
   { label: '홈페이지', icon: 'globe', set: 'feather', href: 'https://www.pusan.ac.kr/kor/Main.do' },
   { label: '학생지원', icon: 'help-circle', set: 'feather', href: 'https://onestop.pusan.ac.kr/login' },
@@ -166,6 +181,7 @@ export default function HomeScreen() {
               key={link.label}
               style={styles.quickItem}
               onPress={() => {
+                if (link.label === 'PLATO') { openPlatoLink(); return; }
                 if ('href' in link && link.href) Linking.openURL(link.href);
                 else if ('screen' in link && link.screen) router.push(link.screen as any);
               }}
