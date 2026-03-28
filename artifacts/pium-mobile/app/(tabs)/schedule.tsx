@@ -23,6 +23,26 @@ type Tab = 'timetable' | 'grades';
 
 interface Semester { year: number; sem: string; }
 
+const SEM_ORDER: Record<string, number> = {
+  '1': 0, '여름계절': 1, '여름도약': 2, '2': 3, '겨울계절': 4, '겨울도약': 5,
+};
+const SEM_LABELS: Record<string, string> = {
+  '1': '1학기', '여름계절': '여름계절수업', '여름도약': '여름도약수업',
+  '2': '2학기', '겨울계절': '겨울계절수업', '겨울도약': '겨울도약수업',
+};
+const SEM_SHORT: Record<string, string> = {
+  '1': '1학기', '여름계절': '여름계절', '여름도약': '여름도약',
+  '2': '2학기', '겨울계절': '겨울계절', '겨울도약': '겨울도약',
+};
+const SEM_CODES = ['1', '여름계절', '여름도약', '2', '겨울계절', '겨울도약'] as const;
+function formatSem(s: Semester) { return `${s.year}년 ${SEM_LABELS[s.sem] ?? s.sem}`; }
+function sortSemesters(list: Semester[]): Semester[] {
+  return [...list].sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year;
+    return (SEM_ORDER[a.sem] ?? 99) - (SEM_ORDER[b.sem] ?? 99);
+  });
+}
+
 const PALETTE = ['#14B8A6','#FB923C','#BE185D','#7C3AED','#22D3EE','#DC2626','#FBBF24','#A3E635'];
 function buildColorMap(subjects: string[]): Record<string, string> {
   const unique = Array.from(new Set(subjects));
@@ -134,11 +154,32 @@ export default function ScheduleScreen() {
   const [selectedSemIdx, setSelectedSemIdx] = useState(0);
   const [showSemModal, setShowSemModal] = useState(false);
   const [newSemYear, setNewSemYear] = useState(String(initSem.year));
-  const [newSemSem, setNewSemSem] = useState<'1' | '2'>('1');
+  const [newSemSem, setNewSemSem] = useState<string>('1');
   const [showAddSem, setShowAddSem] = useState(false);
 
   const currentSem = semesters[selectedSemIdx] ?? initSem;
-  const semLabel = `${currentSem.year}년 ${currentSem.sem}학기`;
+
+  // 스케줄 데이터에서 학기 목록 자동 도출
+  useEffect(() => {
+    const all = (schedules as Schedule[]);
+    if (all.length === 0) return;
+    const map = new Map<string, Semester>();
+    for (const s of all) {
+      if (s.year && s.semester) {
+        const key = `${s.year}-${s.semester}`;
+        if (!map.has(key)) map.set(key, { year: s.year, sem: s.semester });
+      }
+    }
+    const initKey = `${initSem.year}-${initSem.sem}`;
+    if (!map.has(initKey)) map.set(initKey, initSem);
+    const sorted = sortSemesters(Array.from(map.values()));
+    setSemesters(prev => {
+      const prevCurrent = prev[selectedSemIdx] ?? initSem;
+      const newIdx = sorted.findIndex(s => s.year === prevCurrent.year && s.sem === prevCurrent.sem);
+      setSelectedSemIdx(Math.max(0, newIdx));
+      return sorted;
+    });
+  }, [schedules]);
 
   // Modal state
   const [showAddMethod, setShowAddMethod] = useState(false);
@@ -332,14 +373,16 @@ export default function ScheduleScreen() {
     const exists = semesters.some(s => s.year === y && s.sem === newSemSem);
     if (exists) { Alert.alert('이미 존재', '이미 추가된 학기입니다'); return; }
     const newS: Semester = { year: y, sem: newSemSem };
-    setSemesters(prev => [...prev, newS]);
-    setSelectedSemIdx(semesters.length);
+    const sorted = sortSemesters([...semesters, newS]);
+    setSemesters(sorted);
+    const newIdx = sorted.findIndex(s => s.year === newS.year && s.sem === newS.sem);
+    setSelectedSemIdx(Math.max(0, newIdx));
     setShowAddSem(false);
   };
 
   const deleteSemester = (idx: number) => {
     const target = semesters[idx];
-    const label = `${target.year}년 ${target.sem}학기`;
+    const label = formatSem(target);
     const semSchedules = (schedules as Schedule[]).filter(
       s => s.year === target.year && s.semester === target.sem
     );
@@ -479,7 +522,7 @@ export default function ScheduleScreen() {
           <View style={[styles.ttHeader, { backgroundColor: colors.background }]}>
             <View>
               <Text style={[styles.envLabel, { color: colors.textSecondary }]}>시간 관리</Text>
-              <Text style={[styles.ttTitle, { color: colors.text }]}>{currentSem.year}년 {currentSem.sem}학기 <Text style={{ color: C.primary }}>시간표</Text></Text>
+              <Text style={[styles.ttTitle, { color: colors.text }]}>{formatSem(currentSem)} <Text style={{ color: C.primary }}>시간표</Text></Text>
             </View>
             <View style={styles.ttHeaderRight}>
               <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.inputBg }]} onPress={() => setShowSemModal(true)}>
@@ -520,9 +563,12 @@ export default function ScheduleScreen() {
                 })}
               </View>
               {(() => {
-                const colorMap = buildColorMap((schedules as Schedule[]).map(s => s.subjectName));
+                const curScheds = (schedules as Schedule[]).filter(
+                  s => s.year === currentSem.year && s.semester === currentSem.sem
+                );
+                const colorMap = buildColorMap(curScheds.map(s => s.subjectName));
                 return DAYS.map((_, dayIdx) => {
-                const daySch = (schedules as Schedule[]).filter(s => s.dayOfWeek === dayIdx);
+                const daySch = curScheds.filter(s => s.dayOfWeek === dayIdx);
                 return (
                   <View key={dayIdx} style={[styles.dayCol, { height: totalH }]}>
                     {Array.from({ length: totalSlots }, (_, i) => (
@@ -546,7 +592,7 @@ export default function ScheduleScreen() {
               })
               })()}
             </View>
-            {(schedules as Schedule[]).length === 0 && !isLoading && (
+            {(schedules as Schedule[]).filter(s => s.year === currentSem.year && s.semester === currentSem.sem).length === 0 && !isLoading && (
               <View style={styles.empty}>
                 <Feather name="calendar" size={40} color="#D1D5DB" />
                 <Text style={styles.emptyText}>등록된 수업이 없어요</Text>
@@ -632,7 +678,7 @@ export default function ScheduleScreen() {
                       const [year, sem] = key.split('-');
                       return (
                         <View key={key} style={styles.semesterGroup}>
-                          <Text style={styles.semesterTitle}>{year}년 {sem}학기</Text>
+                          <Text style={styles.semesterTitle}>{year}년 {SEM_LABELS[sem] ?? sem}</Text>
                           {gs.map(g => {
                             const point = GRADE_POINTS[g.grade] ?? 0;
                             const gc = point >= 4 ? '#059669' : point >= 3 ? '#2563EB' : point >= 2 ? '#D97706' : '#DC2626';
@@ -666,14 +712,14 @@ export default function ScheduleScreen() {
         </>
       )}
 
-      {/* ── 학기 관리 Modal ── */}
+      {/* ── 시간표 관리 Modal ── */}
       <Modal visible={showSemModal} transparent animationType="slide" onRequestClose={() => setShowSemModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSemModal(false)}>
           <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetTitleRow}>
-              <Text style={styles.sheetTitle}>학기 관리</Text>
+              <Text style={styles.sheetTitle}>시간표 관리</Text>
               <TouchableOpacity style={styles.closeCircle} onPress={() => setShowSemModal(false)}>
                 <Feather name="x" size={16} color="#6B7280" />
               </TouchableOpacity>
@@ -687,7 +733,7 @@ export default function ScheduleScreen() {
                     activeOpacity={0.8}
                   >
                     <Ionicons name="calendar-outline" size={18} color={selectedSemIdx === i ? '#fff' : C.primary} />
-                    <Text style={[styles.semRowText, selectedSemIdx === i && { color: '#fff' }]}>{s.year}년 {s.sem}학기</Text>
+                    <Text style={[styles.semRowText, selectedSemIdx === i && { color: '#fff' }]}>{formatSem(s)}</Text>
                   </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     {selectedSemIdx === i && <Feather name="check" size={16} color="#fff" />}
@@ -718,10 +764,10 @@ export default function ScheduleScreen() {
                   placeholderTextColor="#9CA3AF"
                   keyboardType="numeric"
                 />
-                <View style={styles.semSemRow}>
-                  {(['1', '2'] as const).map(s => (
-                    <TouchableOpacity key={s} style={[styles.semSemChip, newSemSem === s && styles.semSemChipActive]} onPress={() => setNewSemSem(s)}>
-                      <Text style={[styles.semSemText, newSemSem === s && styles.semSemTextActive]}>{s}학기</Text>
+                <View style={[styles.semSemRow, { flexWrap: 'wrap' }]}>
+                  {SEM_CODES.map(s => (
+                    <TouchableOpacity key={s} style={[styles.semSemChip, newSemSem === s && styles.semSemChipActive, { paddingVertical: 9 }]} onPress={() => setNewSemSem(s)}>
+                      <Text style={[styles.semSemText, newSemSem === s && styles.semSemTextActive, { fontSize: 12 }]}>{SEM_SHORT[s]}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
