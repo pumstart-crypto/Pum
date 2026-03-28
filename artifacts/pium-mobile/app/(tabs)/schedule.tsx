@@ -44,7 +44,7 @@ function sortSemesters(list: Semester[]): Semester[] {
   });
 }
 
-const PALETTE = ['#14B8A6','#FB923C','#BE185D','#7C3AED','#22D3EE','#DC2626','#FBBF24','#A3E635'];
+const PALETTE = ['#C4EBDC','#FFD6C4','#FFCFCF','#E6D9F3','#E8F5D8','#D0EBFA','#FDD6DC','#FEE6BF'];
 function buildColorMap(subjects: string[]): Record<string, string> {
   const unique = Array.from(new Set(subjects));
   const map: Record<string, string> = {};
@@ -256,6 +256,7 @@ export default function ScheduleScreen() {
     }
   }, [currentSem.year]);
   const [csKeyword, setCsKeyword] = useState('');
+  const [csProfessor, setCsProfessor] = useState('');
   const [csResults, setCsResults] = useState<any[]>([]);
   const [csLoading, setCsLoading] = useState(false);
   const [csSelected, setCsSelected] = useState<any[]>([]);
@@ -363,7 +364,7 @@ export default function ScheduleScreen() {
   }, []);
 
   const searchCourses = async () => {
-    if (!csDept && !csKeyword && csCategory === '전체' && csYear === '전체') return;
+    if (!csDept && !csKeyword && !csProfessor && csCategory === '전체' && csYear === '전체') return;
     setCsLoading(true);
     setCsSelected([]);
     try {
@@ -374,6 +375,7 @@ export default function ScheduleScreen() {
       if (csYear !== '전체') params.set('gradeYear', csYear.replace('학년', ''));
       if (csCategory !== '전체') params.set('category', csCategory);
       if (csKeyword) params.set('search', csKeyword);
+      if (csProfessor) params.set('professor', csProfessor);
       const r = await fetch(`${API}/courses?${params}`);
       if (r.ok) setCsResults(await r.json());
       else setCsResults([]);
@@ -659,8 +661,8 @@ export default function ScheduleScreen() {
                         <TouchableOpacity key={s.id}
                           style={[styles.block, { top: y, height: Math.max(h, SLOT_H), backgroundColor: color }]}
                           onLongPress={() => deleteSchedule(s.id)} activeOpacity={0.8}>
-                          <Text style={[styles.blockName, { color: '#fff' }]} numberOfLines={3}>{s.subjectName}</Text>
-                          {h > SLOT_H && s.location ? <Text style={[styles.blockLoc, { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>{s.location}</Text> : null}
+                          <Text style={[styles.blockName, { color: '#1F2937' }]} numberOfLines={3}>{s.subjectName}</Text>
+                          {h > SLOT_H && s.location ? <Text style={[styles.blockLoc, { color: '#4B5563' }]} numberOfLines={1}>{s.location}</Text> : null}
                         </TouchableOpacity>
                       );
                     })}
@@ -1026,6 +1028,25 @@ export default function ScheduleScreen() {
               />
               {csKeyword ? (
                 <TouchableOpacity onPress={() => setCsKeyword('')}>
+                  <Feather name="x-circle" size={14} color="#9CA3AF" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* Professor search */}
+            <View style={[styles.csSearchRow, { marginTop: 6 }]}>
+              <Feather name="user" size={14} color="#9CA3AF" />
+              <TextInput
+                style={styles.csSearchInput}
+                value={csProfessor}
+                onChangeText={setCsProfessor}
+                placeholder="교수명으로 검색"
+                placeholderTextColor="#9CA3AF"
+                onSubmitEditing={searchCourses}
+                returnKeyType="search"
+              />
+              {csProfessor ? (
+                <TouchableOpacity onPress={() => setCsProfessor('')}>
                   <Feather name="x-circle" size={14} color="#9CA3AF" />
                 </TouchableOpacity>
               ) : null}

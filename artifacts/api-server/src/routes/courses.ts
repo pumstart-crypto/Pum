@@ -34,6 +34,7 @@ router.get("/courses", async (req, res) => {
     const gradeYear = req.query.gradeYear as string | undefined;
     const category = req.query.category as string | undefined;
     const search = req.query.search as string | undefined;
+    const professor = req.query.professor as string | undefined;
 
     const conditions = [];
 
@@ -55,9 +56,10 @@ router.get("/courses", async (req, res) => {
       conditions.push(eq(coursesTable.category, category));
     }
     if (search && search.length >= 1) {
-      conditions.push(
-        sql`(${ilike(coursesTable.subjectName, `%${search}%`)} OR ${ilike(coursesTable.professor, `%${search}%`)})`
-      );
+      conditions.push(ilike(coursesTable.subjectName, `%${search}%`));
+    }
+    if (professor && professor.length >= 1) {
+      conditions.push(ilike(coursesTable.professor, `%${professor}%`));
     }
 
     const query = conditions.length > 0
