@@ -549,8 +549,8 @@ export default function ScheduleScreen() {
     finally { setGradeSyncing(false); }
   }, [gradeSyncing, schedules, grades, fetchGrades]);
 
-  const [collapsedSems, setCollapsedSems] = useState<Set<string>>(new Set());
-  const toggleSemCollapse = (key: string) => setCollapsedSems(prev => {
+  const [openSems, setOpenSems] = useState<Set<string>>(new Set());
+  const toggleSemCollapse = (key: string) => setOpenSems(prev => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
@@ -726,7 +726,7 @@ export default function ScheduleScreen() {
                   <View style={styles.statCard}>
                     <Ionicons name="school-outline" size={28} color={C.primary} style={{ marginBottom: 4 }} />
                     <Text style={styles.statValue}>{totalCreditCount}</Text>
-                    <Text style={styles.statLabel}>총 이수학점</Text>
+                    <Text style={styles.statLabel}>총 이수학점 / {totalRequired}</Text>
                   </View>
                 </View>
                 <View style={styles.gradReqCard}>
@@ -775,7 +775,7 @@ export default function ScheduleScreen() {
                     })
                     .map(([key, gs]) => {
                       const [year, sem] = key.split('-');
-                      const collapsed = collapsedSems.has(key);
+                      const collapsed = !openSems.has(key);
                       const semEl = gs.filter(g => g.grade !== 'P' && g.grade !== 'NP');
                       const semTotalCr = semEl.reduce((s, g) => s + g.credits, 0);
                       const semGpa = semTotalCr > 0
