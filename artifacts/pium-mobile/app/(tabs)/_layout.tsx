@@ -9,12 +9,17 @@ import C from '@/constants/colors';
 const isIOS = Platform.OS === 'ios';
 const isWeb = Platform.OS === 'web';
 
+const ICON_SIZE = 24;
+const LABEL_SIZE = 12;
+const ACTIVE_COLOR = C.primary;
+const INACTIVE_COLOR = '#9CA3AF';
+
 const TAB_ITEMS = [
-  { name: 'index',    label: '홈',      iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',           sfOutline: 'house' },
-  { name: 'notices',  label: '공지',    iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',            sfOutline: 'bell' },
-  { name: 'schedule', label: '시간표',  iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
-  { name: 'board',    label: '커뮤니티', iconFill: 'people',       iconOutline: 'people-outline',        sfFill: 'person.2.fill',        sfOutline: 'person.2' },
-  { name: 'settings', label: '설정',    iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',       sfOutline: 'gearshape' },
+  { name: 'index',    label: '홈',       iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',           sfOutline: 'house' },
+  { name: 'notices',  label: '공지',     iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',            sfOutline: 'bell' },
+  { name: 'schedule', label: '시간표',   iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
+  { name: 'board',    label: '커뮤니티', iconFill: 'people',        iconOutline: 'people-outline',        sfFill: 'person.2.fill',        sfOutline: 'person.2' },
+  { name: 'settings', label: '설정',     iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',       sfOutline: 'gearshape' },
 ] as const;
 
 function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
@@ -25,27 +30,26 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
   iconFill: string;
   iconOutline: string;
 }) {
-  if (focused) {
-    return (
-      <View style={styles.activePill}>
-        {isIOS ? (
-          <SymbolView name={sfFill as any} tintColor="#fff" size={20} />
-        ) : (
-          <Ionicons name={iconFill as any} size={20} color="#fff" />
-        )}
-        <Text style={styles.activeLabel} numberOfLines={1}>{label}</Text>
-      </View>
-    );
-  }
+  const color = focused ? ACTIVE_COLOR : INACTIVE_COLOR;
 
   return (
-    <View style={styles.inactiveItem}>
+    <View style={styles.tabItem}>
       {isIOS ? (
-        <SymbolView name={sfOutline as any} tintColor="#9CA3AF" size={22} />
+        <SymbolView
+          name={(focused ? sfFill : sfOutline) as any}
+          tintColor={color}
+          size={ICON_SIZE}
+        />
       ) : (
-        <Ionicons name={iconOutline as any} size={22} color="#9CA3AF" />
+        <Ionicons
+          name={(focused ? iconFill : iconOutline) as any}
+          size={ICON_SIZE}
+          color={color}
+        />
       )}
-      <Text style={styles.inactiveLabel} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.label, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -59,34 +63,32 @@ export default function TabLayout() {
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
-          borderTopWidth: 0,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: '#E5E7EB',
           elevation: 0,
-          height: isWeb ? 88 : 80,
+          height: isWeb ? 88 : 84,
           paddingTop: 0,
           paddingBottom: 0,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.07,
-          shadowRadius: 20,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
         },
         tabBarItemStyle: {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          paddingVertical: 0,
-          height: '100%',
+          minHeight: 44,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={90}
+              intensity={85}
               tint="light"
-              style={[StyleSheet.absoluteFill, styles.tabBarBg]}
+              style={StyleSheet.absoluteFill}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, styles.tabBarBg, { backgroundColor: '#fff' }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} />
           ),
       }}
     >
@@ -114,36 +116,15 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBarBg: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
-  },
-
-  activePill: {
+  tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
-    backgroundColor: C.primary,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    minWidth: 56,
+    gap: 3,
+    paddingTop: 7,
   },
-  activeLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-  },
-
-  inactiveItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  inactiveLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#9CA3AF',
+  label: {
+    fontSize: LABEL_SIZE,
+    fontFamily: 'Inter_500Medium',
+    textAlign: 'center',
   },
 });
