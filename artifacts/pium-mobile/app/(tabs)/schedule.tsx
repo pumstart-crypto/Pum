@@ -23,11 +23,12 @@ type Tab = 'timetable' | 'grades';
 
 interface Semester { year: number; sem: string; }
 
-const PALETTE = ['#14B8A6','#FB923C','#BE185D','#7C3AED','#A3E635','#22D3EE','#DC2626','#FBBF24'];
-function getColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return PALETTE[Math.abs(h) % PALETTE.length];
+const PALETTE = ['#14B8A6','#FB923C','#BE185D','#7C3AED','#22D3EE','#DC2626','#FBBF24','#A3E635'];
+function buildColorMap(subjects: string[]): Record<string, string> {
+  const unique = Array.from(new Set(subjects));
+  const map: Record<string, string> = {};
+  unique.forEach((name, i) => { map[name] = PALETTE[i % PALETTE.length]; });
+  return map;
 }
 function timeToMinutes(t: string) {
   const [h, m] = t.split(':').map(Number);
@@ -518,7 +519,9 @@ export default function ScheduleScreen() {
                   );
                 })}
               </View>
-              {DAYS.map((_, dayIdx) => {
+              {(() => {
+                const colorMap = buildColorMap((schedules as Schedule[]).map(s => s.subjectName));
+                return DAYS.map((_, dayIdx) => {
                 const daySch = (schedules as Schedule[]).filter(s => s.dayOfWeek === dayIdx);
                 return (
                   <View key={dayIdx} style={[styles.dayCol, { height: totalH }]}>
@@ -528,7 +531,7 @@ export default function ScheduleScreen() {
                     {daySch.map(s => {
                       const y = minutesToY(timeToMinutes(s.startTime));
                       const h = ((timeToMinutes(s.endTime) - timeToMinutes(s.startTime)) / 30) * SLOT_H;
-                      const color = getColor(s.subjectName);
+                      const color = colorMap[s.subjectName] ?? PALETTE[0];
                       return (
                         <TouchableOpacity key={s.id}
                           style={[styles.block, { top: y, height: Math.max(h, SLOT_H), backgroundColor: color }]}
@@ -540,7 +543,8 @@ export default function ScheduleScreen() {
                     })}
                   </View>
                 );
-              })}
+              })
+              })()}
             </View>
             {(schedules as Schedule[]).length === 0 && !isLoading && (
               <View style={styles.empty}>
