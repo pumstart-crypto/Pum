@@ -1034,7 +1034,7 @@ export default function ScheduleScreen() {
             </View>
 
             {/* Professor search */}
-            <View style={[styles.csSearchRow, { marginTop: 6 }]}>
+            <View style={[styles.csSearchRow, { marginTop: 2 }]}>
               <Feather name="user" size={14} color="#9CA3AF" />
               <TextInput
                 style={styles.csSearchInput}
