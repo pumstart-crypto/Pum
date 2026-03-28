@@ -390,7 +390,7 @@ export default function NoticesScreen() {
         <TouchableOpacity
           onPress={onRefresh}
           disabled={refreshing}
-          style={[styles.refreshBtn, { backgroundColor: colors.card, position: 'absolute', top: 8, right: 16, zIndex: 10 }]}
+          style={[styles.refreshBtn, { backgroundColor: colors.inputBg, position: 'absolute', top: 8, right: 16, zIndex: 10 }]}
           activeOpacity={0.7}
         >
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
@@ -479,9 +479,9 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
   pageTitleAccent: { color: C.primary },
   refreshBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
   },
