@@ -1166,7 +1166,7 @@ export default function ScheduleScreen() {
               {deptsLoading ? (
                 <ActivityIndicator color={C.primary} style={{ marginTop: 20 }} />
               ) : (
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {(csDeptSearch ? deptList.filter(d => d.includes(csDeptSearch)) : deptList).map(d => (
                     <TouchableOpacity key={d} style={[styles.deptRow, csDept === d && styles.deptRowActive]}
                       onPress={() => { setCsDept(d); setCsDeptSearch(''); setShowDeptPicker(false); }}>
