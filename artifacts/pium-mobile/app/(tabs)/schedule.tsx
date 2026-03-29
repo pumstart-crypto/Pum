@@ -1231,8 +1231,11 @@ export default function ScheduleScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dLabel}>학점</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {[1, 2, 3, 4].map(n => (
+                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    {(dCredit !== null && ![1,2,3,4].includes(dCredit)
+                      ? [dCredit, 1, 2, 3, 4]
+                      : [1, 2, 3, 4]
+                    ).map(n => (
                       <TouchableOpacity key={n} style={[styles.creditChip, dCredit === n && styles.creditChipActive]} onPress={() => setDCredit(n)}>
                         <Text style={[styles.creditChipText, dCredit === n && styles.creditChipTextActive]}>{n}</Text>
                       </TouchableOpacity>

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,7 +14,7 @@ export const coursesTable = pgTable("courses", {
   gradeYear: integer("grade_year"),
   category: text("category"),
   offeringDept: text("offering_dept"),
-  credits: integer("credits"),
+  credits: real("credits"),
   isOnline: boolean("is_online").default(false),
   isForeign: boolean("is_foreign").default(false),
   enrollmentLimit: integer("enrollment_limit"),
