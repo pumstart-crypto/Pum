@@ -968,7 +968,18 @@ export default function ScheduleScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>수업 추가</Text>
-            <TouchableOpacity style={styles.methodRow} onPress={() => { setShowAddMethod(false); setShowCourseSearch(true); }}>
+            <TouchableOpacity style={styles.methodRow} onPress={() => {
+                setShowAddMethod(false);
+                setCsKeyword('');
+                setCsProfessor('');
+                setCsDept('');
+                setCsDeptSearch('');
+                setCsYear('전체');
+                setCsCategory('전체');
+                setCsResults([]);
+                setCsSelected([]);
+                setShowCourseSearch(true);
+              }}>
               <View style={styles.methodIcon}><Ionicons name="book-outline" size={22} color={C.primary} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.methodTitle}>수강편람에서 추가</Text>
