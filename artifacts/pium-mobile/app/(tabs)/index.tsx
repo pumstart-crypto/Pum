@@ -297,63 +297,60 @@ export default function HomeScreen() {
 
       {/* Add Todo Modal */}
       <Modal visible={showAddTodo} transparent animationType="slide" onRequestClose={() => setShowAddTodo(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowAddTodo(false)} />
-            <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}
-              onStartShouldSetResponder={() => true}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>할 일 추가</Text>
-              <TextInput
-                style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
-                value={newTitle}
-                onChangeText={setNewTitle}
-                placeholder="할 일을 입력하세요"
-                placeholderTextColor={colors.textTertiary}
-                autoFocus
-              />
-              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>카테고리</Text>
-              <View style={styles.catRow}>
-                {TODO_CATEGORIES.map(cat => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
-                    onPress={() => setNewCategory(cat)}
-                  >
-                    <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Pressable
-                style={[styles.dueDateBtn, { backgroundColor: colors.inputBg }, newDueDate ? { borderColor: C.primary, borderWidth: 1.5 } : {}]}
-                onPress={() => { setDatePickerMode('date'); setShowDatePicker(true); }}
-              >
-                <Feather name="calendar" size={16} color={newDueDate ? C.primary : colors.textTertiary} />
-                <Text style={[styles.dueDateText, { color: newDueDate ? colors.text : colors.textTertiary }]}>
-                  {formatDueDateDisplay(newDueDate) ?? '마감일 선택 (선택)'}
-                </Text>
-                {newDueDate && (
-                  <Pressable onPress={() => setNewDueDate(null)} hitSlop={8}>
-                    <Feather name="x" size={15} color={colors.textSecondary} />
-                  </Pressable>
-                )}
-              </Pressable>
-              <TouchableOpacity
-                style={[styles.btn, !newTitle.trim() && styles.btnDisabled]}
-                onPress={addTodo} disabled={!newTitle.trim() || submitting}
-              >
-                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>추가하기</Text>}
-              </TouchableOpacity>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavOverlay}>
+          <Pressable style={{ flex: 1 }} onPress={() => setShowAddTodo(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>할 일 추가</Text>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={newTitle}
+              onChangeText={setNewTitle}
+              placeholder="할 일을 입력하세요"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+            />
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>카테고리</Text>
+            <View style={styles.catRow}>
+              {TODO_CATEGORIES.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
+                  onPress={() => setNewCategory(cat)}
+                >
+                  <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
+            <TouchableOpacity
+              style={[styles.dueDateBtn, { backgroundColor: colors.inputBg }, newDueDate ? { borderColor: C.primary, borderWidth: 1.5 } : {}]}
+              onPress={() => { setDatePickerMode('date'); setShowDatePicker(true); }}
+              activeOpacity={0.7}
+            >
+              <Feather name="calendar" size={16} color={newDueDate ? C.primary : colors.textTertiary} />
+              <Text style={[styles.dueDateText, { color: newDueDate ? colors.text : colors.textTertiary }]}>
+                {formatDueDateDisplay(newDueDate) ?? '마감일 선택'}
+              </Text>
+              {newDueDate && (
+                <TouchableOpacity onPress={() => setNewDueDate(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={15} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, !newTitle.trim() && styles.btnDisabled]}
+              onPress={addTodo} disabled={!newTitle.trim() || submitting}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>추가하기</Text>}
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* Date/Time Picker Modal */}
       <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDatePicker(false)} />
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 8, backgroundColor: colors.card, gap: 0 }]}
-            onStartShouldSetResponder={() => true}>
+        <View style={styles.kavOverlay}>
+          <Pressable style={{ flex: 1 }} onPress={() => setShowDatePicker(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 8, backgroundColor: colors.card, gap: 0 }]}>
             <View style={styles.datePickerHeader}>
               <TouchableOpacity onPress={() => setNewDueDate(null)} style={styles.datePickerClearBtn}>
                 <Text style={[styles.datePickerClearText, { color: colors.textSecondary }]}>초기화</Text>
@@ -452,6 +449,7 @@ const styles = StyleSheet.create({
   todoDelete: { padding: 4 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  kavOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 12 },
   modalTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827', marginBottom: 4 },
   modalInput: { backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular' },
