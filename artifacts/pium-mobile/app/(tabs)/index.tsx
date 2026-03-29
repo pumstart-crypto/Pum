@@ -4,6 +4,7 @@ import {
   Platform, Linking, RefreshControl, TextInput, Modal,
   ActivityIndicator, Image, KeyboardAvoidingView,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,9 +48,10 @@ const QUICK_LINKS = [
   { label: '캠퍼스맵', icon: 'map', set: 'feather', screen: '/campus-map' },
 ] as const;
 
-const TODO_CATEGORIES = ['과제', '팀플', '동영상시청', '기타'];
+const TODO_CATEGORIES = ['과제', '퀴즈', '팀플', '동영상시청', '기타'];
 const CAT_COLORS: Record<string, { bg: string; text: string }> = {
   '과제': { bg: '#FEE2E2', text: '#DC2626' },
+  '퀴즈': { bg: '#FEF3C7', text: '#D97706' },
   '팀플': { bg: '#DBEAFE', text: '#2563EB' },
   '동영상시청': { bg: '#EDE9FE', text: '#7C3AED' },
   '기타': { bg: '#F3F4F6', text: '#6B7280' },
@@ -91,7 +93,9 @@ export default function HomeScreen() {
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('과제');
-  const [newDueDate, setNewDueDate] = useState('');
+  const [newDueDate, setNewDueDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   const [submitting, setSubmitting] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const isWeb = Platform.OS === 'web';
@@ -126,18 +130,32 @@ export default function HomeScreen() {
     });
   };
 
+  const formatDueDateDisplay = (d: Date | null) => {
+    if (!d) return null;
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const dayOfWeek = DAYS_KO[d.getDay()];
+    const hours = d.getHours();
+    const minutes = d.getMinutes();
+    const period = hours < 12 ? '오전' : '오후';
+    const h12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const mm = String(minutes).padStart(2, '0');
+    return `${month}월 ${day}일 (${dayOfWeek}) ${period} ${h12}:${mm}`;
+  };
+
   const addTodo = async () => {
     if (!newTitle.trim()) return;
     setSubmitting(true);
     try {
+      const dueDateStr = newDueDate ? newDueDate.toISOString() : undefined;
       const r = await fetch(`${API}/todos`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle.trim(), category: newCategory, dueDate: newDueDate || undefined }),
+        body: JSON.stringify({ title: newTitle.trim(), category: newCategory, dueDate: dueDateStr }),
       });
       if (r.ok) {
         const todo = await r.json();
         setTodos(prev => [todo, ...prev]);
-        setNewTitle(''); setNewCategory('과제'); setNewDueDate('');
+        setNewTitle(''); setNewCategory('과제'); setNewDueDate(null);
         setShowAddTodo(false);
       }
     } finally { setSubmitting(false); }
@@ -303,13 +321,20 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput
-              style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={newDueDate}
-              onChangeText={setNewDueDate}
-              placeholder="마감일 (선택, YYYY-MM-DD)"
-              placeholderTextColor={colors.textTertiary}
-            />
+            <TouchableOpacity
+              style={[styles.dueDateBtn, { backgroundColor: colors.inputBg }, newDueDate && { borderColor: C.primary, borderWidth: 1.5 }]}
+              onPress={() => { setDatePickerMode('date'); setShowDatePicker(true); }}
+            >
+              <Feather name="calendar" size={16} color={newDueDate ? C.primary : colors.textTertiary} />
+              <Text style={[styles.dueDateText, { color: newDueDate ? colors.text : colors.textTertiary }]}>
+                {formatDueDateDisplay(newDueDate) ?? '마감일 선택 (선택)'}
+              </Text>
+              {newDueDate && (
+                <TouchableOpacity onPress={() => setNewDueDate(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={15} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btn, !newTitle.trim() && styles.btnDisabled]}
               onPress={addTodo} disabled={!newTitle.trim() || submitting}
@@ -319,6 +344,44 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Date/Time Picker Modal */}
+      <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDatePicker(false)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { paddingBottom: insets.bottom + 8, backgroundColor: colors.card, gap: 0 }]}>
+            <View style={styles.datePickerHeader}>
+              <TouchableOpacity onPress={() => setNewDueDate(null)} style={styles.datePickerClearBtn}>
+                <Text style={[styles.datePickerClearText, { color: colors.textSecondary }]}>초기화</Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: 17, marginBottom: 0 }]}>마감일 선택</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.datePickerDoneBtn}>
+                <Text style={[styles.datePickerDoneText, { color: C.primary }]}>완료</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerSegRow}>
+              {(['date', 'time'] as const).map(mode => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[styles.datePickerSeg, datePickerMode === mode && styles.datePickerSegActive]}
+                  onPress={() => setDatePickerMode(mode)}
+                >
+                  <Text style={[styles.datePickerSegText, datePickerMode === mode && styles.datePickerSegTextActive]}>
+                    {mode === 'date' ? '날짜' : '시간'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <DateTimePicker
+              value={newDueDate ?? new Date()}
+              mode={datePickerMode}
+              display="spinner"
+              locale="ko-KR"
+              onChange={(_, date) => { if (date) setNewDueDate(date); }}
+              style={{ width: '100%', height: 200 }}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -397,4 +460,16 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
   btnDisabled: { backgroundColor: '#D1D5DB' },
   btnText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+  dueDateBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1.5, borderColor: 'transparent' },
+  dueDateText: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  datePickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', marginBottom: 8 },
+  datePickerClearBtn: { paddingVertical: 4, paddingHorizontal: 4, minWidth: 48 },
+  datePickerClearText: { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  datePickerDoneBtn: { paddingVertical: 4, paddingHorizontal: 4, minWidth: 48, alignItems: 'flex-end' },
+  datePickerDoneText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: C.primary },
+  datePickerSegRow: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 12, padding: 3, marginBottom: 4 },
+  datePickerSeg: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+  datePickerSegActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  datePickerSegText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#6B7280' },
+  datePickerSegTextActive: { color: '#111827', fontFamily: 'Inter_600SemiBold' },
 });
