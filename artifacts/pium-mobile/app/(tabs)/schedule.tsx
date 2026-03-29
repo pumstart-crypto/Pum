@@ -661,8 +661,9 @@ export default function ScheduleScreen() {
                         <TouchableOpacity key={s.id}
                           style={[styles.block, { top: y, height: Math.max(h, SLOT_H), backgroundColor: color }]}
                           onLongPress={() => deleteSchedule(s.id)} activeOpacity={0.8}>
-                          <Text style={[styles.blockName, { color: '#1F2937' }]} numberOfLines={3}>{s.subjectName}</Text>
+                          <Text style={[styles.blockName, { color: '#1F2937' }]} numberOfLines={2}>{s.subjectName}</Text>
                           {h > SLOT_H && s.location ? <Text style={[styles.blockLoc, { color: '#4B5563' }]} numberOfLines={1}>{s.location}</Text> : null}
+                          {h > SLOT_H && s.professor ? <Text style={[styles.blockLoc, { color: '#6B7280' }]} numberOfLines={1}>{s.professor}</Text> : null}
                         </TouchableOpacity>
                       );
                     })}
