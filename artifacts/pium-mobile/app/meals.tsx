@@ -111,7 +111,9 @@ export default function MealsScreen() {
       setData(json);
       const today = getTodayStr();
       const todayIdx = json.dates.findIndex(d => d === today);
-      setSelectedDayIdx(todayIdx >= 0 ? todayIdx : 0);
+      const validIdx = todayIdx >= 0 && json.days[todayIdx] !== '토' ? todayIdx
+        : json.days.findIndex(d => d !== '토');
+      setSelectedDayIdx(validIdx >= 0 ? validIdx : 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : '오류가 발생했습니다.');
     } finally {
@@ -209,6 +211,7 @@ export default function MealsScreen() {
         {data && data.dates.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayTabsContainer} style={styles.dayTabsScroll}>
             {data.dates.map((date, idx) => {
+              if (data.days[idx] === '토') return null;
               const isTodayDate = date === today;
               const isSelected = idx === effDayIdx;
               return (
