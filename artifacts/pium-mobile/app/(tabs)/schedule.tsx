@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Platform, Alert, ActivityIndicator,
-  RefreshControl, KeyboardAvoidingView,
+  RefreshControl, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -364,6 +364,7 @@ export default function ScheduleScreen() {
   }, []);
 
   const searchCourses = async () => {
+    Keyboard.dismiss();
     if (!csDept && !csKeyword && !csProfessor && csCategory === '전체' && csYear === '전체') return;
     setCsLoading(true);
     setCsSelected([]);
