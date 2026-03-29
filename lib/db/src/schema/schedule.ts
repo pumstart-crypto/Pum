@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, real, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./auth";
@@ -16,7 +16,7 @@ export const schedulesTable = pgTable("schedules", {
   year: integer("year"),
   semester: text("semester"),
   category: text("category"),
-  credits: integer("credits"),
+  credits: real("credits"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

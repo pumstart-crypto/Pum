@@ -344,11 +344,18 @@ export default function ScheduleScreen() {
     finally { setDSubmitting(false); }
   };
 
-  const deleteSchedule = (id: number) => {
-    Alert.alert('수업 삭제', '이 수업을 삭제하시겠습니까?', [
+  const deleteSchedule = (s: Schedule) => {
+    Alert.alert('수업 삭제', '이 수업을 모든 요일에서 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => {
-        await fetch(`${API}/schedule/${id}`, { method: 'DELETE', headers: { ...authHeader } });
+        const toDelete = (schedules as Schedule[]).filter(sc =>
+          sc.subjectName === s.subjectName &&
+          sc.year === s.year &&
+          sc.semester === s.semester
+        );
+        await Promise.all(toDelete.map(sc =>
+          fetch(`${API}/schedule/${sc.id}`, { method: 'DELETE', headers: { ...authHeader } })
+        ));
         refetch();
       }},
     ]);
@@ -667,7 +674,7 @@ export default function ScheduleScreen() {
                       return (
                         <TouchableOpacity key={s.id}
                           style={[styles.block, { top: y, height: Math.max(h, SLOT_H), backgroundColor: color }]}
-                          onLongPress={() => deleteSchedule(s.id)} activeOpacity={0.8}>
+                          onLongPress={() => deleteSchedule(s)} activeOpacity={0.8}>
                           <Text style={[styles.blockName, { color: '#1F2937' }]} numberOfLines={2}>{s.subjectName}</Text>
                           {h > SLOT_H && s.location ? <Text style={[styles.blockLoc, { color: '#4B5563' }]} numberOfLines={1}>{s.location}</Text> : null}
                           {h > SLOT_H && s.professor ? <Text style={[styles.blockLoc, { color: '#6B7280' }]} numberOfLines={1}>{s.professor}</Text> : null}
