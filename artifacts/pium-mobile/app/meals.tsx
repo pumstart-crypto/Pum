@@ -83,6 +83,28 @@ const MEAL_COLORS: Record<string, string> = {
   '석식': '#8B5CF6',
 };
 
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function appendSunday(json: WeekMeals): WeekMeals {
+  // Find Saturday index
+  const satIdx = json.days.indexOf('토');
+  if (satIdx === -1) return json; // no Saturday, nothing to append
+  // Check if Sunday already exists
+  if (json.days.includes('일')) return json;
+  const sunDate = addDays(json.dates[satIdx], 1);
+  const newDates = [...json.dates, sunDate];
+  const newDays = [...json.days, '일'];
+  const newMealRows = json.mealRows.map(row => ({
+    ...row,
+    days: [...row.days, { date: sunDate, day: '일', subMenus: [] }],
+  }));
+  return { ...json, dates: newDates, days: newDays, mealRows: newMealRows };
+}
+
 function getTodayStr() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -108,12 +130,12 @@ export default function MealsScreen() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: WeekMeals = await res.json();
       if ((json as any).error) throw new Error((json as any).error);
-      setData(json);
+      // Append Sunday if not already present
+      const extJson = appendSunday(json);
+      setData(extJson);
       const today = getTodayStr();
-      const todayIdx = json.dates.findIndex(d => d === today);
-      const validIdx = todayIdx >= 0 && json.days[todayIdx] !== '토' ? todayIdx
-        : json.days.findIndex(d => d !== '토');
-      setSelectedDayIdx(validIdx >= 0 ? validIdx : 0);
+      const todayIdx = extJson.dates.findIndex(d => d === today);
+      setSelectedDayIdx(todayIdx >= 0 ? todayIdx : 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : '오류가 발생했습니다.');
     } finally {
@@ -211,7 +233,6 @@ export default function MealsScreen() {
         {data && data.dates.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayTabsContainer} style={styles.dayTabsScroll}>
             {data.dates.map((date, idx) => {
-              if (data.days[idx] === '토') return null;
               const isTodayDate = date === today;
               const isSelected = idx === effDayIdx;
               return (
