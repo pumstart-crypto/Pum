@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Platform, Linking, RefreshControl, TextInput, Modal,
-  ActivityIndicator, Image,
+  ActivityIndicator, Image, KeyboardAvoidingView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -279,6 +279,7 @@ export default function HomeScreen() {
 
       {/* Add Todo Modal */}
       <Modal visible={showAddTodo} transparent animationType="slide" onRequestClose={() => setShowAddTodo(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddTodo(false)}>
           <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>할 일 추가</Text>
@@ -317,6 +318,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
