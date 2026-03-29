@@ -60,7 +60,7 @@ export default function LoginScreen() {
         <View style={styles.form}>
           {!!error && (
             <View style={styles.errorBox}>
-              <Feather name="alert-circle" size={14} color="#EF4444" />
+              <Feather name="alert-circle" size={14} color="#FCA5A5" />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -71,7 +71,7 @@ export default function LoginScreen() {
               value={username}
               onChangeText={setUsername}
               placeholder="아이디"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="rgba(255,255,255,0.45)"
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
@@ -82,13 +82,13 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="비밀번호"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor="rgba(255,255,255,0.45)"
                 secureTextEntry={!showPw}
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
               />
               <TouchableOpacity onPress={() => setShowPw(v => !v)} style={styles.eyeBtn}>
-                <Feather name={showPw ? 'eye' : 'eye-off'} size={18} color="#9CA3AF" />
+                <Feather name={showPw ? 'eye' : 'eye-off'} size={18} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
             </View>
           </View>
@@ -100,7 +100,7 @@ export default function LoginScreen() {
             activeOpacity={0.85}
           >
             {loading
-              ? <ActivityIndicator color="#fff" />
+              ? <ActivityIndicator color={C.primary} />
               : <Text style={styles.loginBtnText}>로그인</Text>
             }
           </TouchableOpacity>
@@ -118,43 +118,45 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
+  root: { flex: 1, backgroundColor: C.primary },
   scroll: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 24 },
   branding: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   logoWrapper: {
     width: 96, height: 96, borderRadius: 28, overflow: 'hidden',
-    marginBottom: 20, backgroundColor: '#eef0f3',
-    shadowColor: '#04346E', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25, shadowRadius: 20, elevation: 8,
+    marginBottom: 20, backgroundColor: '#fff',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3, shadowRadius: 20, elevation: 10,
   },
   logo: { width: '100%', height: '100%' },
-  appName: { fontSize: 28, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -0.5 },
-  appSub: { fontSize: 13, color: '#6B7280', marginTop: 4, fontFamily: 'Inter_400Regular' },
+  appName: { fontSize: 28, fontFamily: 'Inter_700Bold', color: '#fff', letterSpacing: -0.5 },
+  appSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4, fontFamily: 'Inter_400Regular' },
   form: { gap: 12, paddingBottom: 8 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#FEF2F2', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12,
-    borderWidth: 1, borderColor: '#FECACA',
+    backgroundColor: 'rgba(239,68,68,0.2)', borderRadius: 16,
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.35)',
   },
-  errorText: { fontSize: 13, color: '#EF4444', flex: 1, fontFamily: 'Inter_400Regular' },
+  errorText: { fontSize: 13, color: '#FCA5A5', flex: 1, fontFamily: 'Inter_400Regular' },
   inputGroup: { gap: 10 },
   input: {
-    backgroundColor: '#F3F4F6', borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16,
     paddingHorizontal: 20, paddingVertical: 16,
-    fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular',
+    fontSize: 15, color: '#fff', fontFamily: 'Inter_400Regular',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
   passwordWrap: { position: 'relative' },
   passwordInput: { paddingRight: 52 },
   eyeBtn: { position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' },
   loginBtn: {
-    backgroundColor: C.primary, borderRadius: 16,
+    backgroundColor: '#fff', borderRadius: 16,
     paddingVertical: 17, alignItems: 'center', marginTop: 4,
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2, shadowRadius: 12, elevation: 4,
   },
-  loginBtnDisabled: { backgroundColor: '#D1D5DB', shadowOpacity: 0 },
-  loginBtnText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+  loginBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.3)', shadowOpacity: 0 },
+  loginBtnText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: C.primary },
   registerRow: { flexDirection: 'row', justifyContent: 'center', paddingTop: 4 },
-  registerHint: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular' },
-  registerLink: { fontSize: 14, fontFamily: 'Inter_700Bold', color: C.primary },
+  registerHint: { fontSize: 14, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' },
+  registerLink: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#fff' },
 });
