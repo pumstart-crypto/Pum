@@ -47,7 +47,7 @@ export default function LoginScreen() {
         <View style={styles.branding}>
           <View style={styles.logoWrapper}>
             <Image
-              source={require('../assets/images/icon.png')}
+              source={require('../assets/images/pium-logo.jpeg')}
               style={styles.logo}
               resizeMode="cover"
             />
