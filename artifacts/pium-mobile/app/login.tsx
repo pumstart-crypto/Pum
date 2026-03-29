@@ -45,11 +45,13 @@ export default function LoginScreen() {
       >
         {/* Branding */}
         <View style={styles.branding}>
-          <Image
-            source={require('../assets/images/pium-logo-white.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../assets/images/pium-logo-crop.png')}
+              style={styles.logo}
+              resizeMode="cover"
+            />
+          </View>
           <Text style={styles.appSub}>피움 · 더 나은 캠퍼스 라이프의 시작</Text>
         </View>
 
@@ -118,7 +120,13 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.primary },
   scroll: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 24 },
   branding: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
-  logo: { width: 200, height: 120, marginBottom: 12 },
+  logoWrapper: {
+    width: 110, height: 110, borderRadius: 26, overflow: 'hidden',
+    marginBottom: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
+  },
+  logo: { width: '100%', height: '100%' },
   appSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular' },
   form: { gap: 12, paddingBottom: 8 },
   errorBox: {
