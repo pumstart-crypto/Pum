@@ -71,7 +71,7 @@ export default function LoginScreen() {
               value={username}
               onChangeText={setUsername}
               placeholder="아이디"
-              placeholderTextColor="rgba(255,255,255,0.45)"
+              placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
@@ -82,13 +82,13 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="비밀번호"
-                placeholderTextColor="rgba(255,255,255,0.45)"
+                placeholderTextColor="#9CA3AF"
                 secureTextEntry={!showPw}
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
               />
               <TouchableOpacity onPress={() => setShowPw(v => !v)} style={styles.eyeBtn}>
-                <Feather name={showPw ? 'eye' : 'eye-off'} size={18} color="rgba(255,255,255,0.6)" />
+                <Feather name={showPw ? 'eye' : 'eye-off'} size={18} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
           </View>
@@ -140,10 +140,10 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, color: '#FCA5A5', flex: 1, fontFamily: 'Inter_400Regular' },
   inputGroup: { gap: 10 },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16,
+    backgroundColor: '#F3F4F6', borderRadius: 16,
     paddingHorizontal: 20, paddingVertical: 16,
-    fontSize: 15, color: '#fff', fontFamily: 'Inter_400Regular',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular',
+    borderWidth: 1, borderColor: '#E5E7EB',
   },
   passwordWrap: { position: 'relative' },
   passwordInput: { paddingRight: 52 },
