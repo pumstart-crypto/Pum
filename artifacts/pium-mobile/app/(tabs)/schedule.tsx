@@ -582,6 +582,12 @@ export default function ScheduleScreen() {
   const totalSlots = (END_HOUR - START_HOUR) * 2;
   const totalH = totalSlots * SLOT_H;
 
+  const curSemScheds = (schedules as Schedule[]).filter(
+    s => s.year === currentSem.year && s.semester === currentSem.sem
+  );
+  const hasSaturday = curSemScheds.some(s => s.dayOfWeek === 5);
+  const displayDays = hasSaturday ? ['월', '화', '수', '목', '금', '토'] : DAYS;
+
   const TabBar = () => (
     <View style={[styles.segContainer, { borderColor: colors.border }]}>
       <TouchableOpacity style={[styles.segBtn, tab === 'timetable' && styles.segBtnActive]} onPress={() => onTabChange('timetable')}>
@@ -623,7 +629,7 @@ export default function ScheduleScreen() {
           >
             <View style={styles.dayHeader}>
               <View style={{ width: 48 }} />
-              {DAYS.map(d => (
+              {displayDays.map(d => (
                 <View key={d} style={styles.dayHeaderCell}>
                   <Text style={styles.dayHeaderText}>{d}</Text>
                 </View>
@@ -647,7 +653,7 @@ export default function ScheduleScreen() {
                   s => s.year === currentSem.year && s.semester === currentSem.sem
                 );
                 const colorMap = buildColorMap(curScheds.map(s => s.subjectName));
-                return DAYS.map((_, dayIdx) => {
+                return displayDays.map((_, dayIdx) => {
                 const daySch = curScheds.filter(s => s.dayOfWeek === dayIdx);
                 return (
                   <View key={dayIdx} style={[styles.dayCol, { height: totalH }]}>
