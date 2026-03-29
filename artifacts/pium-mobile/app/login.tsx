@@ -53,7 +53,7 @@ export default function LoginScreen() {
             />
           </View>
           <Text style={styles.appName}>P:um</Text>
-          <Text style={styles.appSub}>더 나은 캠퍼스 라이프의 시작</Text>
+          <Text style={styles.appSub}>피움 · 더 나은 캠퍼스 라이프의 시작</Text>
         </View>
 
         {/* Form */}
