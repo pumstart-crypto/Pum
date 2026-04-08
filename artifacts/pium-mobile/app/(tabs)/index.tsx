@@ -84,6 +84,16 @@ function getTodaySchedules(schedules: any[]) {
     .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 }
 
+function isCurrentClass(startTime: string, endTime: string): boolean {
+  const now = new Date();
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = sh * 60 + sm;
+  const endMins = eh * 60 + em;
+  return nowMins >= startMins && nowMins < endMins;
+}
+
 const PALETTE = ['#4F46E5', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777', '#0F766E'];
 function getSubjectColor(name: string) {
   let h = 0;
@@ -214,6 +224,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               key={link.label}
               style={styles.quickItem}
+              activeOpacity={0.75}
               onPress={() => {
                 if (link.label === 'PLATO') { openPlatoLink(); return; }
                 if ('href' in link && link.href) Linking.openURL(link.href);
@@ -239,27 +250,48 @@ export default function HomeScreen() {
               <Text style={styles.sectionLink}>전체 보기</Text>
             </TouchableOpacity>
           </View>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {todaySchedules.length === 0 ? (
+          {todaySchedules.length === 0 ? (
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.emptyState}>
                 <Feather name="calendar" size={32} color={colors.textTertiary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>오늘 수업이 없어요</Text>
               </View>
-            ) : (
-              todaySchedules.slice(0, 4).map((s: any) => (
-                <View key={s.id} style={[styles.scheduleItem, { borderLeftColor: getSubjectColor(s.subjectName) }]}>
-                  <View style={styles.scheduleTime}>
-                    <Text style={[styles.scheduleTimeText, { color: colors.text }]}>{s.startTime}</Text>
-                    <Text style={[styles.scheduleTimeEnd, { color: colors.textSecondary }]}>{s.endTime}</Text>
+            </View>
+          ) : (
+            <View style={styles.scheduleList}>
+              {todaySchedules.slice(0, 4).map((s: any) => {
+                const active = isCurrentClass(s.startTime, s.endTime);
+                const accentColor = getSubjectColor(s.subjectName);
+                return (
+                  <View
+                    key={s.id}
+                    style={[
+                      styles.scheduleCard,
+                      { backgroundColor: colors.card, borderColor: active ? accentColor : colors.border },
+                      active && styles.scheduleCardActive,
+                    ]}
+                  >
+                    {active && (
+                      <View style={[styles.nowBadge, { backgroundColor: accentColor }]}>
+                        <Text style={styles.nowBadgeText}>지금 수업 중</Text>
+                      </View>
+                    )}
+                    <View style={[styles.scheduleCardAccent, { backgroundColor: accentColor }]} />
+                    <View style={styles.scheduleCardBody}>
+                      <View style={styles.scheduleTime}>
+                        <Text style={[styles.scheduleTimeText, { color: active ? accentColor : colors.text }]}>{s.startTime}</Text>
+                        <Text style={[styles.scheduleTimeEnd, { color: colors.textSecondary }]}>{s.endTime}</Text>
+                      </View>
+                      <View style={styles.scheduleInfo}>
+                        <Text style={[styles.scheduleName, { color: colors.text }]} numberOfLines={1}>{s.subjectName}</Text>
+                        {s.location && <Text style={[styles.scheduleLocation, { color: colors.textSecondary }]} numberOfLines={1}>{s.location}</Text>}
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.scheduleInfo}>
-                    <Text style={[styles.scheduleName, { color: colors.text }]} numberOfLines={1}>{s.subjectName}</Text>
-                    {s.location && <Text style={[styles.scheduleLocation, { color: colors.textSecondary }]} numberOfLines={1}>{s.location}</Text>}
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Todo */}
@@ -427,9 +459,9 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 34, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -0.5 },
   dayText: { fontSize: 34, fontFamily: 'Inter_400Regular', color: '#9CA3AF', letterSpacing: -0.5 },
 
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 28, marginHorizontal: -4 },
-  quickItem: { alignItems: 'center', gap: 7, width: '25%', paddingVertical: 8, paddingHorizontal: 4 },
-  quickIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: '#F5F7FB', justifyContent: 'center', alignItems: 'center' },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 28, marginHorizontal: -2 },
+  quickItem: { alignItems: 'center', gap: 7, width: '25%', paddingVertical: 10, paddingHorizontal: 6, minHeight: 88 },
+  quickIcon: { width: 58, height: 58, borderRadius: 18, backgroundColor: '#F5F7FB', justifyContent: 'center', alignItems: 'center' },
   quickLabel: { fontSize: 11, color: '#374151', fontFamily: 'Inter_500Medium', textAlign: 'center' },
 
   section: { marginBottom: 20 },
@@ -443,12 +475,26 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
   scheduleItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderLeftWidth: 3, paddingLeft: 12, marginBottom: 4, borderRadius: 4 },
-  scheduleTime: { minWidth: 42 },
-  scheduleTimeText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#374151' },
+  scheduleTime: { minWidth: 44 },
+  scheduleTimeText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#374151' },
   scheduleTimeEnd: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   scheduleInfo: { flex: 1 },
   scheduleName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
   scheduleLocation: { fontSize: 12, color: '#6B7280', fontFamily: 'Inter_400Regular', marginTop: 1 },
+
+  scheduleList: { gap: 8 },
+  scheduleCard: {
+    borderRadius: 14, borderWidth: 1.5, overflow: 'hidden',
+    flexDirection: 'row',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  scheduleCardActive: {
+    shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
+  },
+  scheduleCardAccent: { width: 4, minHeight: 64 },
+  scheduleCardBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 },
+  nowBadge: { position: 'absolute', top: 8, right: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  nowBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#fff' },
 
   todoItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   todoCheck: { padding: 2 },
