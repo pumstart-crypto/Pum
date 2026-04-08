@@ -14,11 +14,11 @@ const ACTIVE_COLOR = C.primary;
 const INACTIVE_COLOR = '#9CA3AF';
 
 const TAB_ITEMS = [
-  { name: 'index',    label: '홈',       sfSymbol: 'house',     ionicon: 'home-outline' },
-  { name: 'notices',  label: '공지',     sfSymbol: 'bell',      ionicon: 'notifications-outline' },
-  { name: 'schedule', label: '시간표',   sfSymbol: 'calendar',  ionicon: 'calendar-outline' },
-  { name: 'board',    label: '커뮤니티', sfSymbol: 'person.2',  ionicon: 'people-outline' },
-  { name: 'settings', label: '설정',     sfSymbol: 'gearshape', ionicon: 'settings-outline' },
+  { name: 'index',    label: '홈',       sfActive: 'house.fill',      sfInactive: 'house',      ionActive: 'home',          ionInactive: 'home-outline' },
+  { name: 'notices',  label: '공지',     sfActive: 'bell.fill',       sfInactive: 'bell',       ionActive: 'notifications', ionInactive: 'notifications-outline' },
+  { name: 'schedule', label: '시간표',   sfActive: 'calendar',        sfInactive: 'calendar',   ionActive: 'calendar',      ionInactive: 'calendar-outline' },
+  { name: 'board',    label: '커뮤니티', sfActive: 'person.2.fill',   sfInactive: 'person.2',   ionActive: 'people',        ionInactive: 'people-outline' },
+  { name: 'settings', label: '설정',     sfActive: 'gearshape.fill',  sfInactive: 'gearshape',  ionActive: 'settings',      ionInactive: 'settings-outline' },
 ] as const;
 
 export default function TabLayout() {
@@ -73,15 +73,13 @@ export default function TabLayout() {
             tabBarIcon: ({ color, focused }) =>
               isIOS ? (
                 <SymbolView
-                  name={(focused ? tab.sfSymbol + '.fill' : tab.sfSymbol) as any}
+                  name={(focused ? tab.sfActive : tab.sfInactive) as any}
                   tintColor={color}
                   size={ICON_SIZE}
                 />
               ) : (
                 <Ionicons
-                  name={(focused
-                    ? tab.ionicon.replace('-outline', '')
-                    : tab.ionicon) as any}
+                  name={(focused ? tab.ionActive : tab.ionInactive) as any}
                   size={ICON_SIZE}
                   color={color}
                 />
