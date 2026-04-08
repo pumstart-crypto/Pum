@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Platform, Alert, ActivityIndicator,
-  RefreshControl, KeyboardAvoidingView, Keyboard,
+  RefreshControl, KeyboardAvoidingView, Keyboard, SectionList,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -110,6 +110,52 @@ function getCategoryFilters(year: number): string[] {
 }
 const DAY_MAP: Record<string, number> = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
 
+// ── 한글 초성 인덱스 유틸 ──────────────────────────────────────────
+const INITIALS = ['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function getInitial(str: string): string {
+  const code = str.charCodeAt(0) - 0xAC00;
+  if (code < 0 || code > 11171) return '#';
+  const idx = Math.floor(code / (21 * 28));
+  return INITIALS[Math.min(idx, INITIALS.length - 1)];
+}
+interface DeptSection { title: string; data: string[] }
+function buildDeptSections(list: string[], query: string): DeptSection[] {
+  const filtered = query ? list.filter(d => d.includes(query)) : list;
+  if (query) return [{ title: '검색 결과', data: filtered }];
+  const map = new Map<string, string[]>();
+  for (const d of filtered) {
+    const init = getInitial(d);
+    if (!map.has(init)) map.set(init, []);
+    map.get(init)!.push(d);
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => INITIALS.indexOf(a) - INITIALS.indexOf(b))
+    .map(([title, data]) => ({ title, data }));
+}
+
+// ── 시간 충돌 감지 ────────────────────────────────────────────────
+function timesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  const as = timeToMinutes(aStart), ae = timeToMinutes(aEnd);
+  const bs = timeToMinutes(bStart), be = timeToMinutes(bEnd);
+  return as < be && ae > bs;
+}
+function getConflicts(
+  course: any,
+  existing: Schedule[],
+): string[] {
+  const slots = parseTimeRoom(course.timeRoom || '', addMinutes);
+  if (!slots.length) return [];
+  const conflicts: string[] = [];
+  for (const slot of slots) {
+    for (const s of existing) {
+      if (s.dayOfWeek === slot.dayOfWeek && timesOverlap(slot.startTime, slot.endTime, s.startTime, s.endTime)) {
+        if (!conflicts.includes(s.subjectName)) conflicts.push(s.subjectName);
+      }
+    }
+  }
+  return conflicts;
+}
+
 function parseTimeRoom(timeRoom: string, addMinutesFn: (t: string, m: number) => string) {
   if (!timeRoom) return [];
   const parts = timeRoom.split(/,\s*(?=[월화수목금토일]\s)/);
@@ -201,6 +247,9 @@ export default function ScheduleScreen() {
   };
 
   const currentSem = semesters[selectedSemIdx] ?? initSem;
+  const currentSemSchedules = (schedules as Schedule[]).filter(
+    s => s.year === currentSem.year && s.semester === currentSem.sem
+  );
 
   // 스케줄 데이터에서 학기 목록 자동 도출
   useEffect(() => {
@@ -263,6 +312,7 @@ export default function ScheduleScreen() {
   const [showDeptPicker, setShowDeptPicker] = useState(false);
   const [deptList, setDeptList] = useState<string[]>([]);
   const [deptsLoading, setDeptsLoading] = useState(false);
+  const deptSectionListRef = useRef<SectionList<string>>(null);
 
   // Grade form
   const [gSubject, setGSubject] = useState('');
@@ -1120,8 +1170,11 @@ export default function ScheduleScreen() {
               ) : (
                 csResults.map((course, i) => {
                   const isSelected = (csSelected ?? []).some(c => c.id === course.id);
+                  const conflicts = getConflicts(course, currentSemSchedules);
+                  const hasConflict = conflicts.length > 0;
                   return (
-                  <TouchableOpacity key={i} style={[styles.courseRow, isSelected && styles.courseRowSelected]}
+                  <TouchableOpacity key={i}
+                    style={[styles.courseRow, isSelected && styles.courseRowSelected, hasConflict && styles.courseRowConflict]}
                     onPress={() => setCsSelected(prev => (prev ?? []).filter(c => c.id !== course.id).concat(isSelected ? [] : [course]))}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <Text style={[styles.courseName, { flex: 1 }, isSelected && { color: C.primary }]} numberOfLines={2}>{course.subjectName}</Text>
@@ -1132,6 +1185,14 @@ export default function ScheduleScreen() {
                     </View>
                     <Text style={styles.courseMeta}>{[course.professor, course.offeringDept, course.category].filter(Boolean).join(' · ')}</Text>
                     {course.timeRoom ? <Text style={[styles.courseMeta, { color: '#9CA3AF', fontSize: 11 }]} numberOfLines={1}>{course.timeRoom}</Text> : null}
+                    {hasConflict && (
+                      <View style={styles.conflictBadge}>
+                        <Feather name="alert-triangle" size={11} color="#DC2626" />
+                        <Text style={styles.conflictBadgeText}>
+                          시간 겹침 · {conflicts.slice(0, 2).join(', ')}{conflicts.length > 2 ? ` 외 ${conflicts.length - 2}개` : ''}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                   );
                 })
@@ -1161,11 +1222,11 @@ export default function ScheduleScreen() {
           </View>
         </View>
 
-        {/* Dept picker */}
+        {/* Dept picker – SectionList + 초성 인덱스 바 */}
         <Modal visible={showDeptPicker} transparent animationType="fade" onRequestClose={() => setShowDeptPicker(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDeptPicker(false)}>
-            <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { maxHeight: '75%' }]}>
+            <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { maxHeight: '80%' }]}>
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>학과/학부 선택</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, marginHorizontal: 16, marginBottom: 8 }}>
@@ -1177,20 +1238,72 @@ export default function ScheduleScreen() {
                   placeholder="학과 검색"
                   placeholderTextColor="#9CA3AF"
                 />
+                {csDeptSearch ? (
+                  <TouchableOpacity onPress={() => setCsDeptSearch('')}>
+                    <Feather name="x-circle" size={14} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ) : null}
               </View>
               {deptsLoading ? (
                 <ActivityIndicator color={C.primary} style={{ marginTop: 20 }} />
-              ) : (
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  {(csDeptSearch ? deptList.filter(d => d.includes(csDeptSearch)) : deptList).map(d => (
-                    <TouchableOpacity key={d} style={[styles.deptRow, csDept === d && styles.deptRowActive]}
-                      onPress={() => { setCsDept(d); setCsDeptSearch(''); setShowDeptPicker(false); }}>
-                      <Text style={[styles.deptText, csDept === d && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>{d}</Text>
-                      {csDept === d && <Feather name="check" size={16} color={C.primary} />}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
+              ) : (() => {
+                const sections = buildDeptSections(deptList, csDeptSearch);
+                const sectionInitials = sections.map(s => s.title);
+                return (
+                  <View style={{ flex: 1, flexDirection: 'row' }}>
+                    <SectionList
+                      ref={deptSectionListRef}
+                      sections={sections}
+                      keyExtractor={(item, i) => item + i}
+                      style={{ flex: 1 }}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      stickySectionHeadersEnabled
+                      renderSectionHeader={({ section }) => (
+                        <View style={styles.deptSectionHeader}>
+                          <Text style={styles.deptSectionHeaderText}>{section.title}</Text>
+                        </View>
+                      )}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={[styles.deptRow, csDept === item && styles.deptRowActive]}
+                          onPress={() => { setCsDept(item); setCsDeptSearch(''); setShowDeptPicker(false); }}
+                        >
+                          <Text style={[styles.deptText, csDept === item && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>{item}</Text>
+                          {csDept === item && <Feather name="check" size={16} color={C.primary} />}
+                        </TouchableOpacity>
+                      )}
+                      ListEmptyComponent={
+                        <View style={{ alignItems: 'center', paddingTop: 40 }}>
+                          <Feather name="search" size={32} color="#D1D5DB" />
+                          <Text style={{ fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 8 }}>검색 결과가 없습니다</Text>
+                        </View>
+                      }
+                    />
+                    {/* 우측 초성 인덱스 바 */}
+                    {!csDeptSearch && (
+                      <View style={styles.indexBar}>
+                        {sectionInitials.map((initial, si) => (
+                          <TouchableOpacity
+                            key={initial}
+                            style={styles.indexBarItem}
+                            onPress={() => {
+                              deptSectionListRef.current?.scrollToLocation({
+                                sectionIndex: si,
+                                itemIndex: 0,
+                                animated: true,
+                                viewOffset: 0,
+                              });
+                            }}
+                          >
+                            <Text style={styles.indexBarText}>{initial}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
             </TouchableOpacity>
           </TouchableOpacity>
           </KeyboardAvoidingView>
@@ -1479,13 +1592,21 @@ const styles = StyleSheet.create({
   csEmptyText: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textAlign: 'center', paddingHorizontal: 20 },
   courseRow: { padding: 14, borderRadius: 14, backgroundColor: '#F9FAFB', marginBottom: 8 },
   courseRowSelected: { backgroundColor: '#EEF4FF', borderWidth: 1.5, borderColor: C.primary },
+  courseRowConflict: { borderWidth: 1.5, borderColor: '#FCA5A5', backgroundColor: '#FFF5F5' },
+  conflictBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginTop: 6, alignSelf: 'flex-start' },
+  conflictBadgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#DC2626' },
   courseName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
   courseMeta: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
 
   // Dept picker
-  deptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  deptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   deptRowActive: { },
   deptText: { fontSize: 15, fontFamily: 'Inter_400Regular', color: '#374151' },
+  deptSectionHeader: { backgroundColor: '#F3F4F6', paddingHorizontal: 16, paddingVertical: 5 },
+  deptSectionHeaderText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1 },
+  indexBar: { width: 24, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', gap: 1 },
+  indexBarItem: { paddingVertical: 2, alignItems: 'center', justifyContent: 'center', minWidth: 20 },
+  indexBarText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: C.primary },
 
   // Direct add form
   dLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#374151', marginBottom: 8, marginTop: 4 },
