@@ -516,6 +516,7 @@ export default function NoticesScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [supportedDepts, setSupportedDepts] = useState<DeptInfo[]>([]);
+  const [allDeptNames, setAllDeptNames] = useState<string[]>([]);
   const [myMajor, setMyMajor] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [showPicker, setShowPicker] = useState(false);
@@ -528,6 +529,17 @@ export default function NoticesScreen() {
     fetch(`${API}/dept-list`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => setSupportedDepts(data.depts ?? []))
+      .catch(() => {});
+  }, []);
+
+  // 전체 학과 목록 (수강편람 기준)
+  useEffect(() => {
+    const now = new Date();
+    const sem = (now.getMonth() + 1) >= 8 ? '2' : '1';
+    const year = now.getFullYear();
+    fetch(`${API}/courses/departments?catalogYear=${year}&catalogSemester=${sem}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => { if (Array.isArray(data)) setAllDeptNames(data); })
       .catch(() => {});
   }, []);
 
@@ -545,6 +557,20 @@ export default function NoticesScreen() {
       });
     }
   }, [user]);
+
+  // 지원 학과 + 수강편람 전체 학과 병합 (중복 제거, 내 학과 상단)
+  const pickerDepts = React.useMemo<DeptInfo[]>(() => {
+    const supportedMap = new Map(supportedDepts.map(d => [d.name, d]));
+    const merged = new Map<string, DeptInfo>(supportedMap);
+    for (const name of allDeptNames) {
+      if (!merged.has(name)) merged.set(name, { name, hasNotice: false, hasJobs: false });
+    }
+    return Array.from(merged.values()).sort((a, b) => {
+      if (a.name === myMajor) return -1;
+      if (b.name === myMajor) return 1;
+      return a.name.localeCompare(b.name, 'ko');
+    });
+  }, [supportedDepts, allDeptNames, myMajor]);
 
   const startSpin = useCallback(() => {
     spinAnim.setValue(0);
@@ -670,7 +696,7 @@ export default function NoticesScreen() {
       {/* ── Dept Picker Modal ── */}
       <DeptPickerModal
         visible={showPicker}
-        depts={supportedDepts}
+        depts={pickerDepts}
         selected={selectedDept}
         myMajor={myMajor}
         onSelect={setSelectedDept}

@@ -1250,7 +1250,7 @@ export default function ScheduleScreen() {
                 const sections = buildDeptSections(deptList, csDeptSearch);
                 const sectionInitials = sections.map(s => s.title);
                 return (
-                  <View style={{ flex: 1, flexDirection: 'row' }}>
+                  <View style={{ height: 380, flexDirection: 'row' }}>
                     <SectionList
                       ref={deptSectionListRef}
                       sections={sections}
