@@ -66,11 +66,11 @@ const CAMPUS_RESTAURANTS: Record<string, { code: string; name: string }[]> = {
 };
 
 const SUBMENU_STYLES: Record<string, { borderColor: string; badgeBg: string; badgeText: string }> = {
-  '천원의아침':  { borderColor: '#FBBF24', badgeBg: '#FFFBEB', badgeText: '#B45309' },
+  '천원의아침':      { borderColor: '#FBBF24', badgeBg: '#FFFBEB', badgeText: '#B45309' },
   '천원의아침&정식': { borderColor: '#FBBF24', badgeBg: '#FFFBEB', badgeText: '#B45309' },
-  '정식':       { borderColor: '#60A5FA', badgeBg: '#EFF6FF', badgeText: '#1D4ED8' },
-  '특정식':     { borderColor: '#60A5FA', badgeBg: '#EFF6FF', badgeText: '#1D4ED8' },
-  '일품':       { borderColor: '#A78BFA', badgeBg: '#F5F3FF', badgeText: '#6D28D9' },
+  '정식':           { borderColor: '#60A5FA', badgeBg: '#EFF6FF', badgeText: '#1D4ED8' },
+  '특정식':         { borderColor: '#60A5FA', badgeBg: '#EFF6FF', badgeText: '#1D4ED8' },
+  '일품':           { borderColor: '#A78BFA', badgeBg: '#F5F3FF', badgeText: '#6D28D9' },
 };
 
 function getSubMenuStyle(name: string) {
@@ -83,6 +83,16 @@ const MEAL_COLORS: Record<string, string> = {
   '석식': '#8B5CF6',
 };
 
+// 현재 식사 시간 판별
+function getCurrentMealType(): '조식' | '중식' | '석식' | null {
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  if (cur >= 480 && cur < 660)  return '조식'; // 08:00~11:00
+  if (cur >= 660 && cur < 1020) return '중식'; // 11:00~17:00
+  if (cur >= 1020 && cur < 1110) return '석식'; // 17:00~18:30
+  return null;
+}
+
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + n);
@@ -90,10 +100,8 @@ function addDays(dateStr: string, n: number): string {
 }
 
 function appendSunday(json: WeekMeals): WeekMeals {
-  // Find Saturday index
   const satIdx = json.days.indexOf('토');
-  if (satIdx === -1) return json; // no Saturday, nothing to append
-  // Check if Sunday already exists
+  if (satIdx === -1) return json;
   if (json.days.includes('일')) return json;
   const sunDate = addDays(json.dates[satIdx], 1);
   const newDates = [...json.dates, sunDate];
@@ -122,6 +130,11 @@ export default function MealsScreen() {
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [error, setError] = useState('');
 
+  const activeMealType = getCurrentMealType();
+  const today = getTodayStr();
+  const effDayIdx = selectedDayIdx ?? 0;
+  const isToday = data ? data.dates[effDayIdx] === today : false;
+
   const fetchMeals = useCallback(async (rest: string, date: string) => {
     setIsLoading(true);
     setError('');
@@ -130,10 +143,8 @@ export default function MealsScreen() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: WeekMeals = await res.json();
       if ((json as any).error) throw new Error((json as any).error);
-      // Append Sunday if not already present
       const extJson = appendSunday(json);
       setData(extJson);
-      const today = getTodayStr();
       const todayIdx = extJson.dates.findIndex(d => d === today);
       setSelectedDayIdx(todayIdx >= 0 ? todayIdx : 0);
     } catch (e) {
@@ -157,14 +168,12 @@ export default function MealsScreen() {
     setRestaurant(firstRest);
   };
 
-  const today = getTodayStr();
-  const effDayIdx = selectedDayIdx ?? 0;
-
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110 }}>
 
-        {/* Header */}
+      {/* ── Sticky Header ── */}
+      <View style={styles.stickyHeader}>
+        {/* Page Header */}
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="chevron-left" size={24} color="#374151" />
@@ -194,7 +203,12 @@ export default function MealsScreen() {
         </View>
 
         {/* Restaurant Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.restContainer} style={styles.restScroll}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.restContainer}
+          style={styles.restScroll}
+        >
           {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
             <TouchableOpacity
               key={r.code}
@@ -231,7 +245,12 @@ export default function MealsScreen() {
 
         {/* Day Tabs */}
         {data && data.dates.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayTabsContainer} style={styles.dayTabsScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dayTabsContainer}
+            style={styles.dayTabsScroll}
+          >
             {data.dates.map((date, idx) => {
               const isTodayDate = date === today;
               const isSelected = idx === effDayIdx;
@@ -257,8 +276,10 @@ export default function MealsScreen() {
             })}
           </ScrollView>
         )}
+      </View>
 
-        {/* Content */}
+      {/* ── Scrollable Meal Content ── */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110 }}>
         <View style={styles.content}>
           {isLoading ? (
             <View style={styles.center}>
@@ -283,9 +304,17 @@ export default function MealsScreen() {
                 const dayMenu = row.days[effDayIdx];
                 const hasMenus = dayMenu && dayMenu.subMenus.length > 0;
                 const accentColor = MEAL_COLORS[row.type] ?? '#6B7280';
+                // 오늘 날짜 선택된 경우에만 운영 중 하이라이트
+                const isActiveNow = isToday && activeMealType === row.type && hasMenus;
 
                 return (
-                  <View key={ri} style={styles.mealCard}>
+                  <View
+                    key={ri}
+                    style={[
+                      styles.mealCard,
+                      isActiveNow && styles.mealCardActive,
+                    ]}
+                  >
                     <View style={styles.mealHeader}>
                       <View style={styles.mealTypeRow}>
                         <Text style={[styles.mealType, { color: hasMenus ? accentColor : '#D1D5DB' }]}>
@@ -294,6 +323,11 @@ export default function MealsScreen() {
                         {row.hours ? (
                           <Text style={styles.mealHours}>{row.hours}</Text>
                         ) : null}
+                        {isActiveNow && (
+                          <View style={styles.nowBadge}>
+                            <Text style={styles.nowBadgeText}>지금 운영 중</Text>
+                          </View>
+                        )}
                       </View>
                       {!hasMenus && <Text style={styles.noOperating}>미운영</Text>}
                     </View>
@@ -312,9 +346,12 @@ export default function MealsScreen() {
                                 </View>
                                 {sub.price ? <Text style={styles.subMenuPrice}>{sub.price}</Text> : null}
                               </View>
-                              <View style={styles.itemsRow}>
+                              {/* 메뉴 항목 칩(태그) 형태 */}
+                              <View style={styles.chipsRow}>
                                 {sub.items.map((item, ii) => (
-                                  <Text key={ii} style={styles.menuItem}>{item}</Text>
+                                  <View key={ii} style={styles.menuChip}>
+                                    <Text style={styles.menuChipText}>{item}</Text>
+                                  </View>
                                 ))}
                               </View>
                             </View>
@@ -328,9 +365,7 @@ export default function MealsScreen() {
                 );
               })}
               {data.restaurantName ? (
-                <Text style={styles.footerText}>
-                  {data.restaurantName}
-                </Text>
+                <Text style={styles.footerText}>{data.restaurantName}</Text>
               ) : null}
             </>
           )}
@@ -342,6 +377,16 @@ export default function MealsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F9FAFB' },
+
+  stickyHeader: {
+    backgroundColor: '#F9FAFB',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
+  },
 
   backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
   headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
@@ -379,7 +424,7 @@ const styles = StyleSheet.create({
   dayTabTodayText: { color: C.primary },
   dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.primary, marginTop: 2 },
 
-  content: { paddingHorizontal: 20, gap: 10 },
+  content: { paddingHorizontal: 20, paddingTop: 14, gap: 10 },
   center: { paddingVertical: 60, alignItems: 'center' },
   errorCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)' },
   errorText: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium', textAlign: 'center' },
@@ -388,21 +433,57 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)' },
   emptyText: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium' },
 
-  mealCard: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 },
+  mealCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
+  },
+  mealCardActive: {
+    borderLeftWidth: 4,
+    borderLeftColor: C.primary,
+    borderColor: `${C.primary}33`,
+    backgroundColor: '#EFF6FF',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+
   mealHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8 },
-  mealTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  mealTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' },
   mealType: { fontSize: 14, fontFamily: 'Inter_700Bold' },
   mealHours: { fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   noOperating: { fontSize: 11, color: '#D1D5DB', fontFamily: 'Inter_500Medium' },
 
+  nowBadge: {
+    backgroundColor: C.primary,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  nowBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#fff' },
+
   subMenuList: { paddingHorizontal: 18, paddingBottom: 14, gap: 10 },
   subMenuItem: { borderLeftWidth: 2, paddingLeft: 10 },
-  subMenuHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  subMenuHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   subMenuBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   subMenuBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
   subMenuPrice: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_500Medium' },
-  itemsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  menuItem: { fontSize: 13, color: '#111827', fontFamily: 'Inter_500Medium', lineHeight: 20 },
+
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  menuChip: {
+    backgroundColor: '#F2F4F6',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  menuChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#333333', lineHeight: 18 },
 
   footerText: { textAlign: 'center', fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_500Medium', paddingVertical: 4 },
 });

@@ -102,9 +102,10 @@ export default function BusScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110 }}>
 
-        {/* Header */}
+      {/* ── Sticky Header ── */}
+      <View style={styles.stickyHeader}>
+        {/* Page Header */}
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="chevron-left" size={24} color="#374151" />
@@ -164,8 +165,10 @@ export default function BusScreen() {
             </Text>
           </View>
         )}
+      </View>
 
-        {/* Route List */}
+      {/* ── Scrollable Route List ── */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110 }}>
         <View style={styles.content}>
           {isLoading ? (
             <View style={styles.center}>
@@ -217,7 +220,6 @@ export default function BusScreen() {
                     )}
 
                     <View style={[styles.stopRow, { backgroundColor: rowBg }, !isLast && styles.stopRowBorder]}>
-                      {/* Route line + dot */}
                       <View style={styles.stopLineCol}>
                         <View style={[
                           styles.stopDot,
@@ -230,7 +232,6 @@ export default function BusScreen() {
                         )}
                       </View>
 
-                      {/* Stop info */}
                       <View style={styles.stopInfo}>
                         <View style={styles.stopNameRow}>
                           <Text style={[
@@ -256,7 +257,6 @@ export default function BusScreen() {
                           <Text style={styles.stopIdx}>{stop.idx}</Text>
                         </View>
 
-                        {/* Buses at this stop */}
                         {buses.length > 0 && (
                           <View style={styles.busList}>
                             {buses.map(bus => (
@@ -271,7 +271,6 @@ export default function BusScreen() {
                           </View>
                         )}
 
-                        {/* Approaching */}
                         {isApproaching && (
                           <View style={styles.approachingRow}>
                             <Feather name="radio" size={10} color="#D97706" />
@@ -314,6 +313,16 @@ export default function BusScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F9FAFB' },
 
+  stickyHeader: {
+    backgroundColor: '#F9FAFB',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
   backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
   headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 },
   universityLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
@@ -337,10 +346,10 @@ const styles = StyleSheet.create({
   dirTabText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#9CA3AF' },
   dirTabTextActive: { color: C.primary },
 
-  dirLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginBottom: 10 },
+  dirLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingBottom: 10 },
   dirLabelText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
 
-  content: { paddingHorizontal: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 12 },
   center: { paddingVertical: 60, alignItems: 'center' },
   errorCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)' },
   errorText: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium', textAlign: 'center' },
