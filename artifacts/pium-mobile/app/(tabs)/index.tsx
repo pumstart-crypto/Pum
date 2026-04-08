@@ -70,9 +70,18 @@ interface Todo {
   createdAt: string;
 }
 
+function getCurrentSemester(): { year: number; sem: string } {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  return { year: now.getFullYear(), sem: month >= 8 ? '2' : '1' };
+}
+
 function getTodaySchedules(schedules: any[]) {
   const dayIdx = (new Date().getDay() + 6) % 7;
-  return schedules.filter(s => s.dayOfWeek === dayIdx).sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+  const { year, sem } = getCurrentSemester();
+  return schedules
+    .filter(s => s.dayOfWeek === dayIdx && s.year === year && s.semester === sem)
+    .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 }
 
 const PALETTE = ['#4F46E5', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777', '#0F766E'];
