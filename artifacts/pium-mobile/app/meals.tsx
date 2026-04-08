@@ -349,7 +349,7 @@ export default function MealsScreen() {
                               {/* 메뉴 항목 칩(태그) 형태 */}
                               <View style={styles.chipsRow}>
                                 {sub.items.map((item, ii) => (
-                                  <View key={ii} style={styles.menuChip}>
+                                  <View key={ii} style={[styles.menuChip, isActiveNow && styles.menuChipActive]}>
                                     <Text style={styles.menuChipText}>{item}</Text>
                                   </View>
                                 ))}
@@ -478,12 +478,18 @@ const styles = StyleSheet.create({
 
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   menuChip: {
-    backgroundColor: '#F2F4F6',
+    backgroundColor: '#E8EAED',
     borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
   },
-  menuChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#333333', lineHeight: 18 },
+  menuChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#374151', lineHeight: 18 },
+  menuChipActive: {
+    backgroundColor: '#fff',
+    borderColor: '#CBD5E1',
+  },
 
   footerText: { textAlign: 'center', fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_500Medium', paddingVertical: 4 },
 });
