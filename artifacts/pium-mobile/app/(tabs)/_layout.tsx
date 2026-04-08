@@ -121,7 +121,5 @@ const styles = StyleSheet.create({
     minWidth: 52,
     height: 34,
   },
-  pillActive: {
-    backgroundColor: `${C.primary}18`,
-  },
+  pillActive: {},
 });
