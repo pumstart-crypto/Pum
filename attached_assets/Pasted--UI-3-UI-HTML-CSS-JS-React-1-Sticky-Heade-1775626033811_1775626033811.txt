@@ -1,0 +1,113 @@
+# UI 개선 프롬프트
+
+아래 3가지 UI 개선사항을 기존 코드에 적용해줘. 웹 기반(HTML/CSS/JS 또는 React) 환경이야.
+
+---
+
+## 1. Sticky Header 적용 (순환버스 + 식단 공통)
+
+### 순환버스 화면
+- "금정구 7" 노선 제목, 운행 상태("현재 6대 운행중"), 탭("전체 노선 / 출발 / 복귀") 영역을 **sticky header**로 고정해줘.
+- 아래 정류장 리스트만 스크롤되도록 구현해.
+- CSS 적용 방식:
+```css
+.bus-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #ffffff;
+}
+```
+
+### 식단 화면
+- 캠퍼스 탭("부산 / 밀양 / 양산"), 식당 선택 칩("금정회관 학생식당" 등), 주간 날짜 선택 영역을 **sticky header**로 고정해줘.
+- 아래 조식/중식/석식 카드만 스크롤되도록 구현해.
+- 스크롤 시 header 하단에 얇은 그림자(`box-shadow: 0 2px 4px rgba(0,0,0,0.08)`)를 추가해서 콘텐츠와 분리감을 줘.
+
+---
+
+## 2. 식단 메뉴 텍스트 → 칩(태그) 형태로 변경
+
+### 현재 (변경 전)
+메뉴가 한 줄 텍스트로 나열됨:
+```
+계란파국 치즈치킨가스/소스 마파두부 참나물겉절이 배추김치
+```
+
+### 변경 후
+각 메뉴 항목을 개별 칩(태그) 컴포넌트로 감싸서 표시해줘.
+
+- 메뉴 데이터는 공백 기준으로 분리해서 각각 칩으로 렌더링해.
+- 칩 스타일:
+```css
+.menu-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  margin: 3px 4px;
+  border-radius: 16px;
+  background-color: #F2F4F6;
+  color: #333333;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+```
+- 칩들은 `flex-wrap: wrap`으로 자연스럽게 줄바꿈되게 해줘.
+
+---
+
+## 3. 현재 식사 시간 하이라이트
+
+현재 시간을 기준으로 해당하는 식사 카드(조식/중식/석식)를 자동으로 강조해줘.
+
+### 시간 기준
+| 구분 | 시간 범위 |
+|------|-----------|
+| 조식 | 08:00 ~ 11:00 |
+| 중식 | 11:00 ~ 17:00 |
+| 석식 | 17:00 ~ 18:30 |
+
+### 하이라이트 로직
+```javascript
+function getCurrentMealType() {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const currentTime = hours * 60 + minutes;
+
+  if (currentTime >= 480 && currentTime < 660) return 'breakfast';
+  if (currentTime >= 660 && currentTime < 1020) return 'lunch';
+  if (currentTime >= 1020 && currentTime < 1110) return 'dinner';
+  return null; // 운영 시간 외
+}
+```
+
+### 하이라이트 스타일
+- 현재 식사 카드: 좌측에 파란색 보더 추가 + 배경색 연한 파란색
+```css
+.meal-card.active {
+  border-left: 3px solid #1A56DB;
+  background-color: #EFF6FF;
+}
+```
+- 현재 식사 카드 상단에 "지금 운영 중" 배지를 표시해줘.
+```css
+.now-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background-color: #1A56DB;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+}
+```
+- 해당 카드가 화면에 바로 보이도록 자동 스크롤(`scrollIntoView({ behavior: 'smooth', block: 'center' })`) 처리해줘.
+- 운영 시간이 아닌 경우에는 하이라이트 없이 기본 상태로 표시해.
+
+---
+
+## 적용 시 주의사항
+- sticky header와 스크롤 영역이 겹치지 않도록 콘텐츠 상단에 header 높이만큼 padding-top을 확보해줘.
+- 모바일 반응형 기준으로 작업해줘 (max-width: 430px 기준).
+- 기존 디자인 톤(네이비 #1B1F3B, 포인트 블루 #1A56DB, 배경 #F8F9FA)을 유지해줘.
