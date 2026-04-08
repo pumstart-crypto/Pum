@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, RefreshControl, Linking, ActivityIndicator, Platform, Animated,
+  TextInput, RefreshControl, Linking, ActivityIndicator,
+  Platform, Animated, Modal, FlatList, Pressable,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,7 +36,14 @@ interface DeptNotice {
   isNew?: boolean;
 }
 
+interface DeptInfo {
+  name: string;
+  hasNotice: boolean;
+  hasJobs: boolean;
+}
+
 type Tab = 'school' | 'dept';
+type DeptTab = 'notice' | 'jobs';
 
 function isRecent(dateStr: string) {
   if (!dateStr) return false;
@@ -54,32 +62,14 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
   const hasBadge = isPinned || showNew || hasDept;
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => Linking.openURL(item.url)}
-      activeOpacity={0.7}
-    >
-      {/* Badges row — only rendered when there's at least one badge */}
+    <TouchableOpacity style={styles.card} onPress={() => Linking.openURL(item.url)} activeOpacity={0.7}>
       {hasBadge && (
         <View style={styles.badgeRow}>
-          {isPinned && (
-            <View style={styles.badgePrimary}>
-              <Text style={styles.badgeText}>공지</Text>
-            </View>
-          )}
-          {showNew && (
-            <View style={styles.badgeNew}>
-              <Text style={styles.badgeText}>NEW</Text>
-            </View>
-          )}
-          {hasDept && (
-            <View style={styles.badgeDept}>
-              <Text style={[styles.badgeText, { color: C.primary }]}>{d.department}</Text>
-            </View>
-          )}
+          {isPinned && <View style={styles.badgePrimary}><Text style={styles.badgeText}>공지</Text></View>}
+          {showNew && <View style={styles.badgeNew}><Text style={styles.badgeText}>NEW</Text></View>}
+          {hasDept && <View style={styles.badgeDept}><Text style={[styles.badgeText, { color: C.primary }]}>{d.department}</Text></View>}
         </View>
       )}
-      {/* Title + external link on the same row */}
       <View style={styles.cardTitleRow}>
         <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
         <Feather name="external-link" size={13} color="#D1D5DB" style={{ marginTop: 2 }} />
@@ -101,50 +91,34 @@ function NoticeCard({ item, type }: { item: Notice | DeptNotice; type: 'school' 
 function Pagination({
   current, total, onChange, scrollRef,
 }: {
-  current: number;
-  total: number;
+  current: number; total: number;
   onChange: (p: number) => void;
   scrollRef: React.RefObject<ScrollView | null>;
 }) {
   if (total <= 1) return null;
-
   const WINDOW = 5;
   let start = Math.max(1, current - Math.floor(WINDOW / 2));
   let end = start + WINDOW - 1;
   if (end > total) { end = total; start = Math.max(1, end - WINDOW + 1); }
   const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-
-  const go = (p: number) => {
-    onChange(p);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  };
-
+  const go = (p: number) => { onChange(p); scrollRef.current?.scrollTo({ y: 0, animated: true }); };
   const inactive = '#6B7280';
   const disabled = '#D1D5DB';
-
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.pagination}
-    >
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pagination}>
       <TouchableOpacity style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]} onPress={() => go(1)} disabled={current === 1}>
         <Ionicons name="play-skip-back" size={10} color={current === 1 ? disabled : inactive} />
       </TouchableOpacity>
       <TouchableOpacity style={[styles.pageBtn, current === 1 && styles.pageBtnDisabled]} onPress={() => go(current - 1)} disabled={current === 1}>
         <Ionicons name="chevron-back" size={13} color={current === 1 ? disabled : inactive} />
       </TouchableOpacity>
-
       {start > 1 && <Text style={styles.ellipsis}>…</Text>}
-
       {pages.map(p => (
         <TouchableOpacity key={p} style={[styles.pageBtn, current === p && styles.pageBtnActive]} onPress={() => go(p)}>
           <Text style={[styles.pageBtnText, current === p && styles.pageBtnTextActive]}>{p}</Text>
         </TouchableOpacity>
       ))}
-
       {end < total && <Text style={styles.ellipsis}>…</Text>}
-
       <TouchableOpacity style={[styles.pageBtn, current === total && styles.pageBtnDisabled]} onPress={() => go(current + 1)} disabled={current === total}>
         <Ionicons name="chevron-forward" size={13} color={current === total ? disabled : inactive} />
       </TouchableOpacity>
@@ -190,7 +164,6 @@ function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React
   const kw = search.trim().toLowerCase();
   const pinned = notices.filter(n => n.isPinned && (!kw || n.title.toLowerCase().includes(kw)));
   const regular = notices.filter(n => !n.isPinned && (!kw || n.title.toLowerCase().includes(kw)));
-
   const pool = regular.slice(0, MAX_PAGES * PAGE_SIZE);
   const totalPages = Math.min(Math.ceil(pool.length / PAGE_SIZE), MAX_PAGES);
   const paged = kw ? pool : pool.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -206,44 +179,130 @@ function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React
     <>
       {pinned.map((n, i) => <NoticeCard key={`p-${i}`} item={n} type="school" />)}
       {paged.map((n, i) => <NoticeCard key={`r-${i}`} item={n} type="school" />)}
-      {!kw && (
-        <Pagination
-          current={page}
-          total={totalPages}
-          onChange={setPage}
-          scrollRef={scrollRef}
-        />
-      )}
+      {!kw && <Pagination current={page} total={totalPages} onChange={setPage} scrollRef={scrollRef} />}
     </>
   );
 }
 
-type DeptTab = 'notice' | 'jobs';
+/* ── Dept Picker Modal ── */
+function DeptPickerModal({
+  visible, depts, selected, myMajor, onSelect, onClose,
+}: {
+  visible: boolean;
+  depts: DeptInfo[];
+  selected: string;
+  myMajor: string;
+  onSelect: (dept: string) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [q, setQ] = useState('');
+  const allNames = React.useMemo(() => {
+    const supported = depts.map(d => d.name);
+    if (myMajor && !supported.includes(myMajor)) {
+      return [myMajor, ...supported];
+    }
+    return supported;
+  }, [depts, myMajor]);
+
+  const filtered = q.trim()
+    ? allNames.filter(n => n.includes(q.trim()))
+    : allNames;
+
+  const isSupported = (name: string) => depts.some(d => d.name === name);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={pickerStyles.overlay} onPress={onClose} />
+      <View style={[pickerStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        {/* Handle */}
+        <View style={pickerStyles.handle} />
+        <Text style={pickerStyles.title}>학과 선택</Text>
+
+        {/* Search */}
+        <View style={pickerStyles.searchBox}>
+          <Feather name="search" size={14} color="#9CA3AF" />
+          <TextInput
+            style={pickerStyles.searchInput}
+            value={q}
+            onChangeText={setQ}
+            placeholder="학과 검색..."
+            placeholderTextColor="#9CA3AF"
+            autoFocus
+          />
+          {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={14} color="#9CA3AF" /></TouchableOpacity>}
+        </View>
+
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item}
+          showsVerticalScrollIndicator={false}
+          style={{ maxHeight: 380 }}
+          renderItem={({ item }) => {
+            const supported = isSupported(item);
+            const isSelected = item === selected;
+            const isMyMajor = item === myMajor;
+            return (
+              <TouchableOpacity
+                style={[pickerStyles.deptItem, isSelected && pickerStyles.deptItemSelected]}
+                onPress={() => { onSelect(item); onClose(); }}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[pickerStyles.deptName, isSelected && pickerStyles.deptNameSelected]}>
+                    {item}
+                  </Text>
+                  {isMyMajor && (
+                    <Text style={pickerStyles.myMajorLabel}>내 학과</Text>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {!supported && (
+                    <View style={pickerStyles.comingSoonBadge}>
+                      <Text style={pickerStyles.comingSoonText}>준비 중</Text>
+                    </View>
+                  )}
+                  {isSelected && <Feather name="check" size={16} color={C.primary} />}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14 }}>검색 결과가 없습니다</Text>
+            </View>
+          }
+        />
+      </View>
+    </Modal>
+  );
+}
 
 /* ── Dept Notices ── */
-function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.RefObject<ScrollView | null> }) {
+function DeptNotices({
+  search, scrollRef, selectedDept, onChangeDept, supportedDepts, myMajor,
+}: {
+  search: string;
+  scrollRef: React.RefObject<ScrollView | null>;
+  selectedDept: string;
+  onChangeDept: () => void;
+  supportedDepts: DeptInfo[];
+  myMajor: string;
+}) {
   const [deptNotices, setDeptNotices] = useState<DeptNotice[]>([]);
   const [loading, setLoading] = useState(false);
   const [noJobsBoard, setNoJobsBoard] = useState(false);
-  const [userDept, setUserDept] = useState('');
   const [deptTab, setDeptTab] = useState<DeptTab>('notice');
   const [page, setPage] = useState(1);
-  const { user } = useAuth();
   const { colors } = useTheme();
 
-  useEffect(() => {
-    if (user?.major) {
-      setUserDept(user.major);
-    } else {
-      loadProfileAsync().then(p => setUserDept(p.department || ''));
-    }
-  }, [user]);
+  const isSupported = supportedDepts.some(d => d.name === selectedDept);
 
   useEffect(() => {
-    if (!userDept) return;
+    if (!selectedDept || !isSupported) return;
     setLoading(true);
     setNoJobsBoard(false);
-    fetch(`${API}/dept-notices?dept=${encodeURIComponent(userDept)}&type=${deptTab}`)
+    fetch(`${API}/dept-notices?dept=${encodeURIComponent(selectedDept)}&type=${deptTab}`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         if (data.noJobsBoard) { setNoJobsBoard(true); setDeptNotices([]); }
@@ -251,16 +310,54 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [userDept, deptTab]);
+  }, [selectedDept, deptTab, isSupported]);
 
-  useEffect(() => { setPage(1); }, [search, deptTab]);
+  useEffect(() => { setPage(1); }, [search, deptTab, selectedDept]);
 
-  if (!userDept) return (
-    <View style={styles.emptyBox}>
-      <Feather name="info" size={36} color="#D1D5DB" />
-      <Text style={styles.emptyText}>학과 공지를 불러오는 중{'\n'}학번 인증 정보 기반으로 자동 설정됩니다</Text>
-    </View>
+  // 학과 이름 표시 버튼
+  const DeptSelectorBtn = () => (
+    <TouchableOpacity style={deptStyles.deptSelectorBtn} onPress={onChangeDept} activeOpacity={0.75}>
+      <Feather name="book-open" size={14} color={C.primary} />
+      <Text style={deptStyles.deptSelectorText} numberOfLines={1}>
+        {selectedDept || '학과 선택'}
+      </Text>
+      <Feather name="chevron-down" size={14} color={C.primary} />
+    </TouchableOpacity>
   );
+
+  // 미지원 학과
+  if (selectedDept && !isSupported) {
+    return (
+      <>
+        <DeptSelectorBtn />
+        <View style={styles.emptyBox}>
+          <Feather name="tool" size={40} color="#D1D5DB" />
+          <Text style={[styles.emptyText, { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#374151' }]}>
+            기능 준비 중
+          </Text>
+          <Text style={styles.emptyText}>
+            {selectedDept} 공지사항 연동을{'\n'}준비하고 있어요.{'\n'}다른 학과를 선택해 볼 수 있어요.
+          </Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={onChangeDept}>
+            <Text style={styles.retryText}>다른 학과 선택</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  }
+
+  // 학과 미선택
+  if (!selectedDept) {
+    return (
+      <>
+        <DeptSelectorBtn />
+        <View style={styles.emptyBox}>
+          <Feather name="info" size={36} color="#D1D5DB" />
+          <Text style={styles.emptyText}>학과를 선택해 주세요</Text>
+        </View>
+      </>
+    );
+  }
 
   const kw = search.trim().toLowerCase();
   const pool = deptNotices
@@ -271,6 +368,8 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
 
   return (
     <>
+      <DeptSelectorBtn />
+
       {/* 공지사항 / 취업공지 서브 토글 */}
       <View style={[deptStyles.subSegment, { borderColor: colors.border }]}>
         {(['notice', 'jobs'] as DeptTab[]).map(t => (
@@ -302,14 +401,7 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
       ) : (
         <>
           {paged.map((n, i) => <NoticeCard key={i} item={n} type="dept" />)}
-          {!kw && (
-            <Pagination
-              current={page}
-              total={totalPages}
-              onChange={setPage}
-              scrollRef={scrollRef}
-            />
-          )}
+          {!kw && <Pagination current={page} total={totalPages} onChange={setPage} scrollRef={scrollRef} />}
         </>
       )}
     </>
@@ -317,13 +409,31 @@ function DeptNotices({ search, scrollRef }: { search: string; scrollRef: React.R
 }
 
 const deptStyles = StyleSheet.create({
+  deptSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EEF4FF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: `${C.primary}33`,
+  },
+  deptSelectorText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: C.primary,
+  },
   subSegment: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
     borderRadius: 14,
     padding: 3,
     borderWidth: 1,
-    marginBottom: 4,
+    marginBottom: 10,
   },
   subSegItem: { flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: 'center' },
   subSegItemActive: {
@@ -338,6 +448,97 @@ const deptStyles = StyleSheet.create({
   subSegTextActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
 });
 
+const pickerStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    maxHeight: '80%',
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    color: '#111827',
+    marginBottom: 14,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#111827',
+    fontFamily: 'Inter_400Regular',
+  },
+  deptItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  deptItemSelected: {
+    backgroundColor: '#EEF4FF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    marginHorizontal: -10,
+  },
+  deptName: {
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
+    color: '#111827',
+  },
+  deptNameSelected: {
+    fontFamily: 'Inter_700Bold',
+    color: C.primary,
+  },
+  myMajorLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  comingSoonBadge: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  comingSoonText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#9CA3AF',
+  },
+});
+
 /* ══════════════════════════════
    Main Screen
 ══════════════════════════════ */
@@ -346,13 +547,41 @@ export default function NoticesScreen() {
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('school');
   const [search, setSearch] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [supportedDepts, setSupportedDepts] = useState<DeptInfo[]>([]);
+  const [myMajor, setMyMajor] = useState('');
+  const [selectedDept, setSelectedDept] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const spinAnim = useRef(new Animated.Value(0)).current;
   const spinningRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  // 지원 학과 목록 불러오기
+  useEffect(() => {
+    fetch(`${API}/dept-list`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => setSupportedDepts(data.depts ?? []))
+      .catch(() => {});
+  }, []);
+
+  // 사용자 학과 설정
+  useEffect(() => {
+    const major = user?.major ?? '';
+    if (major) {
+      setMyMajor(major);
+      setSelectedDept(major);
+    } else {
+      loadProfileAsync().then(p => {
+        const dept = p.department || '';
+        setMyMajor(dept);
+        setSelectedDept(dept);
+      });
+    }
+  }, [user]);
 
   const startSpin = useCallback(() => {
     spinAnim.setValue(0);
@@ -372,10 +601,7 @@ export default function NoticesScreen() {
     setRefreshing(true);
     startSpin();
     setRefreshKey(k => k + 1);
-    setTimeout(() => {
-      setRefreshing(false);
-      stopSpin();
-    }, 1200);
+    setTimeout(() => { setRefreshing(false); stopSpin(); }, 1200);
   }, [refreshing, startSpin, stopSpin]);
 
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
@@ -386,7 +612,6 @@ export default function NoticesScreen() {
     <View style={[styles.root, { paddingTop: topPad, backgroundColor: colors.background }]}>
       {/* ── Sticky Header ── */}
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        {/* 새로고침 버튼 — 헤더 우상단 절대 위치 */}
         <TouchableOpacity
           onPress={onRefresh}
           disabled={refreshing}
@@ -452,10 +677,27 @@ export default function NoticesScreen() {
       >
         {tab === 'school'
           ? <SchoolNotices search={search} scrollRef={scrollRef} />
-          : <DeptNotices search={search} scrollRef={scrollRef} />
+          : <DeptNotices
+              search={search}
+              scrollRef={scrollRef}
+              selectedDept={selectedDept}
+              onChangeDept={() => setShowPicker(true)}
+              supportedDepts={supportedDepts}
+              myMajor={myMajor}
+            />
         }
         <View style={{ height: isWeb ? 34 : 110 }} />
       </ScrollView>
+
+      {/* ── Dept Picker Modal ── */}
+      <DeptPickerModal
+        visible={showPicker}
+        depts={supportedDepts}
+        selected={selectedDept}
+        myMajor={myMajor}
+        onSelect={setSelectedDept}
+        onClose={() => setShowPicker(false)}
+      />
     </View>
   );
 }
@@ -463,7 +705,6 @@ export default function NoticesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F7FA' },
 
-  /* Header */
   header: {
     paddingHorizontal: 16,
     paddingBottom: 12,
@@ -479,14 +720,10 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
   pageTitleAccent: { color: C.primary },
   refreshBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 38, height: 38, borderRadius: 19,
+    justifyContent: 'center', alignItems: 'center',
   },
 
-  /* Tab segment */
   tabSegment: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
@@ -506,7 +743,6 @@ const styles = StyleSheet.create({
   tabSegText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
   tabSegTextActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
 
-  /* Search */
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#F3F4F6', borderRadius: 14,
@@ -515,10 +751,8 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 13, color: '#111827', fontFamily: 'Inter_400Regular' },
 
-  /* List */
   listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
 
-  /* Card */
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
@@ -535,7 +769,6 @@ const styles = StyleSheet.create({
   cardDate: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   metaDot: { color: '#D1D5DB', fontSize: 12 },
 
-  /* Pagination */
   pagination: {
     flexDirection: 'row', alignItems: 'center',
     gap: 5, paddingVertical: 20, paddingHorizontal: 4,
@@ -551,8 +784,7 @@ const styles = StyleSheet.create({
   pageBtnTextActive: { color: '#fff' },
   ellipsis: { fontSize: 13, color: '#9CA3AF', paddingHorizontal: 1, lineHeight: 34 },
 
-  /* Empty state */
-  emptyBox: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyBox: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   emptyText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: C.primary, borderRadius: 20 },
   retryText: { fontSize: 13, color: '#fff', fontFamily: 'Inter_600SemiBold' },
