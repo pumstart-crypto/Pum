@@ -14,12 +14,35 @@ const ACTIVE_COLOR = C.primary;
 const INACTIVE_COLOR = '#9CA3AF';
 
 const TAB_ITEMS = [
-  { name: 'index',    label: '홈',       sfActive: 'house.fill',      sfInactive: 'house',      ionActive: 'home',          ionInactive: 'home-outline' },
-  { name: 'notices',  label: '공지',     sfActive: 'bell.fill',       sfInactive: 'bell',       ionActive: 'notifications', ionInactive: 'notifications-outline' },
-  { name: 'schedule', label: '시간표',   sfActive: 'calendar',        sfInactive: 'calendar',   ionActive: 'calendar',      ionInactive: 'calendar-outline' },
-  { name: 'board',    label: '커뮤니티', sfActive: 'person.2.fill',   sfInactive: 'person.2',   ionActive: 'people',        ionInactive: 'people-outline' },
-  { name: 'settings', label: '설정',     sfActive: 'gearshape.fill',  sfInactive: 'gearshape',  ionActive: 'settings',      ionInactive: 'settings-outline' },
+  { name: 'index',    label: '홈',       sfActive: 'house.fill',     sfInactive: 'house',     ionActive: 'home',          ionInactive: 'home-outline' },
+  { name: 'notices',  label: '공지',     sfActive: 'bell.fill',      sfInactive: 'bell',      ionActive: 'notifications', ionInactive: 'notifications-outline' },
+  { name: 'schedule', label: '시간표',   sfActive: 'calendar',       sfInactive: 'calendar',  ionActive: 'calendar',      ionInactive: 'calendar-outline' },
+  { name: 'board',    label: '커뮤니티', sfActive: 'person.2.fill',  sfInactive: 'person.2',  ionActive: 'people',        ionInactive: 'people-outline' },
+  { name: 'settings', label: '설정',     sfActive: 'gearshape.fill', sfInactive: 'gearshape', ionActive: 'settings',      ionInactive: 'settings-outline' },
 ] as const;
+
+function TabIconPill({ sfActive, sfInactive, ionActive, ionInactive, focused, color }: {
+  sfActive: string; sfInactive: string; ionActive: string; ionInactive: string;
+  focused: boolean; color: string;
+}) {
+  return (
+    <View style={[styles.pill, focused && styles.pillActive]}>
+      {isIOS ? (
+        <SymbolView
+          name={(focused ? sfActive : sfInactive) as any}
+          tintColor={color}
+          size={ICON_SIZE}
+        />
+      ) : (
+        <Ionicons
+          name={(focused ? ionActive : ionInactive) as any}
+          size={ICON_SIZE}
+          color={color}
+        />
+      )}
+    </View>
+  );
+}
 
 export default function TabLayout() {
   return (
@@ -30,14 +53,14 @@ export default function TabLayout() {
         tabBarInactiveTintColor: INACTIVE_COLOR,
         tabBarShowLabel: true,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 12,
           fontFamily: 'Inter_500Medium',
-          marginTop: 2,
+          marginTop: 0,
         },
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
-          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
           elevation: 0,
           height: isWeb ? 88 : 83,
@@ -45,17 +68,18 @@ export default function TabLayout() {
           paddingTop: 0,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
+          shadowOpacity: 0.04,
+          shadowRadius: 4,
         },
         tabBarItemStyle: {
           paddingTop: 6,
-          paddingBottom: 0,
+          paddingBottom: 4,
+          minHeight: 58,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={85}
+              intensity={80}
               tint="light"
               style={StyleSheet.absoluteFill}
             />
@@ -70,20 +94,16 @@ export default function TabLayout() {
           name={tab.name}
           options={{
             title: tab.label,
-            tabBarIcon: ({ color, focused }) =>
-              isIOS ? (
-                <SymbolView
-                  name={(focused ? tab.sfActive : tab.sfInactive) as any}
-                  tintColor={color}
-                  size={ICON_SIZE}
-                />
-              ) : (
-                <Ionicons
-                  name={(focused ? tab.ionActive : tab.ionInactive) as any}
-                  size={ICON_SIZE}
-                  color={color}
-                />
-              ),
+            tabBarIcon: ({ color, focused }) => (
+              <TabIconPill
+                sfActive={tab.sfActive}
+                sfInactive={tab.sfInactive}
+                ionActive={tab.ionActive}
+                ionInactive={tab.ionInactive}
+                focused={focused}
+                color={color}
+              />
+            ),
           }}
         />
       ))}
@@ -91,4 +111,17 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  pill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    minWidth: 52,
+    height: 34,
+  },
+  pillActive: {
+    backgroundColor: `${C.primary}18`,
+  },
+});
