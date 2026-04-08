@@ -314,48 +314,31 @@ function DeptNotices({
 
   useEffect(() => { setPage(1); }, [search, deptTab, selectedDept]);
 
-  // 학과 이름 표시 버튼
-  const DeptSelectorBtn = () => (
-    <TouchableOpacity style={deptStyles.deptSelectorBtn} onPress={onChangeDept} activeOpacity={0.75}>
-      <Feather name="book-open" size={14} color={C.primary} />
-      <Text style={deptStyles.deptSelectorText} numberOfLines={1}>
-        {selectedDept || '학과 선택'}
-      </Text>
-      <Feather name="chevron-down" size={14} color={C.primary} />
-    </TouchableOpacity>
-  );
-
   // 미지원 학과
   if (selectedDept && !isSupported) {
     return (
-      <>
-        <DeptSelectorBtn />
-        <View style={styles.emptyBox}>
-          <Feather name="tool" size={40} color="#D1D5DB" />
-          <Text style={[styles.emptyText, { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#374151' }]}>
-            기능 준비 중
-          </Text>
-          <Text style={styles.emptyText}>
-            {selectedDept} 공지사항 연동을{'\n'}준비하고 있어요.{'\n'}다른 학과를 선택해 볼 수 있어요.
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={onChangeDept}>
-            <Text style={styles.retryText}>다른 학과 선택</Text>
-          </TouchableOpacity>
-        </View>
-      </>
+      <View style={styles.emptyBox}>
+        <Feather name="tool" size={40} color="#D1D5DB" />
+        <Text style={[styles.emptyText, { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#374151' }]}>
+          기능 준비 중
+        </Text>
+        <Text style={styles.emptyText}>
+          {selectedDept} 공지사항 연동을{'\n'}준비하고 있어요.{'\n'}다른 학과를 선택해 볼 수 있어요.
+        </Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={onChangeDept}>
+          <Text style={styles.retryText}>다른 학과 선택</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
   // 학과 미선택
   if (!selectedDept) {
     return (
-      <>
-        <DeptSelectorBtn />
-        <View style={styles.emptyBox}>
-          <Feather name="info" size={36} color="#D1D5DB" />
-          <Text style={styles.emptyText}>학과를 선택해 주세요</Text>
-        </View>
-      </>
+      <View style={styles.emptyBox}>
+        <Feather name="info" size={36} color="#D1D5DB" />
+        <Text style={styles.emptyText}>학과를 선택해 주세요</Text>
+      </View>
     );
   }
 
@@ -368,8 +351,6 @@ function DeptNotices({
 
   return (
     <>
-      <DeptSelectorBtn />
-
       {/* 공지사항 / 취업공지 서브 토글 */}
       <View style={[deptStyles.subSegment, { borderColor: colors.border }]}>
         {(['notice', 'jobs'] as DeptTab[]).map(t => (
@@ -409,24 +390,6 @@ function DeptNotices({
 }
 
 const deptStyles = StyleSheet.create({
-  deptSelectorBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#EEF4FF',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: `${C.primary}33`,
-  },
-  deptSelectorText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-    color: C.primary,
-  },
   subSegment: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
@@ -612,23 +575,38 @@ export default function NoticesScreen() {
     <View style={[styles.root, { paddingTop: topPad, backgroundColor: colors.background }]}>
       {/* ── Sticky Header ── */}
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={onRefresh}
-          disabled={refreshing}
-          style={[styles.refreshBtn, { backgroundColor: colors.inputBg, position: 'absolute', top: 8, right: 16, zIndex: 10 }]}
-          activeOpacity={0.7}
-        >
-          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
-          </Animated.View>
-        </TouchableOpacity>
-
         <View style={styles.titleRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.subTitle, { color: colors.textSecondary }]}>부산대학교</Text>
             <Text style={[styles.pageTitle, { color: colors.text }]}>
               공지 <Text style={styles.pageTitleAccent}>사항</Text>
             </Text>
+          </View>
+          {/* 헤더 오른쪽 버튼 영역 */}
+          <View style={styles.headerActions}>
+            {tab === 'dept' && (
+              <TouchableOpacity
+                style={[styles.deptHeaderBtn, { backgroundColor: colors.inputBg, borderColor: `${C.primary}33` }]}
+                onPress={() => setShowPicker(true)}
+                activeOpacity={0.75}
+              >
+                <Feather name="book-open" size={13} color={C.primary} />
+                <Text style={styles.deptHeaderBtnText} numberOfLines={1}>
+                  {selectedDept || '학과 선택'}
+                </Text>
+                <Feather name="chevron-down" size={13} color={C.primary} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={onRefresh}
+              disabled={refreshing}
+              style={[styles.refreshBtn, { backgroundColor: colors.inputBg }]}
+              activeOpacity={0.7}
+            >
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Feather name="refresh-cw" size={18} color={refreshing ? C.primary : colors.textSecondary} />
+              </Animated.View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -715,6 +693,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 14,
+    gap: 10,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  deptHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    maxWidth: 140,
+  },
+  deptHeaderBtnText: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: C.primary,
+    flexShrink: 1,
   },
   subTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', letterSpacing: 0, marginBottom: 2 },
   pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
