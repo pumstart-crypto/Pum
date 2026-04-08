@@ -9,17 +9,18 @@ import C from '@/constants/colors';
 const isIOS = Platform.OS === 'ios';
 const isWeb = Platform.OS === 'web';
 
-const ICON_SIZE = 24;
-const LABEL_SIZE = 12;
+// iOS HIG: 아이콘 25×25pt, 레이블 10px Medium, 탭바 높이 49px + safeArea
+const ICON_SIZE = 25;
+const LABEL_SIZE = 10;
 const ACTIVE_COLOR = C.primary;
 const INACTIVE_COLOR = '#9CA3AF';
 
 const TAB_ITEMS = [
-  { name: 'index',    label: '홈',       iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',           sfOutline: 'house' },
-  { name: 'notices',  label: '공지',     iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',            sfOutline: 'bell' },
-  { name: 'schedule', label: '시간표',   iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
-  { name: 'board',    label: '커뮤니티', iconFill: 'people',        iconOutline: 'people-outline',        sfFill: 'person.2.fill',        sfOutline: 'person.2' },
-  { name: 'settings', label: '설정',     iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',       sfOutline: 'gearshape' },
+  { name: 'index',    label: '홈',     iconFill: 'home',          iconOutline: 'home-outline',          sfFill: 'house.fill',           sfOutline: 'house' },
+  { name: 'notices',  label: '공지',   iconFill: 'notifications', iconOutline: 'notifications-outline', sfFill: 'bell.fill',            sfOutline: 'bell' },
+  { name: 'schedule', label: '시간표', iconFill: 'calendar',      iconOutline: 'calendar-outline',      sfFill: 'calendar.badge.clock', sfOutline: 'calendar' },
+  { name: 'board',    label: '커뮤',   iconFill: 'people',        iconOutline: 'people-outline',        sfFill: 'person.2.fill',        sfOutline: 'person.2' },
+  { name: 'settings', label: '설정',   iconFill: 'settings',      iconOutline: 'settings-outline',      sfFill: 'gearshape.fill',       sfOutline: 'gearshape' },
 ] as const;
 
 function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
@@ -47,7 +48,7 @@ function TabIcon({ label, focused, sfFill, sfOutline, iconFill, iconOutline }: {
           color={color}
         />
       )}
-      <Text style={[styles.label, { color }]} numberOfLines={1}>
+      <Text style={[styles.label, { color }]}>
         {label}
       </Text>
     </View>
@@ -66,19 +67,19 @@ export default function TabLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: '#E5E7EB',
           elevation: 0,
-          height: isWeb ? 88 : 84,
+          height: isWeb ? 88 : 83,
           paddingTop: 0,
           paddingBottom: 0,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
         },
         tabBarItemStyle: {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          minHeight: 44,
+          minHeight: 49,
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -119,12 +120,14 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingTop: 7,
+    gap: 4,
+    paddingTop: 8,
+    minWidth: 48,
   },
   label: {
     fontSize: LABEL_SIZE,
     fontFamily: 'Inter_500Medium',
     textAlign: 'center',
+    includeFontPadding: false,
   },
 });
