@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "P:um 피움 - 모바일 앱",
-    "slug": "pium-mobile",
+    "name": "P:um 피움",
+    "slug": "pum",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "pium-mobile",
+    "scheme": "pum",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -16,10 +16,17 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["pnusc", "smartcampus", "pnu"]
-      }
+        "LSApplicationQueriesSchemes": [
+          "pnusc",
+          "smartcampus",
+          "pnu"
+        ]
+      },
+      "bundleIdentifier": "com.pum.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.pum.app"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },

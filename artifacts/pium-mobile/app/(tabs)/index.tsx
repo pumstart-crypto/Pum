@@ -296,93 +296,94 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* Add Todo Modal */}
-      <Modal visible={showAddTodo} transparent animationType="slide" onRequestClose={() => setShowAddTodo(false)}>
+      <Modal visible={showAddTodo} transparent animationType="slide" onRequestClose={() => { setShowAddTodo(false); setShowDatePicker(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavOverlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => setShowAddTodo(false)} />
+          <Pressable style={{ flex: 1 }} onPress={() => { setShowAddTodo(false); setShowDatePicker(false); }} />
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>할 일 추가</Text>
-            <TextInput
-              style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={newTitle}
-              onChangeText={setNewTitle}
-              placeholder="할 일을 입력하세요"
-              placeholderTextColor={colors.textTertiary}
-              autoFocus
-            />
-            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>카테고리</Text>
-            <View style={styles.catRow}>
-              {TODO_CATEGORIES.map(cat => (
+
+            {/* ── 날짜 피커 인라인 뷰 ── */}
+            {showDatePicker ? (
+              <>
+                <View style={styles.datePickerHeader}>
+                  <TouchableOpacity onPress={() => { setNewDueDate(null); setShowDatePicker(false); }} style={styles.datePickerClearBtn}>
+                    <Text style={[styles.datePickerClearText, { color: colors.textSecondary }]}>초기화</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.modalTitle, { color: colors.text, fontSize: 17, marginBottom: 0 }]}>마감일 선택</Text>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.datePickerDoneBtn}>
+                    <Text style={[styles.datePickerDoneText, { color: C.primary }]}>완료</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.datePickerSegRow}>
+                  {(['date', 'time'] as const).map(mode => (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[styles.datePickerSeg, datePickerMode === mode && styles.datePickerSegActive]}
+                      onPress={() => setDatePickerMode(mode)}
+                    >
+                      <Text style={[styles.datePickerSegText, datePickerMode === mode && styles.datePickerSegTextActive]}>
+                        {mode === 'date' ? '날짜' : '시간'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <DateTimePicker
+                  value={newDueDate ?? new Date()}
+                  mode={datePickerMode}
+                  display="spinner"
+                  locale="ko-KR"
+                  onChange={(_, date) => { if (date) setNewDueDate(date); }}
+                  style={{ width: '100%', height: 200 }}
+                />
+              </>
+            ) : (
+              <>
+                {/* ── 할 일 입력 뷰 ── */}
+                <Text style={[styles.modalTitle, { color: colors.text }]}>할 일 추가</Text>
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]}
+                  value={newTitle}
+                  onChangeText={setNewTitle}
+                  placeholder="할 일을 입력하세요"
+                  placeholderTextColor={colors.textTertiary}
+                  autoFocus
+                />
+                <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>카테고리</Text>
+                <View style={styles.catRow}>
+                  {TODO_CATEGORIES.map(cat => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
+                      onPress={() => setNewCategory(cat)}
+                    >
+                      <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
                 <TouchableOpacity
-                  key={cat}
-                  style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
-                  onPress={() => setNewCategory(cat)}
+                  style={[styles.dueDateBtn, { backgroundColor: colors.inputBg }, newDueDate ? { borderColor: C.primary, borderWidth: 1.5 } : {}]}
+                  onPress={() => { setDatePickerMode('date'); setShowDatePicker(true); }}
+                  activeOpacity={0.7}
                 >
-                  <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
+                  <Feather name="calendar" size={16} color={newDueDate ? C.primary : colors.textTertiary} />
+                  <Text style={[styles.dueDateText, { color: newDueDate ? colors.text : colors.textTertiary }]}>
+                    {formatDueDateDisplay(newDueDate) ?? '마감일 선택'}
+                  </Text>
+                  {newDueDate && (
+                    <TouchableOpacity onPress={() => setNewDueDate(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Feather name="x" size={15} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[styles.dueDateBtn, { backgroundColor: colors.inputBg }, newDueDate ? { borderColor: C.primary, borderWidth: 1.5 } : {}]}
-              onPress={() => { setDatePickerMode('date'); setShowDatePicker(true); }}
-              activeOpacity={0.7}
-            >
-              <Feather name="calendar" size={16} color={newDueDate ? C.primary : colors.textTertiary} />
-              <Text style={[styles.dueDateText, { color: newDueDate ? colors.text : colors.textTertiary }]}>
-                {formatDueDateDisplay(newDueDate) ?? '마감일 선택'}
-              </Text>
-              {newDueDate && (
-                <TouchableOpacity onPress={() => setNewDueDate(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Feather name="x" size={15} color={colors.textSecondary} />
+                <TouchableOpacity
+                  style={[styles.btn, !newTitle.trim() && styles.btnDisabled]}
+                  onPress={addTodo} disabled={!newTitle.trim() || submitting}
+                >
+                  {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>추가하기</Text>}
                 </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btn, !newTitle.trim() && styles.btnDisabled]}
-              onPress={addTodo} disabled={!newTitle.trim() || submitting}
-            >
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>추가하기</Text>}
-            </TouchableOpacity>
+              </>
+            )}
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Date/Time Picker Modal */}
-      <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
-        <View style={styles.kavOverlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => setShowDatePicker(false)} />
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 8, backgroundColor: colors.card, gap: 0 }]}>
-            <View style={styles.datePickerHeader}>
-              <TouchableOpacity onPress={() => setNewDueDate(null)} style={styles.datePickerClearBtn}>
-                <Text style={[styles.datePickerClearText, { color: colors.textSecondary }]}>초기화</Text>
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text, fontSize: 17, marginBottom: 0 }]}>마감일 선택</Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.datePickerDoneBtn}>
-                <Text style={[styles.datePickerDoneText, { color: C.primary }]}>완료</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.datePickerSegRow}>
-              {(['date', 'time'] as const).map(mode => (
-                <TouchableOpacity
-                  key={mode}
-                  style={[styles.datePickerSeg, datePickerMode === mode && styles.datePickerSegActive]}
-                  onPress={() => setDatePickerMode(mode)}
-                >
-                  <Text style={[styles.datePickerSegText, datePickerMode === mode && styles.datePickerSegTextActive]}>
-                    {mode === 'date' ? '날짜' : '시간'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <DateTimePicker
-              value={newDueDate ?? new Date()}
-              mode={datePickerMode}
-              display="spinner"
-              locale="ko-KR"
-              onChange={(_, date) => { if (date) setNewDueDate(date); }}
-              style={{ width: '100%', height: 200 }}
-            />
-          </View>
-        </View>
       </Modal>
     </View>
   );
