@@ -1340,7 +1340,7 @@ export default function ScheduleScreen() {
                 onChangeText={setCsKeyword}
                 placeholder="과목명으로 검색"
                 placeholderTextColor="#9CA3AF"
-                onSubmitEditing={searchCourses}
+                onSubmitEditing={() => searchCourses()}
                 returnKeyType="search"
               />
               {csKeyword ? (
@@ -1359,7 +1359,7 @@ export default function ScheduleScreen() {
                 onChangeText={setCsProfessor}
                 placeholder="교수명으로 검색"
                 placeholderTextColor="#9CA3AF"
-                onSubmitEditing={searchCourses}
+                onSubmitEditing={() => searchCourses()}
                 returnKeyType="search"
               />
               {csProfessor ? (
@@ -1394,7 +1394,7 @@ export default function ScheduleScreen() {
             {/* Search button */}
             <TouchableOpacity
               style={{ backgroundColor: C.primary, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginBottom: 8 }}
-              onPress={searchCourses}
+              onPress={() => searchCourses()}
             >
               <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#fff' }}>검색</Text>
             </TouchableOpacity>
