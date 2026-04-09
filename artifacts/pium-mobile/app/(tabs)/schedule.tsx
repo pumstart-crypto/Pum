@@ -100,6 +100,11 @@ const gradeColor = (g: string): string =>
   : (GRADE_POINTS[g] ?? 0) > 0 ? '#DC2626'
   : '#6B7280';
 const GRADE_OPTIONS = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F', 'P', 'NP'];
+const MAJOR_CATEGORIES = ['전공필수', '전공기초', '전공선택'];
+const CATEGORY_ORDER: Record<string, number> = {
+  '전공기초': 0, '전공선택': 1, '전공필수': 2,
+  '교양선택': 3, '교양필수': 4, '일반선택': 5,
+};
 const GRAD_REQS = [
   { label: '전공필수', color: '#2563EB', required: 39, categories: ['전공필수'] },
   { label: '전공기초', color: '#2563EB', required: 15, categories: ['전공기초'] },
@@ -713,6 +718,12 @@ export default function ScheduleScreen() {
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
   const totalCreditCount = activeGrades.reduce((s, g) => s + g.credits, 0);
+  // 전공평점: 전공필수/기초/선택만
+  const majorEligible = eligible.filter(g => g.category && MAJOR_CATEGORIES.includes(g.category));
+  const majorCredits = majorEligible.reduce((s, g) => s + g.credits, 0);
+  const majorGpa = majorCredits > 0
+    ? (majorEligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0) / majorCredits).toFixed(2)
+    : '—';
 
   // 학기별 평점 추이 (스파크라인용, 오래된 순 정렬)
   const semesterGpas = React.useMemo(() => {
@@ -900,14 +911,19 @@ export default function ScheduleScreen() {
               <>
                 <View style={styles.statsRow}>
                   <View style={styles.statCard}>
-                    <Ionicons name="ribbon-outline" size={28} color={C.primary} style={{ marginBottom: 4 }} />
-                    <Text style={styles.statValue}>{gpa}</Text>
-                    <Text style={styles.statLabel}>전체 평점 / 4.5</Text>
+                    <Ionicons name="ribbon-outline" size={22} color={C.primary} style={{ marginBottom: 2 }} />
+                    <Text style={[styles.statValue, { fontSize: 22 }]}>{gpa}</Text>
+                    <Text style={styles.statLabel}>전체 평점</Text>
                   </View>
                   <View style={styles.statCard}>
-                    <Ionicons name="school-outline" size={28} color={C.primary} style={{ marginBottom: 4 }} />
-                    <Text style={styles.statValue}>{totalCreditCount}</Text>
-                    <Text style={styles.statLabel}>총 이수학점 / {totalRequired}</Text>
+                    <Ionicons name="book-outline" size={22} color="#7C3AED" style={{ marginBottom: 2 }} />
+                    <Text style={[styles.statValue, { fontSize: 22, color: '#7C3AED' }]}>{majorGpa}</Text>
+                    <Text style={styles.statLabel}>전공 평점</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="school-outline" size={22} color={C.primary} style={{ marginBottom: 2 }} />
+                    <Text style={[styles.statValue, { fontSize: 22 }]}>{totalCreditCount}</Text>
+                    <Text style={styles.statLabel}>이수학점/{totalRequired}</Text>
                   </View>
                 </View>
 
@@ -997,6 +1013,12 @@ export default function ScheduleScreen() {
                       return (SEM_ORDER[as_] ?? 99) - (SEM_ORDER[bs] ?? 99);
                     })
                     .map(([key, gs]) => {
+                      const sorted_gs = [...gs].sort((a, b) => {
+                        const ca = CATEGORY_ORDER[a.category ?? ''] ?? 99;
+                        const cb = CATEGORY_ORDER[b.category ?? ''] ?? 99;
+                        if (ca !== cb) return ca - cb;
+                        return a.subjectName.localeCompare(b.subjectName, 'ko-KR');
+                      });
                       const [year, sem] = key.split('-');
                       const collapsed = !openSems.has(key);
                       const semEl = gs.filter(g => !g.isRetake && g.grade !== 'P' && g.grade !== 'NP');
@@ -1025,7 +1047,7 @@ export default function ScheduleScreen() {
                               <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={14} color={C.primary} />
                             </View>
                           </TouchableOpacity>
-                          {!collapsed && gs.map(g => {
+                          {!collapsed && sorted_gs.map(g => {
                             const gc = gradeColor(g.grade);
                             return (
                               <View key={g.id} style={[styles.gradeRow, g.isRetake && { opacity: 0.5, backgroundColor: '#F9FAFB' }]}>
