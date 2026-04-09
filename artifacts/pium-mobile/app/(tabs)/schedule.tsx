@@ -1098,7 +1098,7 @@ export default function ScheduleScreen() {
                                     )}
                                   </View>
                                   <Text style={styles.gradeMeta}>
-                                    {g.credits}학점{g.category ? ` · ${g.category}` : ''}{g.isRetake ? ' · 평점 제외' : ''}
+                                    {g.credits}학점{g.category ? ` · ${g.category}` : ''}
                                   </Text>
                                 </View>
                                 <TouchableOpacity
