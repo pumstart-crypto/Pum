@@ -748,13 +748,13 @@ export default function ScheduleScreen() {
   });
 
   // isRetake=true: 재수강으로 대체된 구 성적 → 평점·이수학점 제외
-  // grade='-': 수강중(미확정) → 평점·이수학점 모두 제외
+  // grade='-': 수강중(미확정) → 평점 제외, 이수학점에는 포함
   const activeGrades = grades.filter(g => !g.isRetake && g.grade !== '-');
   const eligible = activeGrades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
-  const totalCreditCount = activeGrades.reduce((s, g) => s + g.credits, 0);
+  const totalCreditCount = grades.filter(g => !g.isRetake).reduce((s, g) => s + g.credits, 0);
   // 전공평점: 전공필수/기초/선택만
   const majorEligible = eligible.filter(g => g.category && MAJOR_CATEGORIES.includes(g.category));
   const majorCredits = majorEligible.reduce((s, g) => s + g.credits, 0);
