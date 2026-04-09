@@ -607,7 +607,7 @@ export default function ScheduleScreen() {
 
   const addGrade = async () => {
     if (!gSubject.trim()) return;
-    if (gGrade === '-') { Alert.alert('성적 선택 필요', '성적(학점)을 선택해 주세요.'); return; }
+
     setGSubmitting(true);
     try {
       const r = await fetch(`${API}/grades`, {
