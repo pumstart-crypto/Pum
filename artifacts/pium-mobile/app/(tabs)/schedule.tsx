@@ -419,6 +419,8 @@ export default function ScheduleScreen() {
     if (t === 'grades' && !gradesFetched) fetchGrades();
   };
 
+  const SEASONAL_SEMS = ['여름계절', '겨울계절', '여름도약', '겨울도약'];
+
   useEffect(() => {
     if (showCourseSearch) {
       setCsDept('');
@@ -429,6 +431,10 @@ export default function ScheduleScreen() {
       setCsResults([]);
       setCsSelected(null);
       fetchDepts(currentSem.year, currentSem.sem);
+      // 계절·도약학기는 전체 과목 수가 적으므로 모달 열리자마자 자동 검색
+      if (SEASONAL_SEMS.includes(currentSem.sem)) {
+        searchCourses({ year: currentSem.year, sem: currentSem.sem });
+      }
     }
   }, [showCourseSearch]);
 
@@ -487,15 +493,18 @@ export default function ScheduleScreen() {
     finally { setDeptsLoading(false); }
   }, []);
 
-  const searchCourses = async () => {
+  const searchCourses = async (overrideSem?: { year: number; sem: string }) => {
     Keyboard.dismiss();
-    if (!csDept && !csKeyword && !csProfessor && csCategory === '전체' && csYear === '전체') return;
+    const semCtx = overrideSem ?? currentSem;
+    // 필터가 하나도 없을 때: 계절·도약학기는 전체 조회 허용, 정규학기는 막음
+    const hasFilter = !!(csDept || csKeyword || csProfessor || csCategory !== '전체' || csYear !== '전체');
+    if (!hasFilter && !SEASONAL_SEMS.includes(semCtx.sem)) return;
     setCsLoading(true);
     setCsSelected([]);
     try {
       const params = new URLSearchParams();
-      params.set('catalogYear', String(currentSem.year));
-      params.set('catalogSemester', currentSem.sem);
+      params.set('catalogYear', String(semCtx.year));
+      params.set('catalogSemester', semCtx.sem);
       if (csDept) params.set('dept', csDept);
       if (csYear !== '전체') params.set('gradeYear', csYear.replace('학년', ''));
       if (csCategory !== '전체') params.set('category', csCategory);
