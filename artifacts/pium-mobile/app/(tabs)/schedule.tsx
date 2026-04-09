@@ -1109,19 +1109,12 @@ export default function ScheduleScreen() {
                                   <Text style={[styles.gradeBadgeText, { color: gc }]}>{g.grade}</Text>
                                   <Ionicons name="pencil" size={9} color={gc} style={{ marginLeft: 2 }} />
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => deleteGrade(g.id)} style={styles.deleteBtn}>
-                                  <Feather name="trash-2" size={14} color="#EF4444" />
-                                </TouchableOpacity>
                               </View>
                             );
                           })}
                         </View>
                       );
                     })}
-                    <TouchableOpacity style={styles.addGradeBtn} onPress={() => setShowAddGrade(true)}>
-                      <Feather name="plus" size={16} color={C.primary} />
-                      <Text style={styles.addGradeBtnText}>성적 추가</Text>
-                    </TouchableOpacity>
                   </>
                 )}
               </>
