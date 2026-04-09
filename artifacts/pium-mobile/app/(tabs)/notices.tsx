@@ -690,7 +690,11 @@ export default function NoticesScreen() {
     return Array.from(merged.values()).sort((a, b) => {
       if (a.name === myMajor) return -1;
       if (b.name === myMajor) return 1;
-      return a.name.localeCompare(b.name, 'ko');
+      const aEng = /^[A-Za-z]/.test(a.name);
+      const bEng = /^[A-Za-z]/.test(b.name);
+      if (aEng && !bEng) return -1;
+      if (!aEng && bEng) return 1;
+      return a.name.localeCompare(b.name, aEng ? 'en' : 'ko');
     });
   }, [supportedDepts, allDeptNames, myMajor]);
 
