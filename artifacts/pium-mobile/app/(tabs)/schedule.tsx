@@ -91,6 +91,7 @@ const GRADE_POINTS: Record<string, number> = {
   'C+': 2.5, 'C': 2.0, 'C0': 2.0, 'D+': 1.5, 'D': 1.0, 'D0': 1.0,
   'F': 0, 'P': 0, 'NP': 0,
 };
+const GRADE_OPTIONS = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F', 'P', 'NP'];
 const GRAD_REQS = [
   { label: '전공필수', color: '#2563EB', required: 39, categories: ['전공필수'] },
   { label: '전공기초', color: '#2563EB', required: 15, categories: ['전공기초'] },
@@ -330,6 +331,7 @@ export default function ScheduleScreen() {
   const [showCourseSearch, setShowCourseSearch] = useState(false);
   const [showDirectAdd, setShowDirectAdd] = useState(false);
   const [showAddGrade, setShowAddGrade] = useState(false);
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
 
   // Direct add form
   const [dName, setDName] = useState('');
@@ -600,6 +602,21 @@ export default function ScheduleScreen() {
         setGrades(prev => prev.filter(g => g.id !== id));
       }},
     ]);
+  };
+
+  const updateGradeValue = async (id: number, newGrade: string) => {
+    try {
+      const res = await fetch(`${API}/grades/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grade: newGrade }),
+      });
+      if (!res.ok) throw new Error();
+      setGrades(prev => prev.map(g => g.id === id ? { ...g, grade: newGrade } : g));
+      setEditingGrade(null);
+    } catch {
+      Alert.alert('오류', '학점 변경 실패');
+    }
   };
 
   const [gradeSyncing, setGradeSyncing] = useState(false);
@@ -992,9 +1009,14 @@ export default function ScheduleScreen() {
                                   <Text style={styles.gradeSubject}>{g.subjectName}</Text>
                                   <Text style={styles.gradeMeta}>{g.credits}학점{g.category ? ` · ${g.category}` : ''}</Text>
                                 </View>
-                                <View style={[styles.gradeBadge, { backgroundColor: gc + '18' }]}>
+                                <TouchableOpacity
+                                  onPress={() => setEditingGrade(g)}
+                                  style={[styles.gradeBadge, { backgroundColor: gc + '18' }]}
+                                  activeOpacity={0.7}
+                                >
                                   <Text style={[styles.gradeBadgeText, { color: gc }]}>{g.grade}</Text>
-                                </View>
+                                  <Ionicons name="pencil" size={9} color={gc} style={{ marginLeft: 2 }} />
+                                </TouchableOpacity>
                                 <TouchableOpacity onPress={() => deleteGrade(g.id)} style={styles.deleteBtn}>
                                   <Feather name="trash-2" size={14} color="#EF4444" />
                                 </TouchableOpacity>
@@ -1611,6 +1633,52 @@ export default function ScheduleScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* 학점 편집 바텀시트 */}
+      <Modal visible={!!editingGrade} transparent animationType="slide" onRequestClose={() => setEditingGrade(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>학점 변경</Text>
+            {editingGrade && (
+              <>
+                <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 16 }}>
+                  {editingGrade.subjectName}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
+                  {GRADE_OPTIONS.map(g => {
+                    const pts = GRADE_POINTS[g];
+                    const isSelected = editingGrade.grade === g;
+                    const gradeColor = pts >= 4 ? '#059669' : pts >= 3 ? '#2563EB' : pts >= 2 ? '#D97706' : pts > 0 ? '#DC2626' : '#6B7280';
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        onPress={() => updateGradeValue(editingGrade.id, g)}
+                        style={{
+                          width: 62, alignItems: 'center', paddingVertical: 10, borderRadius: 14,
+                          backgroundColor: isSelected ? gradeColor : gradeColor + '14',
+                          borderWidth: isSelected ? 0 : 1, borderColor: gradeColor + '40',
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', color: isSelected ? '#fff' : gradeColor }}>{g}</Text>
+                        {pts !== undefined && pts !== null && (
+                          <Text style={{ fontSize: 10, fontFamily: 'Inter_400Regular', color: isSelected ? 'rgba(255,255,255,0.8)' : '#9CA3AF', marginTop: 2 }}>
+                            {g === 'P' || g === 'NP' ? 'P/F' : pts.toFixed(1)}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingGrade(null)}>
+              <Text style={styles.cancelText}>닫기</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1681,7 +1749,7 @@ const styles = StyleSheet.create({
   gradeInfo: { flex: 1 },
   gradeSubject: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
   gradeMeta: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
-  gradeBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
+  gradeBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', alignItems: 'center' },
   gradeBadgeText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
   deleteBtn: { padding: 8 },
   addGradeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed', marginBottom: 20 },
