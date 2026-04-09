@@ -182,6 +182,58 @@ function parseTimeRoom(timeRoom: string, addMinutesFn: (t: string, m: number) =>
   return results;
 }
 
+// ── 학기별 평점 스파크라인 ────────────────────────────────────────
+function Sparkline({ data, width = 180, height = 44 }: { data: { label: string; gpa: number }[]; width?: number; height?: number }) {
+  if (data.length < 2) return null;
+  const gpas = data.map(d => d.gpa);
+  const min = Math.max(0, Math.min(...gpas) - 0.3);
+  const max = Math.min(4.5, Math.max(...gpas) + 0.3);
+  const range = max - min || 1;
+  const PAD = 6;
+  const points = gpas.map((v, i) => ({
+    x: PAD + (i / (gpas.length - 1)) * (width - PAD * 2),
+    y: PAD + (1 - (v - min) / range) * (height - PAD * 2),
+  }));
+  const rising = gpas[gpas.length - 1] >= gpas[0];
+  const lineColor = rising ? '#059669' : '#EF4444';
+  return (
+    <View style={{ width, height, position: 'relative' }}>
+      {points.slice(0, -1).map((p, i) => {
+        const n = points[i + 1];
+        const dx = n.x - p.x; const dy = n.y - p.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        const mx = (p.x + n.x) / 2; const my = (p.y + n.y) / 2;
+        return (
+          <View key={i} style={{
+            position: 'absolute',
+            left: mx - len / 2, top: my - 1.5,
+            width: len, height: 3, borderRadius: 2,
+            backgroundColor: lineColor,
+            transform: [{ rotate: `${angle}deg` }],
+          }} />
+        );
+      })}
+      {points.map((p, i) => {
+        const isLast = i === points.length - 1;
+        return (
+          <View key={i} style={{
+            position: 'absolute',
+            left: p.x - (isLast ? 5 : 3.5),
+            top: p.y - (isLast ? 5 : 3.5),
+            width: isLast ? 10 : 7,
+            height: isLast ? 10 : 7,
+            borderRadius: isLast ? 5 : 3.5,
+            backgroundColor: isLast ? lineColor : '#fff',
+            borderWidth: isLast ? 2.5 : 2,
+            borderColor: lineColor,
+          }} />
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -620,6 +672,28 @@ export default function ScheduleScreen() {
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
   const totalCreditCount = grades.reduce((s, g) => s + g.credits, 0);
 
+  // 학기별 평점 추이 (스파크라인용, 오래된 순 정렬)
+  const semesterGpas = React.useMemo(() => {
+    const map = new Map<string, { year: number; sem: string; gpas: number[] }>();
+    for (const g of grades) {
+      if (g.grade === 'P' || g.grade === 'NP') continue;
+      const key = `${g.year}-${g.semester}`;
+      if (!map.has(key)) map.set(key, { year: g.year, sem: g.semester, gpas: [] });
+      const pts = GRADE_POINTS[g.grade];
+      if (pts !== undefined) map.get(key)!.gpas.push(pts);
+    }
+    return Array.from(map.values())
+      .filter(v => v.gpas.length > 0)
+      .sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return (SEM_ORDER[a.sem] ?? 99) - (SEM_ORDER[b.sem] ?? 99);
+      })
+      .map(v => ({
+        label: `${v.year} ${SEM_SHORT[v.sem] ?? v.sem}`,
+        gpa: parseFloat((v.gpas.reduce((s, p) => s + p, 0) / v.gpas.length).toFixed(2)),
+      }));
+  }, [grades]);
+
   // 졸업요건 이수학점: schedules의 category 기준으로 중복 제거 후 계산
   const earnedByCategory: Record<string, number> = {};
   const seenSchedKeys = new Set<string>();
@@ -794,6 +868,39 @@ export default function ScheduleScreen() {
                     <Text style={styles.statLabel}>총 이수학점 / {totalRequired}</Text>
                   </View>
                 </View>
+
+                {/* 학기별 평점 추이 스파크라인 */}
+                {semesterGpas.length >= 2 && (() => {
+                  const gpas = semesterGpas.map(d => d.gpa);
+                  const rising = gpas[gpas.length - 1] >= gpas[0];
+                  const diff = (gpas[gpas.length - 1] - gpas[0]).toFixed(2);
+                  const trendColor = rising ? '#059669' : '#EF4444';
+                  return (
+                    <View style={styles.sparkCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sparkTitle}>학기별 평점 추이</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+                          <Text style={[styles.sparkTrend, { color: trendColor }]}>
+                            {rising ? '▲' : '▼'} {Math.abs(parseFloat(diff)).toFixed(2)}
+                          </Text>
+                          <Text style={styles.sparkSub}>
+                            ({semesterGpas[0].label} → {semesterGpas[semesterGpas.length - 1].label})
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                          {semesterGpas.map((d, i) => (
+                            <View key={i} style={{ alignItems: 'center' }}>
+                              <Text style={{ fontSize: 9, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }}>{d.label.split(' ')[1] ?? ''}</Text>
+                              <Text style={{ fontSize: 11, color: '#374151', fontFamily: 'Inter_600SemiBold' }}>{d.gpa}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      <Sparkline data={semesterGpas} width={130} height={52} />
+                    </View>
+                  );
+                })()}
+
                 <View style={styles.gradReqCard}>
                   <TouchableOpacity style={styles.gradReqHeader} onPress={() => setGradReqOpen(o => !o)}>
                     <View style={styles.gradReqTitleRow}>
@@ -809,10 +916,19 @@ export default function ScheduleScreen() {
                         const earned = getEarned(req);
                         const reqCr = getRequired(req);
                         const done = earned >= reqCr;
+                        const pct = reqCr > 0 ? Math.min(100, (earned / reqCr) * 100) : 0;
+                        const barColor = done ? '#059669' : req.color;
                         return (
                           <View key={req.label} style={[styles.gradReqRow, i === GRAD_REQS.length - 1 && { borderBottomWidth: 0 }]}>
-                            <Text style={[styles.gradReqLabel, { color: req.color, flex: 1, flexWrap: 'wrap' }]}>{req.label}</Text>
-                            <Text style={[styles.gradReqValue, done && { color: '#059669', fontFamily: 'Inter_600SemiBold' }]}>{earned}/{reqCr}학점{done ? ' ✓' : ''}</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                              <Text style={[styles.gradReqLabel, { color: done ? '#059669' : req.color }]}>{req.label}</Text>
+                              <Text style={[styles.gradReqValue, done && { color: '#059669', fontFamily: 'Inter_600SemiBold' }]}>
+                                {earned}/{reqCr}학점{done ? ' ✓' : ''}
+                              </Text>
+                            </View>
+                            <View style={styles.progTrack}>
+                              <View style={[styles.progFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+                            </View>
                           </View>
                         );
                       })}
@@ -905,48 +1021,68 @@ export default function ScheduleScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+              {/* 헤더 */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>졸업 필요학점 설정</Text>
+                <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 0 }]}>졸업 필요학점 설정</Text>
                 <TouchableOpacity onPress={() => setShowGradSettings(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Feather name="x" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 20 }}>
-                학과별로 다를 수 있어요. 직접 조정하세요.
+              <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 16 }}>
+                학과별로 다를 수 있어요. 숫자를 탭해 직접 입력하세요.
               </Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {GRAD_REQS.map((req) => {
-                  const cur = parseInt(gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required), 10) || 0;
-                  const adjust = (delta: number) => {
-                    const next = Math.max(0, cur + delta);
-                    setGradSettingsDraft(prev => ({ ...prev, [req.label]: String(next) }));
-                  };
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {GRAD_REQS.map((req, idx) => {
+                  const val = gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required);
                   return (
-                    <View key={req.label} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.inputBg }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: req.color, marginRight: 10, marginTop: 1 }} />
-                      <Text style={{ flex: 1, fontSize: 14, color: colors.text, fontFamily: 'Inter_500Medium' }}>{req.label}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                        <TouchableOpacity onPress={() => adjust(-1)} style={{ width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.inputBg }}>
-                          <Feather name="minus" size={14} color={colors.textSecondary} />
-                        </TouchableOpacity>
+                    <View key={req.label} style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingVertical: 12,
+                      borderBottomWidth: idx < GRAD_REQS.length - 1 ? 1 : 0,
+                      borderBottomColor: colors.inputBg,
+                    }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: req.color, marginRight: 10 }} />
+                      <Text style={{ flex: 1, fontSize: 13, color: colors.text, fontFamily: 'Inter_500Medium', flexWrap: 'wrap' }}>{req.label}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <TextInput
-                          style={{ width: 44, textAlign: 'center', fontSize: 15, color: colors.text, fontFamily: 'Inter_600SemiBold', paddingVertical: 4 }}
-                          value={gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required)}
+                          style={{
+                            width: 52, textAlign: 'center',
+                            fontSize: 17, color: colors.text,
+                            fontFamily: 'Inter_700Bold',
+                            paddingVertical: 4, paddingHorizontal: 4,
+                            borderBottomWidth: 2,
+                            borderBottomColor: val !== String(gradReqRequired[req.label] ?? req.required) ? C.primary : colors.border,
+                            backgroundColor: 'transparent',
+                          }}
+                          value={val}
                           onChangeText={v => setGradSettingsDraft(prev => ({ ...prev, [req.label]: v.replace(/[^0-9]/g, '') }))}
-                          keyboardType="numeric"
+                          keyboardType="number-pad"
+                          selectTextOnFocus
+                          returnKeyType="done"
                         />
-                        <TouchableOpacity onPress={() => adjust(1)} style={{ width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.inputBg }}>
-                          <Feather name="plus" size={14} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                        <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginLeft: 4 }}>학점</Text>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>학점</Text>
                       </View>
                     </View>
                   );
                 })}
               </ScrollView>
-              <TouchableOpacity style={[styles.addBtn, { marginTop: 20 }]} onPress={saveGradSettings}>
-                <Text style={styles.addBtnText}>저장</Text>
-              </TouchableOpacity>
+              {/* 저장 버튼 — 변경사항 있을 때만 활성화 */}
+              {(() => {
+                const hasChanges = GRAD_REQS.some(req => {
+                  const draft = parseInt(gradSettingsDraft[req.label] ?? '');
+                  const current = gradReqRequired[req.label] ?? req.required;
+                  return !isNaN(draft) && draft !== current;
+                });
+                return (
+                  <TouchableOpacity
+                    style={[styles.addBtn, { marginTop: 16, opacity: hasChanges ? 1 : 0.4 }]}
+                    onPress={hasChanges ? saveGradSettings : undefined}
+                    activeOpacity={hasChanges ? 0.8 : 1}
+                  >
+                    <Text style={styles.addBtnText}>저장</Text>
+                  </TouchableOpacity>
+                );
+              })()}
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -1513,8 +1649,18 @@ const styles = StyleSheet.create({
   blockLoc: { fontSize: 9, fontFamily: 'Inter_400Regular', marginTop: 1 },
 
   gradesContent: { paddingHorizontal: 16, paddingTop: 4 },
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   statCard: { flex: 1, backgroundColor: '#EEF4FF', borderRadius: 18, padding: 16, alignItems: 'center', gap: 2 },
+  sparkCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#F9FAFB', borderRadius: 18,
+    paddingHorizontal: 16, paddingVertical: 14,
+    marginBottom: 16, gap: 8,
+    borderWidth: 1, borderColor: '#F3F4F6',
+  },
+  sparkTitle: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  sparkTrend: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  sparkSub: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
   statValue: { fontSize: 26, fontFamily: 'Inter_700Bold', color: C.primary },
   statLabel: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center' },
   gradReqCard: { backgroundColor: '#F9FAFB', borderRadius: 18, marginBottom: 16, overflow: 'hidden' },
@@ -1524,9 +1670,11 @@ const styles = StyleSheet.create({
   gradReqBadge: { backgroundColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   gradReqBadgeText: { fontSize: 11, fontFamily: 'Inter_500Medium', color: '#6B7280' },
   gradReqBody: { paddingHorizontal: 16, paddingBottom: 8 },
-  gradReqRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  gradReqLabel: { fontSize: 14, fontFamily: 'Inter_500Medium' },
-  gradReqValue: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280' },
+  gradReqRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  gradReqLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', flex: 1 },
+  gradReqValue: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280' },
+  progTrack: { height: 5, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden' },
+  progFill: { height: 5, borderRadius: 3 },
   semesterGroup: { marginBottom: 16 },
   semesterTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#6B7280', marginBottom: 8 },
   gradeRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderRadius: 14, padding: 12, marginBottom: 6, gap: 10 },
