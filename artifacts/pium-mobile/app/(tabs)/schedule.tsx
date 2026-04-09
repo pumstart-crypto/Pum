@@ -274,6 +274,7 @@ export default function ScheduleScreen() {
   const [newSemYear, setNewSemYear] = useState(String(initSem.year));
   const [newSemSem, setNewSemSem] = useState<string>('1');
   const [showAddSem, setShowAddSem] = useState(false);
+  const [editSems, setEditSems] = useState(false);
 
   // 졸업요건 설정 (m값 편집 가능)
   const [gradReqRequired, setGradReqRequired] = useState<Record<string, number>>(
@@ -1196,74 +1197,110 @@ export default function ScheduleScreen() {
       </Modal>
 
       {/* ── 시간표 관리 Modal ── */}
-      <Modal visible={showSemModal} transparent animationType="slide" onRequestClose={() => setShowSemModal(false)}>
+      <Modal visible={showSemModal} transparent animationType="slide" onRequestClose={() => { setShowSemModal(false); setEditSems(false); setShowAddSem(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSemModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setShowSemModal(false); setEditSems(false); setShowAddSem(false); }}>
           <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetTitleRow}>
               <Text style={styles.sheetTitle}>시간표 관리</Text>
-              <TouchableOpacity style={styles.closeCircle} onPress={() => setShowSemModal(false)}>
-                <Feather name="x" size={16} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-              {semesters.map((s, i) => (
-                <View key={i} style={[styles.semRow, selectedSemIdx === i && styles.semRowActive]}>
-                  <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}
-                    onPress={() => { setSelectedSemIdx(i); setShowSemModal(false); }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="calendar-outline" size={18} color={selectedSemIdx === i ? '#fff' : C.primary} />
-                    <Text style={[styles.semRowText, selectedSemIdx === i && { color: '#fff' }]}>{formatSem(s)}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {!showAddSem && (
+                  <TouchableOpacity onPress={() => setEditSems(v => !v)} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: editSems ? '#FEE2E2' : '#F3F4F6' }}>
+                    <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: editSems ? '#EF4444' : '#6B7280' }}>{editSems ? '완료' : '편집'}</Text>
                   </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    {selectedSemIdx === i && <Feather name="check" size={16} color="#fff" />}
-                    {semesters.length > 1 && (
-                      <TouchableOpacity
-                        onPress={() => deleteSemester(i)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Feather name="trash-2" size={16} color={selectedSemIdx === i ? 'rgba(255,255,255,0.7)' : '#EF4444'} />
-                      </TouchableOpacity>
-                    )}
+                )}
+                <TouchableOpacity style={styles.closeCircle} onPress={() => { setShowSemModal(false); setEditSems(false); setShowAddSem(false); }}>
+                  <Feather name="x" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            {/* 최신 학기가 위에 오도록 역순 표시 */}
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {[...semesters].reverse().map((s, di) => {
+                const realIdx = semesters.length - 1 - di;
+                const isSelected = selectedSemIdx === realIdx;
+                return (
+                  <View key={di} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    {/* 선택된 학기 좌측 컬러바 */}
+                    <View style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, backgroundColor: isSelected ? C.primary : 'transparent', marginRight: 4 }} />
+                    <TouchableOpacity
+                      style={[styles.semRow, isSelected && styles.semRowActive, { flex: 1, marginBottom: 0 }]}
+                      onPress={() => { if (!editSems) { setSelectedSemIdx(realIdx); setShowSemModal(false); setEditSems(false); setShowAddSem(false); } }}
+                      activeOpacity={editSems ? 1 : 0.8}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
+                        <Ionicons name="calendar-outline" size={18} color={isSelected ? '#fff' : C.primary} />
+                        <Text style={[styles.semRowText, isSelected && { color: '#fff' }]}>{formatSem(s)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        {isSelected && !editSems && <Feather name="check" size={16} color="#fff" />}
+                        {editSems && semesters.length > 1 && (
+                          <TouchableOpacity onPress={() => deleteSemester(realIdx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Feather name="trash-2" size={16} color={isSelected ? 'rgba(255,255,255,0.7)' : '#EF4444'} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </TouchableOpacity>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
-            {!showAddSem ? (
-              <TouchableOpacity style={styles.addSemBtn} onPress={() => setShowAddSem(true)}>
+            {!editSems && (!showAddSem ? (
+              <TouchableOpacity style={[styles.addSemBtn, { marginTop: 8 }]} onPress={() => setShowAddSem(true)}>
                 <Feather name="plus" size={16} color="#9CA3AF" />
                 <Text style={styles.addSemText}>새 학기 추가</Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.addSemForm}>
-                <TextInput
-                  style={styles.addSemInput}
-                  value={newSemYear}
-                  onChangeText={setNewSemYear}
-                  placeholder="연도 (예: 2026)"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                />
+              <View style={[styles.addSemForm, { marginTop: 8 }]}>
+                {/* 연도 칩 선택 */}
+                {(() => {
+                  const cy = new Date().getFullYear();
+                  const yearOpts = [cy - 1, cy, cy + 1];
+                  return (
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                      {yearOpts.map(y => {
+                        const selected = parseInt(newSemYear, 10) === y;
+                        return (
+                          <TouchableOpacity
+                            key={y}
+                            onPress={() => setNewSemYear(String(y))}
+                            style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: selected ? C.primary : '#F3F4F6', borderWidth: selected ? 0 : 1, borderColor: '#E5E7EB' }}
+                          >
+                            <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: selected ? '#fff' : '#374151' }}>{y}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                })()}
+                {/* 학기 유형 칩 */}
                 <View style={[styles.semSemRow, { flexWrap: 'wrap' }]}>
-                  {SEM_CODES.map(s => (
-                    <TouchableOpacity key={s} style={[styles.semSemChip, newSemSem === s && styles.semSemChipActive, { paddingVertical: 9 }]} onPress={() => setNewSemSem(s)}>
-                      <Text style={[styles.semSemText, newSemSem === s && styles.semSemTextActive, { fontSize: 12 }]}>{SEM_SHORT[s]}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {SEM_CODES.map(s => {
+                    const alreadyExists = semesters.some(sem => sem.year === parseInt(newSemYear, 10) && sem.sem === s);
+                    const isActive = newSemSem === s && !alreadyExists;
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        disabled={alreadyExists}
+                        style={[styles.semSemChip, isActive && styles.semSemChipActive, { paddingVertical: 9, opacity: alreadyExists ? 0.35 : 1 }]}
+                        onPress={() => setNewSemSem(s)}
+                      >
+                        <Text style={[styles.semSemText, isActive && styles.semSemTextActive, { fontSize: 12 }]}>{SEM_SHORT[s]}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={[styles.btn, { flex: 1, paddingVertical: 12 }]} onPress={addSemester}>
-                    <Text style={styles.btnText}>추가</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                  <TouchableOpacity onPress={() => setShowAddSem(false)} style={{ paddingVertical: 12, paddingHorizontal: 16 }}>
+                    <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#9CA3AF' }}>취소</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.cancelBtn2, { flex: 1 }]} onPress={() => setShowAddSem(false)}>
-                    <Text style={styles.cancelText}>취소</Text>
+                  <TouchableOpacity style={[styles.btn, { flex: 1, paddingVertical: 13 }]} onPress={addSemester}>
+                    <Text style={styles.btnText}>추가</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-            )}
+            ))}
 
           </TouchableOpacity>
         </TouchableOpacity>
