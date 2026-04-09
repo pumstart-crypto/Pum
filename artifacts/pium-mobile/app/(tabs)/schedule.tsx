@@ -1255,25 +1255,25 @@ export default function ScheduleScreen() {
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.addSemForm}>
-                    {/* 연도 칩 선택 */}
+                    {/* 연도 칩 선택 (2022 ~ 현재+1, 가로 스크롤) */}
                     {(() => {
                       const cy = new Date().getFullYear();
-                      const yearOpts = [cy - 1, cy, cy + 1];
+                      const yearOpts = Array.from({ length: cy + 1 - 2022 + 1 }, (_, i) => 2022 + i);
                       return (
-                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
                           {yearOpts.map(y => {
                             const selected = parseInt(newSemYear, 10) === y;
                             return (
                               <TouchableOpacity
                                 key={y}
                                 onPress={() => setNewSemYear(String(y))}
-                                style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: selected ? C.primary : '#F3F4F6', borderWidth: selected ? 0 : 1, borderColor: '#E5E7EB' }}
+                                style={{ paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12, alignItems: 'center', backgroundColor: selected ? C.primary : '#F3F4F6', borderWidth: selected ? 0 : 1, borderColor: '#E5E7EB' }}
                               >
                                 <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: selected ? '#fff' : '#374151' }}>{y}</Text>
                               </TouchableOpacity>
                             );
                           })}
-                        </View>
+                        </ScrollView>
                       );
                     })()}
                     {/* 학기 유형 칩 */}
