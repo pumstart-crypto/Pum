@@ -92,7 +92,6 @@ const GRADE_POINTS: Record<string, number> = {
   'C+': 2.5, 'C': 2.0, 'C0': 2.0, 'D+': 1.5, 'D': 1.0, 'D0': 1.0,
   'F': 0, 'P': 0, 'NP': 0,
 };
-const RETAKE_CAP = 4.0;
 const gradeColor = (g: string): string =>
   g === 'P' ? '#059669'
   : (GRADE_POINTS[g] ?? 0) >= 4 ? '#059669'
@@ -707,28 +706,23 @@ export default function ScheduleScreen() {
     return next;
   });
 
-  const gradeEffectivePts = (g: Grade) => {
-    const raw = GRADE_POINTS[g.grade] ?? 0;
-    return g.isRetake ? Math.min(raw, RETAKE_CAP) : raw;
-  };
-  const eligible = grades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
+  // isRetake=true: 재수강으로 대체된 구 성적 → 평점·이수학점 제외
+  const activeGrades = grades.filter(g => !g.isRetake);
+  const eligible = activeGrades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
-  const weightedSum = eligible.reduce((s, g) => s + gradeEffectivePts(g) * g.credits, 0);
+  const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
-  const totalCreditCount = grades.reduce((s, g) => s + g.credits, 0);
+  const totalCreditCount = activeGrades.reduce((s, g) => s + g.credits, 0);
 
   // 학기별 평점 추이 (스파크라인용, 오래된 순 정렬)
   const semesterGpas = React.useMemo(() => {
     const map = new Map<string, { year: number; sem: string; gpas: number[] }>();
     for (const g of grades) {
-      if (g.grade === 'P' || g.grade === 'NP') continue;
+      if (g.isRetake || g.grade === 'P' || g.grade === 'NP') continue;
       const key = `${g.year}-${g.semester}`;
       if (!map.has(key)) map.set(key, { year: g.year, sem: g.semester, gpas: [] });
       const raw = GRADE_POINTS[g.grade];
-      if (raw !== undefined) {
-        const pts = g.isRetake ? Math.min(raw, RETAKE_CAP) : raw;
-        map.get(key)!.gpas.push(pts);
-      }
+      if (raw !== undefined) map.get(key)!.gpas.push(raw);
     }
     return Array.from(map.values())
       .filter(v => v.gpas.length > 0)
@@ -1005,12 +999,12 @@ export default function ScheduleScreen() {
                     .map(([key, gs]) => {
                       const [year, sem] = key.split('-');
                       const collapsed = !openSems.has(key);
-                      const semEl = gs.filter(g => g.grade !== 'P' && g.grade !== 'NP');
+                      const semEl = gs.filter(g => !g.isRetake && g.grade !== 'P' && g.grade !== 'NP');
                       const semTotalCr = semEl.reduce((s, g) => s + g.credits, 0);
                       const semGpa = semTotalCr > 0
-                        ? (semEl.reduce((s, g) => s + gradeEffectivePts(g) * g.credits, 0) / semTotalCr).toFixed(2)
+                        ? (semEl.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0) / semTotalCr).toFixed(2)
                         : '—';
-                      const semTotalCredits = gs.reduce((s, g) => s + g.credits, 0);
+                      const semTotalCredits = gs.filter(g => !g.isRetake).reduce((s, g) => s + g.credits, 0);
                       return (
                         <View key={key} style={styles.semesterGroup}>
                           <TouchableOpacity
@@ -1033,21 +1027,19 @@ export default function ScheduleScreen() {
                           </TouchableOpacity>
                           {!collapsed && gs.map(g => {
                             const gc = gradeColor(g.grade);
-                            const overCap = g.isRetake && (GRADE_POINTS[g.grade] ?? 0) > RETAKE_CAP;
                             return (
-                              <View key={g.id} style={styles.gradeRow}>
+                              <View key={g.id} style={[styles.gradeRow, g.isRetake && { opacity: 0.5, backgroundColor: '#F9FAFB' }]}>
                                 <View style={styles.gradeInfo}>
                                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                                    <Text style={styles.gradeSubject}>{g.subjectName}</Text>
+                                    <Text style={[styles.gradeSubject, g.isRetake && { textDecorationLine: 'line-through', color: '#9CA3AF' }]}>{g.subjectName}</Text>
                                     {g.isRetake && (
-                                      <View style={styles.retakeBadge}>
-                                        <Text style={styles.retakeBadgeText}>재수강</Text>
+                                      <View style={[styles.retakeBadge, { backgroundColor: '#E5E7EB' }]}>
+                                        <Text style={[styles.retakeBadgeText, { color: '#6B7280' }]}>재수강됨</Text>
                                       </View>
                                     )}
                                   </View>
                                   <Text style={styles.gradeMeta}>
-                                    {g.credits}학점{g.category ? ` · ${g.category}` : ''}
-                                    {overCap ? '  ⚠ A0 초과' : ''}
+                                    {g.credits}학점{g.category ? ` · ${g.category}` : ''}{g.isRetake ? ' · 평점 제외' : ''}
                                   </Text>
                                 </View>
                                 <TouchableOpacity
@@ -1691,7 +1683,6 @@ export default function ScheduleScreen() {
                     const pts = GRADE_POINTS[g];
                     const isSelected = editingGrade.grade === g;
                     const gc = gradeColor(g);
-                    const isOverCap = editingGrade.isRetake && (pts ?? 0) > RETAKE_CAP;
                     return (
                       <TouchableOpacity
                         key={g}
@@ -1700,7 +1691,6 @@ export default function ScheduleScreen() {
                           width: 62, alignItems: 'center', paddingVertical: 10, borderRadius: 14,
                           backgroundColor: isSelected ? gc : gc + '14',
                           borderWidth: isSelected ? 0 : 1, borderColor: gc + '40',
-                          opacity: isOverCap ? 0.4 : 1,
                         }}
                         activeOpacity={0.7}
                       >
@@ -1715,23 +1705,23 @@ export default function ScheduleScreen() {
                 {/* 재수강 토글 */}
                 <View style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                  backgroundColor: editingGrade.isRetake ? '#EFF6FF' : '#F9FAFB',
+                  backgroundColor: editingGrade.isRetake ? '#FEF2F2' : '#F9FAFB',
                   borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 12,
-                  borderWidth: 1, borderColor: editingGrade.isRetake ? '#BFDBFE' : '#F3F4F6',
+                  borderWidth: 1, borderColor: editingGrade.isRetake ? '#FECACA' : '#F3F4F6',
                 }}>
                   <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' }}>재수강</Text>
+                    <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' }}>재수강으로 대체됨</Text>
                     <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6B7280', marginTop: 2 }}>
                       {editingGrade.isRetake
-                        ? `성적 상한 A0(4.0) 적용 중${(GRADE_POINTS[editingGrade.grade] ?? 0) > RETAKE_CAP ? ' · ⚠ 현재 초과' : ''}`
-                        : 'C+ 이하 과목만 재수강 가능'}
+                        ? '이 성적은 평점·이수학점에서 제외됩니다'
+                        : '이후 재수강으로 이 과목 성적이 대체됐다면 켜세요'}
                     </Text>
                   </View>
                   <Switch
                     value={!!editingGrade.isRetake}
                     onValueChange={(v) => toggleRetake(editingGrade.id, v)}
-                    trackColor={{ false: '#E5E7EB', true: C.primary + '60' }}
-                    thumbColor={editingGrade.isRetake ? C.primary : '#9CA3AF'}
+                    trackColor={{ false: '#E5E7EB', true: '#FCA5A5' }}
+                    thumbColor={editingGrade.isRetake ? '#EF4444' : '#9CA3AF'}
                   />
                 </View>
               </>
