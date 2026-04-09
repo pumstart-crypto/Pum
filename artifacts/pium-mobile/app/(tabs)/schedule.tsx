@@ -1745,6 +1745,25 @@ export default function ScheduleScreen() {
                   {editingGrade.subjectName}
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 12 }}>
+                  {/* 미선택/수강중 '-' 옵션 */}
+                  {(() => {
+                    const isSelected = editingGrade.grade === '-';
+                    return (
+                      <TouchableOpacity
+                        key="-"
+                        onPress={() => updateGradeValue(editingGrade.id, '-')}
+                        style={{
+                          width: 62, alignItems: 'center', paddingVertical: 10, borderRadius: 14,
+                          backgroundColor: isSelected ? '#6B7280' : '#F3F4F6',
+                          borderWidth: isSelected ? 0 : 1, borderColor: '#D1D5DB',
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', color: isSelected ? '#fff' : '#9CA3AF' }}>-</Text>
+                        <Text style={{ fontSize: 10, fontFamily: 'Inter_400Regular', color: isSelected ? 'rgba(255,255,255,0.8)' : '#9CA3AF', marginTop: 2 }}>수강중</Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
                   {GRADE_OPTIONS.map(g => {
                     const pts = GRADE_POINTS[g];
                     const isSelected = editingGrade.grade === g;
