@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Linking, ActivityIndicator,
-  Platform, Animated, Modal, FlatList, Pressable,
+  Platform, Animated, Modal, FlatList, SectionList, Pressable,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -184,6 +184,14 @@ function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React
   );
 }
 
+/* ── 초성 추출 ── */
+function getInitial(str: string): string {
+  const code = str.charCodeAt(0) - 0xAC00;
+  if (code < 0) return str[0]?.toUpperCase() ?? '#';
+  const initials = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  return initials[Math.floor(code / 588)] ?? '#';
+}
+
 /* ── Dept Picker Modal ── */
 function DeptPickerModal({
   visible, depts, selected, myMajor, onSelect, onClose,
@@ -197,6 +205,8 @@ function DeptPickerModal({
 }) {
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
+  const sectionListRef = useRef<SectionList>(null);
+
   const allNames = React.useMemo(() => {
     const supported = depts.map(d => d.name);
     if (myMajor && !supported.includes(myMajor)) {
@@ -205,11 +215,76 @@ function DeptPickerModal({
     return supported;
   }, [depts, myMajor]);
 
-  const filtered = q.trim()
-    ? allNames.filter(n => n.includes(q.trim()))
-    : allNames;
-
   const isSupported = (name: string) => depts.some(d => d.name === name);
+
+  /* 검색 중: 평탄 결과 */
+  const filtered = React.useMemo(
+    () => q.trim() ? allNames.filter(n => n.includes(q.trim())) : [],
+    [allNames, q],
+  );
+
+  /* 초성별 섹션 */
+  const sections = React.useMemo(() => {
+    const sectionMap = new Map<string, string[]>();
+    const others = myMajor ? allNames.filter(n => n !== myMajor) : allNames;
+    for (const name of others) {
+      const c = getInitial(name);
+      if (!sectionMap.has(c)) sectionMap.set(c, []);
+      sectionMap.get(c)!.push(name);
+    }
+    const result: { title: string; data: string[] }[] = [];
+    if (myMajor && allNames.includes(myMajor)) {
+      result.push({ title: '★', data: [myMajor] });
+    }
+    for (const [title, data] of sectionMap.entries()) {
+      result.push({ title, data });
+    }
+    return result;
+  }, [allNames, myMajor]);
+
+  const indexConsonants = React.useMemo(
+    () => sections.filter(s => s.title !== '★').map(s => s.title),
+    [sections],
+  );
+
+  const scrollToSection = (consonant: string) => {
+    const idx = sections.findIndex(s => s.title === consonant);
+    if (idx < 0 || !sectionListRef.current) return;
+    try {
+      sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true, viewOffset: 4 });
+    } catch {}
+  };
+
+  const renderDeptItem = (item: string) => {
+    const sup = isSupported(item);
+    const isSel = item === selected;
+    const isMine = item === myMajor;
+    return (
+      <TouchableOpacity
+        key={item}
+        style={[pickerStyles.deptItem, isSel && pickerStyles.deptItemSelected]}
+        onPress={() => { onSelect(item); onClose(); }}
+        activeOpacity={0.7}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[pickerStyles.deptName, isSel && pickerStyles.deptNameSelected]}>
+            {item}
+          </Text>
+          {isMine && <Text style={pickerStyles.myMajorLabel}>내 학과</Text>}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {!sup && (
+            <View style={pickerStyles.comingSoonBadge}>
+              <Text style={pickerStyles.comingSoonText}>준비 중</Text>
+            </View>
+          )}
+          {isSel && <Feather name="check" size={16} color={C.primary} />}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const isSearching = !!q.trim();
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -233,46 +308,61 @@ function DeptPickerModal({
           {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={14} color="#9CA3AF" /></TouchableOpacity>}
         </View>
 
-        <FlatList
-          data={filtered}
-          keyExtractor={item => item}
-          showsVerticalScrollIndicator={false}
-          style={{ maxHeight: 380 }}
-          renderItem={({ item }) => {
-            const supported = isSupported(item);
-            const isSelected = item === selected;
-            const isMyMajor = item === myMajor;
-            return (
-              <TouchableOpacity
-                style={[pickerStyles.deptItem, isSelected && pickerStyles.deptItemSelected]}
-                onPress={() => { onSelect(item); onClose(); }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[pickerStyles.deptName, isSelected && pickerStyles.deptNameSelected]}>
-                    {item}
-                  </Text>
-                  {isMyMajor && (
-                    <Text style={pickerStyles.myMajorLabel}>내 학과</Text>
-                  )}
+        <View style={{ flexDirection: 'row', flex: 1, maxHeight: 400 }}>
+          {isSearching ? (
+            /* 검색 결과: 평탄 리스트 */
+            <FlatList
+              data={filtered}
+              keyExtractor={item => item}
+              showsVerticalScrollIndicator={false}
+              style={{ flex: 1 }}
+              renderItem={({ item }) => renderDeptItem(item)}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14 }}>검색 결과가 없습니다</Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {!supported && (
-                    <View style={pickerStyles.comingSoonBadge}>
-                      <Text style={pickerStyles.comingSoonText}>준비 중</Text>
-                    </View>
-                  )}
-                  {isSelected && <Feather name="check" size={16} color={C.primary} />}
+              }
+            />
+          ) : (
+            /* 초성별 섹션 + 우측 인덱스 바 */
+            <>
+              <SectionList
+                ref={sectionListRef}
+                sections={sections}
+                keyExtractor={(item, index) => item + index}
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1 }}
+                stickySectionHeadersEnabled
+                renderSectionHeader={({ section }) => (
+                  <View style={pickerStyles.sectionHeader}>
+                    <Text style={pickerStyles.sectionHeaderText}>{section.title}</Text>
+                  </View>
+                )}
+                renderItem={({ item }) => renderDeptItem(item)}
+                ListEmptyComponent={
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Text style={{ color: '#9CA3AF', fontSize: 14 }}>학과 목록이 없습니다</Text>
+                  </View>
+                }
+              />
+              {/* 우측 초성 인덱스 바 */}
+              {indexConsonants.length > 0 && (
+                <View style={pickerStyles.indexBar}>
+                  {indexConsonants.map(c => (
+                    <TouchableOpacity
+                      key={c}
+                      style={pickerStyles.indexItem}
+                      onPress={() => scrollToSection(c)}
+                      hitSlop={{ top: 2, bottom: 2, left: 6, right: 6 }}
+                    >
+                      <Text style={pickerStyles.indexText}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              </TouchableOpacity>
-            );
-          }}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14 }}>검색 결과가 없습니다</Text>
-            </View>
-          }
-        />
+              )}
+            </>
+          )}
+        </View>
       </View>
     </Modal>
   );
@@ -500,6 +590,38 @@ const pickerStyles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: '#9CA3AF',
   },
+  sectionHeader: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginTop: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sectionHeaderText: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    color: C.primary,
+    letterSpacing: 1,
+  },
+  indexBar: {
+    width: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 1,
+  },
+  indexItem: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+  },
+  indexText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    color: C.primary,
+    lineHeight: 14,
+  },
 });
 
 /* ══════════════════════════════
@@ -616,7 +738,6 @@ export default function NoticesScreen() {
                 onPress={() => setShowPicker(true)}
                 activeOpacity={0.75}
               >
-                <Feather name="book-open" size={13} color={C.primary} />
                 <Text style={styles.deptHeaderBtnText} numberOfLines={1}>
                   {selectedDept || '학과 선택'}
                 </Text>
