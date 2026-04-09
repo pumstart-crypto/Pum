@@ -748,7 +748,8 @@ export default function ScheduleScreen() {
   });
 
   // isRetake=true: 재수강으로 대체된 구 성적 → 평점·이수학점 제외
-  const activeGrades = grades.filter(g => !g.isRetake);
+  // grade='-': 수강중(미확정) → 평점·이수학점 모두 제외
+  const activeGrades = grades.filter(g => !g.isRetake && g.grade !== '-');
   const eligible = activeGrades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
