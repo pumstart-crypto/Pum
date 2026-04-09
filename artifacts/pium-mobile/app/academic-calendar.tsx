@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Platform,
@@ -130,7 +130,38 @@ export default function AcademicCalendarScreen() {
   const insets = useSafeAreaInsets();
   const topPad = isWeb ? 67 : insets.top;
   const [filter, setFilter] = useState<FilterTab>('전체');
+  const [headerShadow, setHeaderShadow] = useState(false);
   const now = new Date();
+
+  const scrollRef = useRef<ScrollView>(null);
+  const targetRef = useRef<View | null>(null);
+  const autoScrolled = useRef(false);
+  const scrollViewScreenY = useRef(0);
+
+  const targetEventId = useMemo(() => {
+    if (filter !== '전체') return null;
+    const ongoing = EVENTS.find(ev => getStatus(ev, now) === '진행중');
+    if (ongoing) return ongoing.startDate + ongoing.title;
+    const upcoming = EVENTS.find(ev => getStatus(ev, now) === '예정');
+    return upcoming ? upcoming.startDate + upcoming.title : null;
+  }, [filter]);
+
+  useEffect(() => {
+    autoScrolled.current = false;
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [filter]);
+
+  const handleTargetLayout = useCallback(() => {
+    if (autoScrolled.current || !targetRef.current) return;
+    setTimeout(() => {
+      if (!targetRef.current || autoScrolled.current) return;
+      targetRef.current.measureInWindow((_x, y) => {
+        const offset = y - scrollViewScreenY.current;
+        scrollRef.current?.scrollTo({ y: Math.max(0, offset - 20), animated: true });
+        autoScrolled.current = true;
+      });
+    }, 250);
+  }, []);
 
   const filtered = EVENTS.filter(ev => {
     if (filter === '전체') return true;
@@ -148,9 +179,9 @@ export default function AcademicCalendarScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110 }}>
 
-        {/* Header */}
+      {/* Sticky Header */}
+      <View style={[styles.stickyHeader, headerShadow && styles.stickyHeaderShadow]}>
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="chevron-left" size={24} color="#374151" />
@@ -159,8 +190,6 @@ export default function AcademicCalendarScreen() {
           <Text style={styles.pageTitle}>학사일정</Text>
           <Text style={styles.pageSubtitle}>2025~2026학년도 1학기</Text>
         </View>
-
-        {/* Filter Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer} style={styles.tabsScroll}>
           {TABS.map(tab => {
             const isActive = filter === tab;
@@ -179,8 +208,17 @@ export default function AcademicCalendarScreen() {
             );
           })}
         </ScrollView>
+      </View>
 
-        {/* Events */}
+      {/* Scrollable Events */}
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: isWeb ? 60 : 110, paddingTop: 8 }}
+        scrollEventThrottle={16}
+        onScroll={(e) => setHeaderShadow(e.nativeEvent.contentOffset.y > 2)}
+        onLayout={(e) => { scrollViewScreenY.current = e.nativeEvent.layout.y; }}
+      >
         <View style={styles.content}>
           {Object.keys(grouped).length === 0 ? (
             <View style={styles.empty}>
@@ -197,6 +235,8 @@ export default function AcademicCalendarScreen() {
                     const badge = STATUS_BADGE[status];
                     const isSameDay = ev.startDate === ev.endDate;
                     const isOngoing = status === '진행중';
+                    const evId = ev.startDate + ev.title;
+                    const isTarget = evId === targetEventId;
 
                     let pct = 0;
                     if (isOngoing && !isSameDay) {
@@ -208,6 +248,8 @@ export default function AcademicCalendarScreen() {
                     return (
                       <View
                         key={i}
+                        ref={isTarget ? (r) => { targetRef.current = r; } : undefined}
+                        onLayout={isTarget ? handleTargetLayout : undefined}
                         style={[
                           styles.eventCard,
                           isOngoing && styles.eventCardOngoing,
@@ -252,6 +294,18 @@ export default function AcademicCalendarScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F9FAFB' },
+
+  stickyHeader: {
+    backgroundColor: '#F9FAFB',
+    zIndex: 10,
+  },
+  stickyHeaderShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
 
   backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
   headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },

@@ -349,7 +349,10 @@ export default function MealsScreen() {
                               {/* 메뉴 항목 칩(태그) 형태 */}
                               <View style={styles.chipsRow}>
                                 {sub.items.map((item, ii) => (
-                                  <View key={ii} style={[styles.menuChip, isActiveNow && styles.menuChipActive]}>
+                                  <View key={ii} style={[
+                                    styles.menuChip,
+                                    isActiveNow ? { backgroundColor: '#fff', borderColor: '#CBD5E1' } : null,
+                                  ]}>
                                     <Text style={styles.menuChipText}>{item}</Text>
                                   </View>
                                 ))}
