@@ -116,11 +116,15 @@ const GRAD_REQS = [
 const TOTAL_GRAD = GRAD_REQS.reduce((s, r) => s + r.required, 0);
 const ISU_OPTIONS = ['전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
 const YEAR_FILTERS = ['전체', '1학년', '2학년', '3학년', '4학년'];
+const CATEGORY_API_MAP: Record<string, string[]> = {
+  '효원핵심교양(교양필수)': ['효원핵심교양'],
+  '효원균형·창의교양(교양선택)': ['효원균형교양', '효원창의교양'],
+};
 function getCategoryFilters(year: number): string[] {
   if (year < 2025) {
     return ['전체', '전공필수', '전공기초', '전공선택', '교양필수', '교양선택', '일반선택', '교직과목'];
   }
-  return ['전체', '전공필수', '전공기초', '전공선택', '효원핵심교양', '효원균형교양', '효원창의교양', '일반선택', '교직과목'];
+  return ['전체', '전공필수', '전공기초', '전공선택', '효원핵심교양(교양필수)', '효원균형·창의교양(교양선택)', '일반선택', '교직과목'];
 }
 const DAY_MAP: Record<string, number> = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
 
@@ -515,7 +519,10 @@ export default function ScheduleScreen() {
       params.set('catalogSemester', semCtx.sem);
       if (csDept) params.set('dept', csDept);
       if (csYear !== '전체') params.set('gradeYear', csYear.replace('학년', ''));
-      if (csCategory !== '전체') params.set('category', csCategory);
+      if (csCategory !== '전체') {
+        const apiCats = CATEGORY_API_MAP[csCategory] ?? [csCategory];
+        params.set('category', apiCats.join(','));
+      }
       if (csKeyword) params.set('search', csKeyword);
       if (csProfessor) params.set('professor', csProfessor);
       const r = await fetch(`${API}/courses?${params}`);

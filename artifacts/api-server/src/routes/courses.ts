@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, coursesTable } from "@workspace/db";
-import { ilike, eq, and, sql, isNotNull } from "drizzle-orm";
+import { ilike, eq, inArray, and, sql, isNotNull } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -53,7 +53,12 @@ router.get("/courses", async (req, res) => {
       );
     }
     if (category) {
-      conditions.push(eq(coursesTable.category, category));
+      const cats = category.split(',').map(c => c.trim()).filter(Boolean);
+      if (cats.length === 1) {
+        conditions.push(eq(coursesTable.category, cats[0]));
+      } else if (cats.length > 1) {
+        conditions.push(inArray(coursesTable.category, cats));
+      }
     }
     if (search && search.length >= 1) {
       conditions.push(ilike(coursesTable.subjectName, `%${search}%`));
