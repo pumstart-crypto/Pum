@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Platform, Alert, ActivityIndicator,
-  RefreshControl, KeyboardAvoidingView, Keyboard, SectionList,
+  RefreshControl, KeyboardAvoidingView, Keyboard, SectionList, Switch,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -85,12 +85,21 @@ interface Schedule {
 interface Grade {
   id: number; subjectName: string; grade: string;
   credits: number; semester: string; year: number; category?: string;
+  isRetake?: boolean;
 }
 const GRADE_POINTS: Record<string, number> = {
   'A+': 4.5, 'A': 4.0, 'A0': 4.0, 'B+': 3.5, 'B': 3.0, 'B0': 3.0,
   'C+': 2.5, 'C': 2.0, 'C0': 2.0, 'D+': 1.5, 'D': 1.0, 'D0': 1.0,
   'F': 0, 'P': 0, 'NP': 0,
 };
+const RETAKE_CAP = 4.0;
+const gradeColor = (g: string): string =>
+  g === 'P' ? '#059669'
+  : (GRADE_POINTS[g] ?? 0) >= 4 ? '#059669'
+  : (GRADE_POINTS[g] ?? 0) >= 3 ? '#2563EB'
+  : (GRADE_POINTS[g] ?? 0) >= 2 ? '#D97706'
+  : (GRADE_POINTS[g] ?? 0) > 0 ? '#DC2626'
+  : '#6B7280';
 const GRADE_OPTIONS = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F', 'P', 'NP'];
 const GRAD_REQS = [
   { label: '전공필수', color: '#2563EB', required: 39, categories: ['전공필수'] },
@@ -613,9 +622,24 @@ export default function ScheduleScreen() {
       });
       if (!res.ok) throw new Error();
       setGrades(prev => prev.map(g => g.id === id ? { ...g, grade: newGrade } : g));
-      setEditingGrade(null);
+      setEditingGrade(prev => prev ? { ...prev, grade: newGrade } : null);
     } catch {
       Alert.alert('오류', '학점 변경 실패');
+    }
+  };
+
+  const toggleRetake = async (id: number, newVal: boolean) => {
+    try {
+      const res = await fetch(`${API}/grades/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isRetake: newVal }),
+      });
+      if (!res.ok) throw new Error();
+      setGrades(prev => prev.map(g => g.id === id ? { ...g, isRetake: newVal } : g));
+      setEditingGrade(prev => prev ? { ...prev, isRetake: newVal } : null);
+    } catch {
+      Alert.alert('오류', '재수강 변경 실패');
     }
   };
 
@@ -683,9 +707,13 @@ export default function ScheduleScreen() {
     return next;
   });
 
+  const gradeEffectivePts = (g: Grade) => {
+    const raw = GRADE_POINTS[g.grade] ?? 0;
+    return g.isRetake ? Math.min(raw, RETAKE_CAP) : raw;
+  };
   const eligible = grades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
-  const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.credits, 0);
+  const weightedSum = eligible.reduce((s, g) => s + gradeEffectivePts(g) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
   const totalCreditCount = grades.reduce((s, g) => s + g.credits, 0);
 
@@ -696,8 +724,11 @@ export default function ScheduleScreen() {
       if (g.grade === 'P' || g.grade === 'NP') continue;
       const key = `${g.year}-${g.semester}`;
       if (!map.has(key)) map.set(key, { year: g.year, sem: g.semester, gpas: [] });
-      const pts = GRADE_POINTS[g.grade];
-      if (pts !== undefined) map.get(key)!.gpas.push(pts);
+      const raw = GRADE_POINTS[g.grade];
+      if (raw !== undefined) {
+        const pts = g.isRetake ? Math.min(raw, RETAKE_CAP) : raw;
+        map.get(key)!.gpas.push(pts);
+      }
     }
     return Array.from(map.values())
       .filter(v => v.gpas.length > 0)
@@ -977,7 +1008,7 @@ export default function ScheduleScreen() {
                       const semEl = gs.filter(g => g.grade !== 'P' && g.grade !== 'NP');
                       const semTotalCr = semEl.reduce((s, g) => s + g.credits, 0);
                       const semGpa = semTotalCr > 0
-                        ? (semEl.reduce((s, g) => s + (GRADE_POINTS[g.grade] || 0) * g.credits, 0) / semTotalCr).toFixed(2)
+                        ? (semEl.reduce((s, g) => s + gradeEffectivePts(g) * g.credits, 0) / semTotalCr).toFixed(2)
                         : '—';
                       const semTotalCredits = gs.reduce((s, g) => s + g.credits, 0);
                       return (
@@ -1001,13 +1032,23 @@ export default function ScheduleScreen() {
                             </View>
                           </TouchableOpacity>
                           {!collapsed && gs.map(g => {
-                            const point = GRADE_POINTS[g.grade] ?? 0;
-                            const gc = point >= 4 ? '#059669' : point >= 3 ? '#2563EB' : point >= 2 ? '#D97706' : '#DC2626';
+                            const gc = gradeColor(g.grade);
+                            const overCap = g.isRetake && (GRADE_POINTS[g.grade] ?? 0) > RETAKE_CAP;
                             return (
                               <View key={g.id} style={styles.gradeRow}>
                                 <View style={styles.gradeInfo}>
-                                  <Text style={styles.gradeSubject}>{g.subjectName}</Text>
-                                  <Text style={styles.gradeMeta}>{g.credits}학점{g.category ? ` · ${g.category}` : ''}</Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                    <Text style={styles.gradeSubject}>{g.subjectName}</Text>
+                                    {g.isRetake && (
+                                      <View style={styles.retakeBadge}>
+                                        <Text style={styles.retakeBadgeText}>재수강</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <Text style={styles.gradeMeta}>
+                                    {g.credits}학점{g.category ? ` · ${g.category}` : ''}
+                                    {overCap ? '  ⚠ A0 초과' : ''}
+                                  </Text>
                                 </View>
                                 <TouchableOpacity
                                   onPress={() => setEditingGrade(g)}
@@ -1645,31 +1686,53 @@ export default function ScheduleScreen() {
                 <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 16 }}>
                   {editingGrade.subjectName}
                 </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 12 }}>
                   {GRADE_OPTIONS.map(g => {
                     const pts = GRADE_POINTS[g];
                     const isSelected = editingGrade.grade === g;
-                    const gradeColor = pts >= 4 ? '#059669' : pts >= 3 ? '#2563EB' : pts >= 2 ? '#D97706' : pts > 0 ? '#DC2626' : '#6B7280';
+                    const gc = gradeColor(g);
+                    const isOverCap = editingGrade.isRetake && (pts ?? 0) > RETAKE_CAP;
                     return (
                       <TouchableOpacity
                         key={g}
                         onPress={() => updateGradeValue(editingGrade.id, g)}
                         style={{
                           width: 62, alignItems: 'center', paddingVertical: 10, borderRadius: 14,
-                          backgroundColor: isSelected ? gradeColor : gradeColor + '14',
-                          borderWidth: isSelected ? 0 : 1, borderColor: gradeColor + '40',
+                          backgroundColor: isSelected ? gc : gc + '14',
+                          borderWidth: isSelected ? 0 : 1, borderColor: gc + '40',
+                          opacity: isOverCap ? 0.4 : 1,
                         }}
                         activeOpacity={0.7}
                       >
-                        <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', color: isSelected ? '#fff' : gradeColor }}>{g}</Text>
-                        {pts !== undefined && pts !== null && (
-                          <Text style={{ fontSize: 10, fontFamily: 'Inter_400Regular', color: isSelected ? 'rgba(255,255,255,0.8)' : '#9CA3AF', marginTop: 2 }}>
-                            {g === 'P' || g === 'NP' ? 'P/F' : pts.toFixed(1)}
-                          </Text>
-                        )}
+                        <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', color: isSelected ? '#fff' : gc }}>{g}</Text>
+                        <Text style={{ fontSize: 10, fontFamily: 'Inter_400Regular', color: isSelected ? 'rgba(255,255,255,0.8)' : '#9CA3AF', marginTop: 2 }}>
+                          {g === 'P' || g === 'NP' ? 'P/F' : (pts !== undefined ? pts.toFixed(1) : '')}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
+                </View>
+                {/* 재수강 토글 */}
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                  backgroundColor: editingGrade.isRetake ? '#EFF6FF' : '#F9FAFB',
+                  borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 12,
+                  borderWidth: 1, borderColor: editingGrade.isRetake ? '#BFDBFE' : '#F3F4F6',
+                }}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' }}>재수강</Text>
+                    <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6B7280', marginTop: 2 }}>
+                      {editingGrade.isRetake
+                        ? `성적 상한 A0(4.0) 적용 중${(GRADE_POINTS[editingGrade.grade] ?? 0) > RETAKE_CAP ? ' · ⚠ 현재 초과' : ''}`
+                        : 'C+ 이하 과목만 재수강 가능'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={!!editingGrade.isRetake}
+                    onValueChange={(v) => toggleRetake(editingGrade.id, v)}
+                    trackColor={{ false: '#E5E7EB', true: C.primary + '60' }}
+                    thumbColor={editingGrade.isRetake ? C.primary : '#9CA3AF'}
+                  />
                 </View>
               </>
             )}
@@ -1751,6 +1814,8 @@ const styles = StyleSheet.create({
   gradeMeta: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
   gradeBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', alignItems: 'center' },
   gradeBadgeText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  retakeBadge: { backgroundColor: '#DBEAFE', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
+  retakeBadgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#1D4ED8' },
   deleteBtn: { padding: 8 },
   addGradeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed', marginBottom: 20 },
   addGradeBtnText: { fontSize: 14, color: C.primary, fontFamily: 'Inter_600SemiBold' },
