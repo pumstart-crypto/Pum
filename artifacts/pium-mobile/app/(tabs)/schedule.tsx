@@ -692,6 +692,25 @@ export default function ScheduleScreen() {
           }))
       );
 
+      // credits 불일치 업데이트: 시간표 학점 ≠ 성적 학점인 기존 레코드 수정
+      await Promise.all(
+        uniqueSubjects
+          .filter(s => {
+            const id = gradeKeyMap.get(`${s.year}-${s.semester}-${s.subject}`);
+            if (!id) return false;
+            const existing = currentGrades.find(g => g.id === id);
+            return existing && Math.abs(existing.credits - s.credits) > 0.001;
+          })
+          .map(s => {
+            const id = gradeKeyMap.get(`${s.year}-${s.semester}-${s.subject}`)!;
+            return fetch(`${API}/grades/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ credits: s.credits }),
+            });
+          })
+      );
+
       // 삭제: 성적에는 있지만 시간표에 없는 과목
       await Promise.all(
         currentGrades
@@ -1565,9 +1584,9 @@ export default function ScheduleScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dLabel}>학점</Text>
                   <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    {(dCredit !== null && ![1,2,3,4].includes(dCredit)
-                      ? [dCredit, 1, 2, 3, 4]
-                      : [1, 2, 3, 4]
+                    {(dCredit !== null && ![1, 1.5, 2, 3, 4].includes(dCredit)
+                      ? [dCredit, 1, 1.5, 2, 3, 4]
+                      : [1, 1.5, 2, 3, 4]
                     ).map(n => (
                       <TouchableOpacity key={n} style={[styles.creditChip, dCredit === n && styles.creditChipActive]} onPress={() => setDCredit(n)}>
                         <Text style={[styles.creditChipText, dCredit === n && styles.creditChipTextActive]}>{n}</Text>
