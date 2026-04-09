@@ -993,7 +993,7 @@ export default function ScheduleScreen() {
                     }, {} as Record<string, Grade[]>))
                     .sort(([a], [b]) => {
                       const [ay, as_] = a.split('-'); const [by, bs] = b.split('-');
-                      if (by !== ay) return parseInt(by) - parseInt(ay);
+                      if (ay !== by) return parseInt(ay) - parseInt(by);
                       return (SEM_ORDER[as_] ?? 99) - (SEM_ORDER[bs] ?? 99);
                     })
                     .map(([key, gs]) => {
