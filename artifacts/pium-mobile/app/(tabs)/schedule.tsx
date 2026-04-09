@@ -1247,7 +1247,7 @@ export default function ScheduleScreen() {
               })}
             </ScrollView>
             {!editSems && (
-              <View style={{ minHeight: 200, justifyContent: 'flex-start', marginTop: 8 }}>
+              <View style={{ marginTop: 8 }}>
                 {!showAddSem ? (
                   <TouchableOpacity style={styles.addSemBtn} onPress={() => setShowAddSem(true)}>
                     <Feather name="plus" size={16} color="#9CA3AF" />
