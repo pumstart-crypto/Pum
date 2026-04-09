@@ -281,7 +281,9 @@ export default function ScheduleScreen() {
   );
   const [showGradSettings, setShowGradSettings] = useState(false);
   const [gradSettingsDraft, setGradSettingsDraft] = useState<Record<string, string>>({});
+  const gradReqLoaded = useRef(false);
 
+  // AsyncStorage 로드 (최초 1회)
   useEffect(() => {
     AsyncStorage.getItem('pium_grad_req_settings').then(val => {
       if (val) {
@@ -290,8 +292,15 @@ export default function ScheduleScreen() {
           setGradReqRequired(prev => ({ ...prev, ...saved }));
         } catch {}
       }
+      gradReqLoaded.current = true;
     });
   }, []);
+
+  // gradReqRequired 변경 시 자동 저장 (로드 완료 후에만)
+  useEffect(() => {
+    if (!gradReqLoaded.current) return;
+    AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(gradReqRequired));
+  }, [gradReqRequired]);
 
   const openGradSettings = () => {
     setGradSettingsDraft(Object.fromEntries(
@@ -300,15 +309,13 @@ export default function ScheduleScreen() {
     setShowGradSettings(true);
   };
 
-  const saveGradSettings = async () => {
+  const saveGradSettings = () => {
     const parsed: Record<string, number> = {};
     for (const [k, v] of Object.entries(gradSettingsDraft)) {
       const n = parseInt(v);
       if (!isNaN(n) && n >= 0) parsed[k] = n;
     }
-    const next = { ...gradReqRequired, ...parsed };
-    setGradReqRequired(next);
-    await AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(next));
+    setGradReqRequired(prev => ({ ...prev, ...parsed }));
     setShowGradSettings(false);
   };
 
@@ -384,7 +391,7 @@ export default function ScheduleScreen() {
   // Grade form
   const [gSubject, setGSubject] = useState('');
   const [gProf, setGProf] = useState('');
-  const [gGrade, setGGrade] = useState('A+');
+  const [gGrade, setGGrade] = useState('-');
   const [gCredits, setGCredits] = useState('3');
   const [gSemester, setGSemester] = useState('1');
   const [gYear, setGYear] = useState(String(new Date().getFullYear()));
@@ -600,6 +607,7 @@ export default function ScheduleScreen() {
 
   const addGrade = async () => {
     if (!gSubject.trim()) return;
+    if (gGrade === '-') { Alert.alert('성적 선택 필요', '성적(학점)을 선택해 주세요.'); return; }
     setGSubmitting(true);
     try {
       const r = await fetch(`${API}/grades`, {
@@ -609,7 +617,7 @@ export default function ScheduleScreen() {
       if (r.ok) {
         const ng = await r.json();
         setGrades(prev => [...prev, ng]);
-        setGSubject(''); setGProf(''); setGGrade('A+'); setGCredits('3'); setGSemester('1');
+        setGSubject(''); setGProf(''); setGGrade('-'); setGCredits('3'); setGSemester('1');
         setShowAddGrade(false);
       }
     } catch { Alert.alert('오류', '성적 추가 실패'); }
@@ -1680,6 +1688,14 @@ export default function ScheduleScreen() {
             <Text style={styles.dLabel}>성적</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
+                {/* 미선택 '-' 칩 */}
+                <TouchableOpacity
+                  key="-"
+                  style={[styles.dayChip, gGrade === '-' && { borderColor: '#D1D5DB', backgroundColor: '#F9FAFB' }]}
+                  onPress={() => setGGrade('-')}
+                >
+                  <Text style={[styles.dayChipText, { color: gGrade === '-' ? '#9CA3AF' : '#9CA3AF' }]}>-</Text>
+                </TouchableOpacity>
                 {GRADE_OPTIONS.map(g => (
                   <TouchableOpacity key={g} style={[styles.dayChip, gGrade === g && styles.dayChipActive]} onPress={() => setGGrade(g)}>
                     <Text style={[styles.dayChipText, gGrade === g && styles.dayChipTextActive]}>{g}</Text>
