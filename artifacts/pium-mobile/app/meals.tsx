@@ -83,9 +83,13 @@ const MEAL_COLORS: Record<string, string> = {
   '석식': '#8B5CF6',
 };
 
+// 🔧 DEBUG: 테스트용 시간 고정 (null 로 바꾸면 실제 시간으로 복구)
+const DEBUG_NOW: Date | null = new Date('2026-04-09T13:00:00');
+function getNow(): Date { return DEBUG_NOW ? new Date(DEBUG_NOW) : new Date(); }
+
 // 현재 식사 시간 판별
 function getCurrentMealType(): '조식' | '중식' | '석식' | null {
-  const now = new Date();
+  const now = getNow();
   const cur = now.getHours() * 60 + now.getMinutes();
   if (cur >= 480 && cur < 660)  return '조식'; // 08:00~11:00
   if (cur >= 660 && cur < 1020) return '중식'; // 11:00~17:00
@@ -114,7 +118,7 @@ function appendSunday(json: WeekMeals): WeekMeals {
 }
 
 function getTodayStr() {
-  const now = new Date();
+  const now = getNow();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
