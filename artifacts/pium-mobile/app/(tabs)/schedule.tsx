@@ -320,7 +320,9 @@ export default function ScheduleScreen() {
       const n = parseInt(v);
       if (!isNaN(n) && n >= 0) parsed[k] = n;
     }
-    setGradReqRequired(prev => ({ ...prev, ...parsed }));
+    const next = { ...gradReqRequired, ...parsed };
+    setGradReqRequired(next);
+    AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(next));
     setShowGradSettings(false);
   };
 
@@ -1135,39 +1137,52 @@ export default function ScheduleScreen() {
       <Modal visible={showGradSettings} transparent animationType="slide" onRequestClose={() => setShowGradSettings(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.modalSheet, { backgroundColor: colors.card, paddingBottom: 0 }]}>
+              <View style={styles.sheetHandle} />
               {/* 헤더 */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 0 }]}>졸업 필요학점 설정</Text>
-                <TouchableOpacity onPress={() => setShowGradSettings(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 4 }]}>졸업 필요학점 설정</Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>
+                    학과별로 달라요. 숫자를 탭해 직접 입력하세요.
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowGradSettings(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
                   <Feather name="x" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: 16 }}>
-                학과별로 다를 수 있어요. 숫자를 탭해 직접 입력하세요.
-              </Text>
+
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {GRAD_REQS.map((req, idx) => {
+                {GRAD_REQS.map((req) => {
                   const val = gradSettingsDraft[req.label] ?? String(gradReqRequired[req.label] ?? req.required);
+                  const isChanged = val !== String(gradReqRequired[req.label] ?? req.required);
                   return (
                     <View key={req.label} style={{
                       flexDirection: 'row', alignItems: 'center',
-                      paddingVertical: 12,
-                      borderBottomWidth: idx < GRAD_REQS.length - 1 ? 1 : 0,
-                      borderBottomColor: colors.inputBg,
+                      backgroundColor: isChanged ? '#EFF6FF' : colors.inputBg,
+                      borderRadius: 14,
+                      paddingVertical: 13,
+                      paddingHorizontal: 16,
+                      marginBottom: 8,
+                      borderWidth: 1.5,
+                      borderColor: isChanged ? C.primary + '55' : 'transparent',
                     }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: req.color, marginRight: 10 }} />
-                      <Text style={{ flex: 1, fontSize: 13, color: colors.text, fontFamily: 'Inter_500Medium', flexWrap: 'wrap' }}>{req.label}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: req.color, marginRight: 12 }} />
+                      <Text style={{ flex: 1, fontSize: 14, color: colors.text, fontFamily: 'Inter_500Medium' }}>{req.label}</Text>
+                      <View style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 4,
+                        backgroundColor: colors.card, borderRadius: 10,
+                        paddingHorizontal: 10, paddingVertical: 5,
+                        borderWidth: 1.5,
+                        borderColor: isChanged ? C.primary : colors.border,
+                      }}>
                         <TextInput
                           style={{
-                            width: 52, textAlign: 'center',
-                            fontSize: 17, color: colors.text,
+                            width: 38, textAlign: 'center',
+                            fontSize: 16,
+                            color: isChanged ? C.primary : colors.text,
                             fontFamily: 'Inter_700Bold',
-                            paddingVertical: 4, paddingHorizontal: 4,
-                            borderBottomWidth: 2,
-                            borderBottomColor: val !== String(gradReqRequired[req.label] ?? req.required) ? C.primary : colors.border,
-                            backgroundColor: 'transparent',
+                            padding: 0,
                           }}
                           value={val}
                           onChangeText={v => setGradSettingsDraft(prev => ({ ...prev, [req.label]: v.replace(/[^0-9]/g, '') }))}
@@ -1180,24 +1195,27 @@ export default function ScheduleScreen() {
                     </View>
                   );
                 })}
+                <View style={{ height: 8 }} />
               </ScrollView>
-              {/* 저장 버튼 — 변경사항 있을 때만 활성화 */}
-              {(() => {
-                const hasChanges = GRAD_REQS.some(req => {
-                  const draft = parseInt(gradSettingsDraft[req.label] ?? '');
-                  const current = gradReqRequired[req.label] ?? req.required;
-                  return !isNaN(draft) && draft !== current;
-                });
-                return (
-                  <TouchableOpacity
-                    style={[styles.addBtn, { marginTop: 16, opacity: hasChanges ? 1 : 0.4 }]}
-                    onPress={hasChanges ? saveGradSettings : undefined}
-                    activeOpacity={hasChanges ? 0.8 : 1}
-                  >
-                    <Text style={styles.addBtnText}>저장</Text>
-                  </TouchableOpacity>
-                );
-              })()}
+
+              {/* 저장 버튼 — 항상 활성 */}
+              <View style={{
+                paddingTop: 12, paddingBottom: insets.bottom + 16,
+                borderTopWidth: 1, borderTopColor: colors.border,
+              }}>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: C.primary,
+                    borderRadius: 14,
+                    paddingVertical: 15,
+                    alignItems: 'center',
+                  }}
+                  onPress={saveGradSettings}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' }}>저장</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </KeyboardAvoidingView>
