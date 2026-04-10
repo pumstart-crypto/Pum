@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
+import { getNow } from '@/utils/debugTime';
 
 const isWeb = Platform.OS === 'web';
 
@@ -131,7 +132,7 @@ export default function AcademicCalendarScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const [filter, setFilter] = useState<FilterTab>('전체');
   const [headerShadow, setHeaderShadow] = useState(false);
-  const now = new Date();
+  const now = getNow();
 
   const scrollRef = useRef<ScrollView>(null);
   const targetRef = useRef<View | null>(null);

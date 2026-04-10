@@ -12,6 +12,7 @@ import { useGetSchedules } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import C from '@/constants/colors';
+import { getNow } from '@/utils/debugTime';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const DAYS = ['월', '화', '수', '목', '금'];
@@ -72,7 +73,7 @@ function formatTimeDisplay(t: string): string {
 }
 
 function getCurrentSemester(): Semester {
-  const now = new Date();
+  const now = getNow();
   const month = now.getMonth() + 1;
   return { year: now.getFullYear(), sem: month >= 8 ? '2' : '1' };
 }
@@ -401,7 +402,7 @@ export default function ScheduleScreen() {
   const [gGrade, setGGrade] = useState('-');
   const [gCredits, setGCredits] = useState('3');
   const [gSemester, setGSemester] = useState('1');
-  const [gYear, setGYear] = useState(String(new Date().getFullYear()));
+  const [gYear, setGYear] = useState(String(getNow().getFullYear()));
   const [gSubmitting, setGSubmitting] = useState(false);
 
   const GRADE_OPTIONS = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F', 'P', 'NP'];
@@ -1282,7 +1283,7 @@ export default function ScheduleScreen() {
                   <View style={styles.addSemForm}>
                     {/* 연도 칩 선택 (2022 ~ 현재+1, 가로 스크롤) */}
                     {(() => {
-                      const cy = new Date().getFullYear();
+                      const cy = getNow().getFullYear();
                       const yearOpts = Array.from({ length: cy + 1 - 2022 + 1 }, (_, i) => 2022 + i);
                       return (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>

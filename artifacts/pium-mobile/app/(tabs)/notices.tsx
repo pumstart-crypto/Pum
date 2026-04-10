@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { loadProfileAsync } from '@/hooks/useProfile';
 import C from '@/constants/colors';
+import { getNow } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -656,7 +657,7 @@ export default function NoticesScreen() {
 
   // 전체 학과 목록 (수강편람 기준)
   useEffect(() => {
-    const now = new Date();
+    const now = getNow();
     const sem = (now.getMonth() + 1) >= 8 ? '2' : '1';
     const year = now.getFullYear();
     fetch(`${API}/courses/departments?catalogYear=${year}&catalogSemester=${sem}`)

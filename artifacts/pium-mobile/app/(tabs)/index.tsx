@@ -10,6 +10,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetSchedules } from '@workspace/api-client-react';
 import C from '@/constants/colors';
+import { getNow } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -71,13 +72,13 @@ interface Todo {
 }
 
 function getCurrentSemester(): { year: number; sem: string } {
-  const now = new Date();
+  const now = getNow();
   const month = now.getMonth() + 1;
   return { year: now.getFullYear(), sem: month >= 8 ? '2' : '1' };
 }
 
 function getTodaySchedules(schedules: any[]) {
-  const dayIdx = (new Date().getDay() + 6) % 7;
+  const dayIdx = (getNow().getDay() + 6) % 7;
   const { year, sem } = getCurrentSemester();
   return schedules
     .filter(s => s.dayOfWeek === dayIdx && s.year === year && s.semester === sem)
@@ -85,7 +86,7 @@ function getTodaySchedules(schedules: any[]) {
 }
 
 function isCurrentClass(startTime: string, endTime: string): boolean {
-  const now = new Date();
+  const now = getNow();
   const [sh, sm] = startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
   const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -121,7 +122,7 @@ export default function HomeScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : 0;
 
-  const today = new Date();
+  const today = getNow();
   const todaySchedules = getTodaySchedules(schedules);
   const pendingTodos = todos.filter(t => !t.completed);
 
