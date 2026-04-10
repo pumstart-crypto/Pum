@@ -187,7 +187,7 @@ export default function MealsScreen() {
           </View>
         </View>
 
-        {/* Campus Tabs */}
+        {/* Row 1: Campus Tabs */}
         <View style={styles.campusTabs}>
           {CAMPUSES.map(c => (
             <TouchableOpacity
@@ -202,48 +202,45 @@ export default function MealsScreen() {
           ))}
         </View>
 
-        {/* Restaurant Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.restContainer}
-          style={styles.restScroll}
-        >
-          {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
-            <TouchableOpacity
-              key={r.code}
-              style={[styles.restChip, restaurant === r.code && styles.restChipActive]}
-              onPress={() => setRestaurant(r.code)}
-            >
-              <Text style={[styles.restChipText, restaurant === r.code && styles.restChipTextActive]}>
-                {r.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Row 2: 주간 이동 화살표 + 식당 칩 통합 */}
+        <View style={styles.restNavRow}>
+          <TouchableOpacity
+            style={[styles.navBtn, (!data || !data.prevDate) && styles.navBtnDisabled]}
+            onPress={() => data?.prevDate && setQueryDate(data.prevDate)}
+            disabled={!data?.prevDate}
+          >
+            <Feather name="chevron-left" size={18} color={data?.prevDate ? '#374151' : '#D1D5DB'} />
+          </TouchableOpacity>
 
-        {/* Week Navigation */}
-        {data && (
-          <View style={styles.weekNav}>
-            <TouchableOpacity
-              style={[styles.navBtn, !data.prevDate && styles.navBtnDisabled]}
-              onPress={() => data.prevDate && setQueryDate(data.prevDate)}
-              disabled={!data.prevDate}
-            >
-              <Feather name="chevron-left" size={20} color={data.prevDate ? '#374151' : '#D1D5DB'} />
-            </TouchableOpacity>
-            <Text style={styles.weekLabel}>{data.weekLabel}</Text>
-            <TouchableOpacity
-              style={[styles.navBtn, !data.nextDate && styles.navBtnDisabled]}
-              onPress={() => data.nextDate && setQueryDate(data.nextDate)}
-              disabled={!data.nextDate}
-            >
-              <Feather name="chevron-right" size={20} color={data.nextDate ? '#374151' : '#D1D5DB'} />
-            </TouchableOpacity>
-          </View>
-        )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
+          >
+            {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
+              <TouchableOpacity
+                key={r.code}
+                style={[styles.restChip, restaurant === r.code && styles.restChipActive]}
+                onPress={() => setRestaurant(r.code)}
+              >
+                <Text style={[styles.restChipText, restaurant === r.code && styles.restChipTextActive]}>
+                  {r.name.replace('\n', ' ')}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-        {/* Day Tabs */}
+          <TouchableOpacity
+            style={[styles.navBtn, (!data || !data.nextDate) && styles.navBtnDisabled]}
+            onPress={() => data?.nextDate && setQueryDate(data.nextDate)}
+            disabled={!data?.nextDate}
+          >
+            <Feather name="chevron-right" size={18} color={data?.nextDate ? '#374151' : '#D1D5DB'} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 3: 요일 칩 (요일 이름만) */}
         {data && data.dates.length > 0 && (
           <ScrollView
             horizontal
@@ -264,11 +261,8 @@ export default function MealsScreen() {
                   ]}
                   onPress={() => setSelectedDayIdx(idx)}
                 >
-                  <Text style={[styles.dayTabDay, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
+                  <Text style={[styles.dayTabLabel, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
                     {data.days[idx]}
-                  </Text>
-                  <Text style={[styles.dayTabDate, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
-                    {date.slice(8)}
                   </Text>
                   {isTodayDate && !isSelected && <View style={styles.dayDot} />}
                 </TouchableOpacity>
@@ -404,25 +398,20 @@ const styles = StyleSheet.create({
   campusTabText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#9CA3AF' },
   campusTabTextActive: { color: C.primary },
 
-  restScroll: { marginBottom: 14 },
-  restContainer: { paddingHorizontal: 20, gap: 8 },
-  restChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+  restNavRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 12, gap: 4 },
+  navBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  navBtnDisabled: { opacity: 0.35 },
+  restChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
   restChipActive: { backgroundColor: C.primary, borderColor: C.primary, shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 3 },
-  restChipText: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#6B7280', textAlign: 'center' },
+  restChipText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#6B7280' },
   restChipTextActive: { color: '#fff' },
 
-  weekNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 },
-  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-  navBtnDisabled: { opacity: 0.4 },
-  weekLabel: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#111827' },
-
-  dayTabsScroll: { marginBottom: 16 },
-  dayTabsContainer: { paddingHorizontal: 20, gap: 8 },
-  dayTab: { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', minWidth: 48 },
+  dayTabsScroll: { marginBottom: 14 },
+  dayTabsContainer: { paddingHorizontal: 20, gap: 6 },
+  dayTab: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', minWidth: 40 },
   dayTabSelected: { backgroundColor: C.primary, borderColor: C.primary, shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 3 },
   dayTabToday: { backgroundColor: '#EFF6FF', borderColor: `${C.primary}33` },
-  dayTabDay: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#9CA3AF' },
-  dayTabDate: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827', marginTop: 2 },
+  dayTabLabel: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#374151' },
   dayTabTextActive: { color: '#fff' },
   dayTabTodayText: { color: C.primary },
   dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.primary, marginTop: 2 },
