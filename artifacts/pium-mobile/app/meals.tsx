@@ -251,10 +251,13 @@ export default function MealsScreen() {
                   ]}
                   onPress={() => setSelectedDayIdx(idx)}
                 >
-                  <Text style={[styles.dayTabLabel, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
+                  <Text style={[styles.dayTabDayName, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
                     {data!.days[idx]}
                   </Text>
-                  {isTodayDate && !isSelected && <View style={styles.dayDot} />}
+                  <Text style={[styles.dayTabDateNum, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
+                    {date.slice(8)}
+                  </Text>
+                  <View style={[styles.dayDot, { opacity: isTodayDate && !isSelected ? 1 : 0 }]} />
                 </TouchableOpacity>
               );
             })}
@@ -409,13 +412,14 @@ const styles = StyleSheet.create({
 
   dayTabsScroll: { marginBottom: 14 },
   dayTabsContainer: { paddingHorizontal: 20, gap: 6 },
-  dayTab: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', minWidth: 40 },
+  dayTab: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)', minWidth: 42 },
   dayTabSelected: { backgroundColor: C.primary, borderColor: C.primary, shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 3 },
   dayTabToday: { backgroundColor: '#EFF6FF', borderColor: `${C.primary}33` },
-  dayTabLabel: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#374151' },
+  dayTabDayName: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF', marginBottom: 2 },
+  dayTabDateNum: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827' },
   dayTabTextActive: { color: '#fff' },
   dayTabTodayText: { color: C.primary },
-  dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.primary, marginTop: 2 },
+  dayDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.primary, marginTop: 3 },
 
   content: { paddingHorizontal: 20, paddingTop: 14, gap: 10 },
   center: { paddingVertical: 60, alignItems: 'center' },
