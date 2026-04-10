@@ -202,8 +202,28 @@ export default function MealsScreen() {
           ))}
         </View>
 
-        {/* Row 2: 주간 이동 화살표 + 식당 칩 통합 */}
-        <View style={styles.restNavRow}>
+        {/* Row 2: 식당 칩만 */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.restScroll}
+          contentContainerStyle={styles.restContainer}
+        >
+          {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
+            <TouchableOpacity
+              key={r.code}
+              style={[styles.restChip, restaurant === r.code && styles.restChipActive]}
+              onPress={() => setRestaurant(r.code)}
+            >
+              <Text style={[styles.restChipText, restaurant === r.code && styles.restChipTextActive]}>
+                {r.name.replace('\n', ' ')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Row 3: < 요일 칩 > — 화살표로 주간 이동 */}
+        <View style={styles.dayNavRow}>
           <TouchableOpacity
             style={[styles.navBtn, (!data || !data.prevDate) && styles.navBtnDisabled]}
             onPress={() => data?.prevDate && setQueryDate(data.prevDate)}
@@ -216,39 +236,9 @@ export default function MealsScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             style={{ flex: 1 }}
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
+            contentContainerStyle={{ gap: 6, paddingHorizontal: 4 }}
           >
-            {(CAMPUS_RESTAURANTS[campus] ?? []).map(r => (
-              <TouchableOpacity
-                key={r.code}
-                style={[styles.restChip, restaurant === r.code && styles.restChipActive]}
-                onPress={() => setRestaurant(r.code)}
-              >
-                <Text style={[styles.restChipText, restaurant === r.code && styles.restChipTextActive]}>
-                  {r.name.replace('\n', ' ')}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <TouchableOpacity
-            style={[styles.navBtn, (!data || !data.nextDate) && styles.navBtnDisabled]}
-            onPress={() => data?.nextDate && setQueryDate(data.nextDate)}
-            disabled={!data?.nextDate}
-          >
-            <Feather name="chevron-right" size={18} color={data?.nextDate ? '#374151' : '#D1D5DB'} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Row 3: 요일 칩 (요일 이름만) */}
-        {data && data.dates.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dayTabsContainer}
-            style={styles.dayTabsScroll}
-          >
-            {data.dates.map((date, idx) => {
+            {(data?.dates ?? []).map((date, idx) => {
               const isTodayDate = date === today;
               const isSelected = idx === effDayIdx;
               return (
@@ -262,14 +252,22 @@ export default function MealsScreen() {
                   onPress={() => setSelectedDayIdx(idx)}
                 >
                   <Text style={[styles.dayTabLabel, isSelected && styles.dayTabTextActive, isTodayDate && !isSelected && styles.dayTabTodayText]}>
-                    {data.days[idx]}
+                    {data!.days[idx]}
                   </Text>
                   {isTodayDate && !isSelected && <View style={styles.dayDot} />}
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-        )}
+
+          <TouchableOpacity
+            style={[styles.navBtn, (!data || !data.nextDate) && styles.navBtnDisabled]}
+            onPress={() => data?.nextDate && setQueryDate(data.nextDate)}
+            disabled={!data?.nextDate}
+          >
+            <Feather name="chevron-right" size={18} color={data?.nextDate ? '#374151' : '#D1D5DB'} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Scrollable Meal Content ── */}
@@ -398,13 +396,16 @@ const styles = StyleSheet.create({
   campusTabText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#9CA3AF' },
   campusTabTextActive: { color: C.primary },
 
-  restNavRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 12, gap: 4 },
-  navBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  navBtnDisabled: { opacity: 0.35 },
+  restScroll: { marginBottom: 12 },
+  restContainer: { paddingHorizontal: 20, gap: 8 },
   restChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
   restChipActive: { backgroundColor: C.primary, borderColor: C.primary, shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 3 },
   restChipText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#6B7280' },
   restChipTextActive: { color: '#fff' },
+
+  dayNavRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 14, gap: 4 },
+  navBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  navBtnDisabled: { opacity: 0.35 },
 
   dayTabsScroll: { marginBottom: 14 },
   dayTabsContainer: { paddingHorizontal: 20, gap: 6 },
