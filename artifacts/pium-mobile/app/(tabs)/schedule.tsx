@@ -758,14 +758,14 @@ export default function ScheduleScreen() {
     return next;
   });
 
-  // isRetake=true: 재수강으로 대체된 구 성적 → 평점·이수학점 제외
-  // grade='-': 수강중(미확정) → 평점 제외, 이수학점에는 포함
+  // isRetake=true: 재수강으로 대체된 구 성적 → 모든 계산에서 제외
+  // grade='-': 수강중(미확정) → 모든 계산에서 제외 (성적 확정 과목만 반영)
   const activeGrades = grades.filter(g => !g.isRetake && g.grade !== '-');
   const eligible = activeGrades.filter(g => g.grade !== 'P' && g.grade !== 'NP');
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
-  const totalCreditCount = grades.filter(g => !g.isRetake).reduce((s, g) => s + g.credits, 0);
+  const totalCreditCount = grades.filter(g => !g.isRetake && g.grade !== '-').reduce((s, g) => s + g.credits, 0);
   // 전공평점: 전공필수/기초/선택만
   const majorEligible = eligible.filter(g => g.category && MAJOR_CATEGORIES.includes(g.category));
   const majorCredits = majorEligible.reduce((s, g) => s + g.credits, 0);
@@ -801,6 +801,7 @@ export default function ScheduleScreen() {
   const seenSubjects = new Set<string>();
   for (const g of grades) {
     if (g.isRetake) continue;           // 재수강으로 대체된 구 성적 제외
+    if (g.grade === '-') continue;      // 수강 중(미확정) 제외
     if (g.grade === 'NP') continue;     // 불합격 과목 제외
     if (!g.category || !g.credits) continue;
     if (seenSubjects.has(g.subjectName)) continue; // 동일 과목명 중복 방지
@@ -1071,12 +1072,12 @@ export default function ScheduleScreen() {
                       });
                       const [year, sem] = key.split('-');
                       const collapsed = !openSems.has(key);
-                      const semEl = gs.filter(g => !g.isRetake && g.grade !== 'P' && g.grade !== 'NP');
+                      const semEl = gs.filter(g => !g.isRetake && g.grade !== '-' && g.grade !== 'P' && g.grade !== 'NP');
                       const semTotalCr = semEl.reduce((s, g) => s + g.credits, 0);
                       const semGpa = semTotalCr > 0
                         ? (semEl.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0) / semTotalCr).toFixed(2)
                         : '—';
-                      const semTotalCredits = gs.filter(g => !g.isRetake).reduce((s, g) => s + g.credits, 0);
+                      const semTotalCredits = gs.filter(g => !g.isRetake && g.grade !== '-').reduce((s, g) => s + g.credits, 0);
                       return (
                         <View key={key} style={styles.semesterGroup}>
                           <TouchableOpacity
