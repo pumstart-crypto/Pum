@@ -208,11 +208,12 @@ function PostCard({ post }: { post: Post }) {
 
 /* ── Dept Browser Modal ── */
 function DeptBrowserModal({
-  visible, onClose, pinnedDepts, onPin, onUnpin, onView,
+  visible, onClose, pinnedDepts, myDept, onPin, onUnpin, onView,
 }: {
   visible: boolean;
   onClose: () => void;
   pinnedDepts: string[];
+  myDept: string;
   onPin: (dept: string) => void;
   onUnpin: (dept: string) => void;
   onView: (dept: string) => void;
@@ -250,24 +251,31 @@ function DeptBrowserModal({
 
   const renderDeptItem = (item: DeptItem) => {
     const isPinned = pinnedSet.has(item.name);
+    const isLocked = item.name === myDept && !!myDept; // 학생증 인증 학과 – 삭제 불가
     return (
       <TouchableOpacity
         key={item.name}
         style={styles.deptItem}
         onPress={() => { onView(item.name); onClose(); }}
-        onLongPress={() => { isPinned ? onUnpin(item.name) : onPin(item.name); }}
+        onLongPress={() => { if (!isLocked) isPinned ? onUnpin(item.name) : onPin(item.name); }}
         delayLongPress={400}
         activeOpacity={0.7}
       >
         <View style={styles.deptItemLeft}>
-          <Text style={[styles.deptItemName, isPinned && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>
+          <Text style={[styles.deptItemName, (isPinned || isLocked) && { color: isLocked ? C.primary : '#92400E', fontFamily: 'Inter_600SemiBold' }]}>
             {item.name}
           </Text>
-          {isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
+          {isLocked
+            ? <Text style={[styles.deptPinnedLabel, { color: C.primary }]}>내 학과 · 학생증 인증</Text>
+            : isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
         </View>
-        <TouchableOpacity onPress={() => isPinned ? onUnpin(item.name) : onPin(item.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name={isPinned ? 'star' : 'star-outline'} size={18} color={isPinned ? '#F59E0B' : '#D1D5DB'} />
-        </TouchableOpacity>
+        {isLocked ? (
+          <Ionicons name="lock-closed-outline" size={17} color={C.primary} />
+        ) : (
+          <TouchableOpacity onPress={() => isPinned ? onUnpin(item.name) : onPin(item.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name={isPinned ? 'star' : 'star-outline'} size={18} color={isPinned ? '#F59E0B' : '#D1D5DB'} />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   };
@@ -610,13 +618,14 @@ export default function BoardScreen() {
   }, []);
 
   const unpinDept = useCallback((dept: string) => {
+    if (dept === myDept) return; // 내 학과(학생증 인증)는 삭제 불가
     setTabOrder(prev => {
       const next = prev.filter(d => d !== dept);
       AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(next));
       if (activeCategory === dept) setActiveCategory('전체');
       return next;
     });
-  }, [activeCategory]);
+  }, [activeCategory, myDept]);
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -785,6 +794,7 @@ export default function BoardScreen() {
         visible={showDeptBrowser}
         onClose={() => setShowDeptBrowser(false)}
         pinnedDepts={pinnedDepts}
+        myDept={myDept}
         onPin={pinDept}
         onUnpin={unpinDept}
         onView={(dept) => setActiveCategory(dept)}
