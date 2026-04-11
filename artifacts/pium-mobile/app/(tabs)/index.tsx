@@ -95,7 +95,7 @@ function isCurrentClass(startTime: string, endTime: string): boolean {
   return nowMins >= startMins && nowMins < endMins;
 }
 
-const PALETTE = ['#4F46E5', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777', '#0F766E'];
+const PALETTE = ['#C4EBDC','#FFD6C4','#FFCFCF','#E6D9F3','#E8F5D8','#D0EBFA','#FDD6DC','#FEE6BF'];
 function getSubjectColor(name: string) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
@@ -280,7 +280,7 @@ export default function HomeScreen() {
                     <View style={[styles.scheduleCardAccent, { backgroundColor: accentColor }]} />
                     <View style={styles.scheduleCardBody}>
                       <View style={styles.scheduleTime}>
-                        <Text style={[styles.scheduleTimeText, { color: active ? accentColor : colors.text }]}>{s.startTime}</Text>
+                        <Text style={[styles.scheduleTimeText, { color: active ? C.primary : colors.text }]}>{s.startTime}</Text>
                         <Text style={[styles.scheduleTimeEnd, { color: colors.textSecondary }]}>{s.endTime}</Text>
                       </View>
                       <View style={styles.scheduleInfo}>
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   scheduleCardAccent: { width: 4, minHeight: 64 },
   scheduleCardBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 },
   nowBadge: { position: 'absolute', top: 8, right: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  nowBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#fff' },
+  nowBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#1F2937' },
 
   todoItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   todoCheck: { padding: 2 },

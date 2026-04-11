@@ -46,10 +46,14 @@ function sortSemesters(list: Semester[]): Semester[] {
 }
 
 const PALETTE = ['#C4EBDC','#FFD6C4','#FFCFCF','#E6D9F3','#E8F5D8','#D0EBFA','#FDD6DC','#FEE6BF'];
+function getSubjectColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
 function buildColorMap(subjects: string[]): Record<string, string> {
-  const unique = Array.from(new Set(subjects));
   const map: Record<string, string> = {};
-  unique.forEach((name, i) => { map[name] = PALETTE[i % PALETTE.length]; });
+  subjects.forEach(name => { map[name] = getSubjectColor(name); });
   return map;
 }
 function timeToMinutes(t: string) {
