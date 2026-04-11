@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Modal, ActivityIndicator,
-  Platform, Alert, Pressable,
+  Platform, Alert, Pressable, FlatList,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,28 +11,21 @@ import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
+const PINNED_KEY = 'pium_community_pinned_depts';
 
-/* ── 카테고리 ── */
-const CATEGORIES = [
+/* ── 고정 카테고리 ── */
+const FIXED_CATEGORIES = [
   { id: '전체',    label: '전체',    icon: 'grid-outline' },
+  { id: '내 학과', label: '내 학과', icon: 'school-outline' },
   { id: '수업Q&A', label: '수업Q&A', icon: 'help-circle-outline' },
   { id: '중고거래', label: '중고거래', icon: 'swap-horizontal-outline' },
   { id: '동아리',  label: '동아리',  icon: 'people-outline' },
   { id: '분실물',  label: '분실물',  icon: 'search-outline' },
   { id: '꿀팁',    label: '꿀팁',    icon: 'bulb-outline' },
-  { id: '기타',    label: '기타',    icon: 'ellipsis-horizontal-outline' },
 ] as const;
-type CategoryId = typeof CATEGORIES[number]['id'];
-
-const WRITE_CATEGORIES: CategoryId[] = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁', '기타'];
-
-/* ── 정체성 색상 ── */
-const IDENTITY_STYLE = {
-  anon: { avatarBg: '#C5D3E3', avatarText: '#1B3A5C' },
-  dept: { avatarBg: '#9FE1CB', avatarText: '#0A4D3A' },
-  year: { avatarBg: '#CECBF6', avatarText: '#3C3489' },
-} as const;
-type IdentityType = keyof typeof IDENTITY_STYLE;
+type FixedCatId = typeof FIXED_CATEGORIES[number]['id'];
+const FIXED_IDS = FIXED_CATEGORIES.map(c => c.id) as string[];
+const WRITE_CATEGORIES = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁'];
 
 /* ── 타입 ── */
 interface Post {
@@ -47,30 +40,30 @@ interface Post {
   commentCount?: number;
   createdAt: string;
 }
+interface Profile { department?: string; studentId?: string | number; }
+interface DeptInfo { name: string; hasNotice: boolean; hasJobs: boolean; }
 
-interface Profile {
-  department?: string;
-  studentId?: string | number;
-}
+/* ── 정체성 ── */
+const IDENTITY_STYLE = {
+  anon: { avatarBg: '#C5D3E3', avatarText: '#1B3A5C' },
+  dept: { avatarBg: '#9FE1CB', avatarText: '#0A4D3A' },
+  year: { avatarBg: '#CECBF6', avatarText: '#3C3489' },
+} as const;
+type IdentityType = keyof typeof IDENTITY_STYLE;
 
-/* ── author 파싱 ── */
-function parseAuthor(author: string): { type: IdentityType; label: string; avatarText: string } {
-  if (!author || author === '익명') return { type: 'anon', label: '익명', avatarText: '익' };
+function parseAuthor(author: string) {
+  if (!author || author === '익명') return { type: 'anon' as IdentityType, label: '익명', avatarText: '익' };
   const parts = author.split('.');
   if (parts.length >= 3 && parts[2]?.endsWith('학번')) {
     const yr = parts[2];
-    return { type: 'year', label: `${shortenDept(parts[1] ?? '')} ${yr}`, avatarText: yr.slice(0, 2) };
+    const dept = parts[1] ?? '';
+    return { type: 'year' as IdentityType, label: `${dept.slice(0, 5)} ${yr}`, avatarText: yr.slice(0, 2) };
   }
   if (parts.length >= 2 && parts[1]) {
     const dept = parts[1];
-    return { type: 'dept', label: dept.length > 10 ? dept.slice(0, 8) + '..' : dept, avatarText: dept.slice(0, 2) };
+    return { type: 'dept' as IdentityType, label: dept.length > 10 ? dept.slice(0, 8) + '..' : dept, avatarText: dept.slice(0, 2) };
   }
-  return { type: 'anon', label: '익명', avatarText: '익' };
-}
-
-function shortenDept(dept: string) {
-  if (dept.length <= 6) return dept;
-  return dept.slice(0, 5) + '..';
+  return { type: 'anon' as IdentityType, label: '익명', avatarText: '익' };
 }
 
 function buildAuthor(identity: IdentityType, profile: Profile): string {
@@ -91,48 +84,55 @@ function relTime(dateStr: string) {
   return day < 7 ? `${day}일 전` : new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
+function filterPosts(posts: Post[], category: string, profile: Profile): Post[] {
+  if (category === '전체') return posts;
+  if (category === '내 학과') {
+    if (!profile.department) return posts;
+    return posts.filter(p => p.author.includes(profile.department!));
+  }
+  if (FIXED_IDS.includes(category)) return posts.filter(p => p.category === category);
+  return posts.filter(p => p.author.includes(category));
+}
+
 /* ── Avatar ── */
 function Avatar({ text, type, size = 38 }: { text: string; type: IdentityType; size?: number }) {
   const s = IDENTITY_STYLE[type];
   return (
-    <View style={[avatarSt.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: s.avatarBg }]}>
-      <Text style={[avatarSt.text, { color: s.avatarText, fontSize: size * 0.29 }]} numberOfLines={1}>
-        {text}
-      </Text>
+    <View style={[avSt.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: s.avatarBg }]}>
+      <Text style={[avSt.text, { color: s.avatarText, fontSize: size * 0.29 }]} numberOfLines={1}>{text}</Text>
     </View>
   );
 }
-const avatarSt = StyleSheet.create({
+const avSt = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   text: { fontFamily: 'Inter_700Bold', letterSpacing: -0.3 },
 });
 
 /* ── Category Badge ── */
 const CAT_BADGE: Record<string, { bg: string; text: string }> = {
-  '수업Q&A':  { bg: '#FEE2E2', text: '#DC2626' },
-  '중고거래':  { bg: '#EDE9FE', text: '#7C3AED' },
-  '동아리':   { bg: '#D1FAE5', text: '#059669' },
-  '분실물':   { bg: '#FEF3C7', text: '#D97706' },
-  '꿀팁':     { bg: '#DBEAFE', text: '#1D4ED8' },
-  '기타':     { bg: '#F3F4F6', text: '#6B7280' },
-  '공지':     { bg: '#DBEAFE', text: '#1D4ED8' },
-  '질문':     { bg: '#FEE2E2', text: '#DC2626' },
-  '모집':     { bg: '#D1FAE5', text: '#059669' },
-  '거래':     { bg: '#EDE9FE', text: '#7C3AED' },
+  '수업Q&A': { bg: '#FEE2E2', text: '#DC2626' },
+  '중고거래': { bg: '#EDE9FE', text: '#7C3AED' },
+  '동아리':  { bg: '#D1FAE5', text: '#059669' },
+  '분실물':  { bg: '#FEF3C7', text: '#D97706' },
+  '꿀팁':    { bg: '#DBEAFE', text: '#1D4ED8' },
+  '기타':    { bg: '#F3F4F6', text: '#6B7280' },
+  '공지':    { bg: '#DBEAFE', text: '#1D4ED8' },
+  '질문':    { bg: '#FEE2E2', text: '#DC2626' },
+  '모집':    { bg: '#D1FAE5', text: '#059669' },
+  '거래':    { bg: '#EDE9FE', text: '#7C3AED' },
 };
 
 /* ── Post Card ── */
 function PostCard({ post }: { post: Post }) {
   const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(Math.floor(Math.random() * 30));
+  const [likeCount] = useState(Math.floor(Math.random() * 30));
   const [saved, setSaved] = useState(false);
   const isTrade = post.category === '중고거래' || post.category === '거래';
   const { type, label, avatarText } = parseAuthor(post.author);
   const badgeStyle = CAT_BADGE[post.category] ?? { bg: '#F3F4F6', text: '#6B7280' };
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => {}}>
-      {/* Header row */}
+    <TouchableOpacity style={styles.card} activeOpacity={0.85}>
       <View style={styles.cardHeader}>
         <Avatar text={avatarText} type={type} />
         <View style={{ flex: 1 }}>
@@ -154,7 +154,6 @@ function PostCard({ post }: { post: Post }) {
         </TouchableOpacity>
       </View>
 
-      {/* Body */}
       {isTrade ? (
         <View style={styles.tradeBody}>
           <View style={styles.tradeImageBox}>
@@ -162,28 +161,19 @@ function PostCard({ post }: { post: Post }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
-            {post.subCategory ? (
-              <Text style={styles.tradePrice}>{post.subCategory}</Text>
-            ) : null}
+            {post.subCategory && <Text style={styles.tradePrice}>{post.subCategory}</Text>}
             <Text style={styles.tradeLocation} numberOfLines={1}>{post.content}</Text>
           </View>
         </View>
       ) : (
         <>
           <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
-          {!!post.content && (
-            <Text style={styles.postBody} numberOfLines={2}>{post.content}</Text>
-          )}
+          {!!post.content && <Text style={styles.postBody} numberOfLines={2}>{post.content}</Text>}
         </>
       )}
 
-      {/* Footer actions */}
       <View style={styles.cardFooter}>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => { setLiked(l => !l); setLikeCount(c => liked ? c - 1 : c + 1); }}
-          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-        >
+        <TouchableOpacity style={styles.actionBtn} onPress={() => setLiked(l => !l)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
           <Ionicons name={liked ? 'heart' : 'heart-outline'} size={15} color={liked ? '#E24B4A' : '#B0B7C3'} />
           <Text style={[styles.actionText, liked && { color: '#E24B4A' }]}>{likeCount}</Text>
         </TouchableOpacity>
@@ -201,6 +191,213 @@ function PostCard({ post }: { post: Post }) {
   );
 }
 
+/* ── Dept Browser Modal ── */
+function DeptBrowserModal({
+  visible, onClose, pinnedDepts, onPin, onUnpin, onView,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  pinnedDepts: string[];
+  onPin: (dept: string) => void;
+  onUnpin: (dept: string) => void;
+  onView: (dept: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [depts, setDepts] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const pinnedSet = new Set(pinnedDepts);
+
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    fetch(`${API}/dept-list`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        const list: DeptInfo[] = data.depts ?? data ?? [];
+        setDepts(list.map(d => d.name));
+      })
+      .catch(() => setDepts([]))
+      .finally(() => setLoading(false));
+  }, [visible]);
+
+  const filtered = q.trim() ? depts.filter(d => d.includes(q.trim())) : depts;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetOverlay} onPress={onClose}>
+        <Pressable style={[styles.sheetContainer, { paddingBottom: (isWeb ? 16 : insets.bottom) + 20 }]} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetTitleRow}>
+            <View>
+              <Text style={styles.sheetTitle}>학과 게시판</Text>
+              <Text style={styles.sheetSub}>꾹 누르면 탭에 고정돼요</Text>
+            </View>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="x" size={22} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchBox}>
+            <Feather name="search" size={14} color="#9CA3AF" />
+            <TextInput
+              style={styles.searchInput}
+              value={q}
+              onChangeText={setQ}
+              placeholder="학과 검색..."
+              placeholderTextColor="#9CA3AF"
+            />
+            {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={13} color="#9CA3AF" /></TouchableOpacity>}
+          </View>
+
+          {loading ? (
+            <ActivityIndicator color={C.primary} style={{ marginTop: 32 }} />
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={item => item}
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 400 }}
+              renderItem={({ item }) => {
+                const isPinned = pinnedSet.has(item);
+                return (
+                  <TouchableOpacity
+                    style={styles.deptItem}
+                    onPress={() => { onView(item); onClose(); }}
+                    onLongPress={() => isPinned ? onUnpin(item) : onPin(item)}
+                    delayLongPress={400}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.deptItemLeft}>
+                      <Text style={styles.deptItemName}>{item}</Text>
+                      {isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => isPinned ? onUnpin(item) : onPin(item)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons
+                        name={isPinned ? 'star' : 'star-outline'}
+                        size={18}
+                        color={isPinned ? '#F59E0B' : '#D1D5DB'}
+                      />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular' }}>
+                    검색 결과가 없습니다
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/* ── Reorder Modal ── */
+function ReorderModal({
+  visible, onClose, pinnedDepts, onChange,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  pinnedDepts: string[];
+  onChange: (depts: string[]) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [local, setLocal] = useState<string[]>([]);
+
+  useEffect(() => { if (visible) setLocal([...pinnedDepts]); }, [visible, pinnedDepts]);
+
+  const move = (i: number, dir: -1 | 1) => {
+    const next = [...local];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    setLocal(next);
+  };
+
+  const remove = (i: number) => {
+    setLocal(prev => prev.filter((_, idx) => idx !== i));
+  };
+
+  const save = () => {
+    onChange(local);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetOverlay} onPress={onClose}>
+        <Pressable style={[styles.sheetContainer, { paddingBottom: (isWeb ? 16 : insets.bottom) + 16 }]} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetTitleRow}>
+            <Text style={styles.sheetTitle}>탭 순서 편집</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="x" size={22} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+
+          {local.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <Ionicons name="star-outline" size={36} color="#D1D5DB" />
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular', marginTop: 8 }}>
+                고정된 학과 탭이 없어요
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                + 버튼으로 학과 게시판을 추가해보세요
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.fieldLabel, { marginBottom: 12 }]}>고정된 학과 탭</Text>
+              {local.map((dept, i) => (
+                <View key={dept} style={styles.reorderItem}>
+                  <Ionicons name="menu-outline" size={18} color="#D1D5DB" style={{ marginRight: 10 }} />
+                  <Text style={styles.reorderItemName} numberOfLines={1}>{dept}</Text>
+                  <View style={styles.reorderActions}>
+                    <TouchableOpacity
+                      onPress={() => move(i, -1)}
+                      disabled={i === 0}
+                      style={[styles.reorderArrow, i === 0 && { opacity: 0.25 }]}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Ionicons name="chevron-up" size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => move(i, 1)}
+                      disabled={i === local.length - 1}
+                      style={[styles.reorderArrow, i === local.length - 1 && { opacity: 0.25 }]}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => remove(i)}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#F87171" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+
+          <TouchableOpacity style={[styles.submitBtn, { marginTop: 20 }]} onPress={save}>
+            <Text style={styles.submitBtnText}>저장</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 /* ── Write Sheet ── */
 function WriteSheet({
   visible, onClose, onSubmit, profile,
@@ -214,16 +411,15 @@ function WriteSheet({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState<CategoryId>('수업Q&A');
+  const [category, setCategory] = useState('수업Q&A');
   const [identity, setIdentity] = useState<IdentityType>('anon');
   const [submitting, setSubmitting] = useState(false);
   const isTrade = category === '중고거래';
 
   const hasDept = !!profile.department;
   const hasYear = hasDept && !!profile.studentId;
-
   const identityOptions: { type: IdentityType; label: string; sub: string }[] = [
-    { type: 'anon', label: '익명', sub: '학과/학번 비공개' },
+    { type: 'anon', label: '익명', sub: '비공개' },
     ...(hasDept ? [{ type: 'dept' as IdentityType, label: profile.department!, sub: '학과 표시' }] : []),
     ...(hasYear ? [{ type: 'year' as IdentityType, label: `${String(profile.studentId).substring(2, 4)}학번`, sub: '학번 표시' }] : []),
   ];
@@ -234,10 +430,8 @@ function WriteSheet({
     if (!canSubmit) return;
     setSubmitting(true);
     await onSubmit({
-      title: title.trim(),
-      content: content.trim(),
-      category,
-      subCategory: isTrade ? price.trim() : '',
+      title: title.trim(), content: content.trim(),
+      category, subCategory: isTrade ? price.trim() : '',
       author: buildAuthor(identity, profile),
     });
     setTitle(''); setContent(''); setPrice(''); setCategory('수업Q&A'); setIdentity('anon');
@@ -248,31 +442,20 @@ function WriteSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        <Pressable
-          style={[styles.sheetContainer, { paddingBottom: (isWeb ? 16 : insets.bottom) + 16 }]}
-          onPress={() => {}}
-        >
+        <Pressable style={[styles.sheetContainer, { paddingBottom: (isWeb ? 16 : insets.bottom) + 16 }]} onPress={() => {}}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTitleRow}>
             <Text style={styles.sheetTitle}>글 작성</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Feather name="x" size={22} color="#9CA3AF" />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose}><Feather name="x" size={22} color="#9CA3AF" /></TouchableOpacity>
           </View>
 
-          {/* 정체성 선택 */}
           <Text style={styles.fieldLabel}>작성자 표시</Text>
           <View style={styles.identityRow}>
             {identityOptions.map(opt => {
               const sel = identity === opt.type;
               const s = IDENTITY_STYLE[opt.type];
               return (
-                <TouchableOpacity
-                  key={opt.type}
-                  style={[styles.identityCard, sel && styles.identityCardSel]}
-                  onPress={() => setIdentity(opt.type)}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity key={opt.type} style={[styles.identityCard, sel && styles.identityCardSel]} onPress={() => setIdentity(opt.type)} activeOpacity={0.8}>
                   <View style={[styles.identityAvatar, { backgroundColor: s.avatarBg }]}>
                     <Text style={[styles.identityAvatarText, { color: s.avatarText }]}>
                       {opt.type === 'anon' ? '익' : opt.label.slice(0, 2)}
@@ -280,68 +463,28 @@ function WriteSheet({
                   </View>
                   <Text style={[styles.identityLabel, sel && styles.identityLabelSel]} numberOfLines={1}>{opt.label}</Text>
                   <Text style={styles.identitySub}>{opt.sub}</Text>
-                  {sel && (
-                    <View style={styles.identityCheck}>
-                      <Ionicons name="checkmark-circle" size={14} color={C.primary} />
-                    </View>
-                  )}
+                  {sel && <View style={styles.identityCheck}><Ionicons name="checkmark-circle" size={14} color={C.primary} /></View>}
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* 카테고리 */}
           <Text style={styles.fieldLabel}>카테고리</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {WRITE_CATEGORIES.map(cat => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.catChip, category === cat && styles.catChipSel]}
-                  onPress={() => setCategory(cat)}
-                >
+                <TouchableOpacity key={cat} style={[styles.catChip, category === cat && styles.catChipSel]} onPress={() => setCategory(cat)}>
                   <Text style={[styles.catChipText, category === cat && styles.catChipTextSel]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </ScrollView>
 
-          {/* 제목 */}
-          <TextInput
-            style={styles.inputField}
-            value={title}
-            onChangeText={setTitle}
-            placeholder={isTrade ? '물품 이름' : '제목'}
-            placeholderTextColor="#9CA3AF"
-          />
+          <TextInput style={styles.inputField} value={title} onChangeText={setTitle} placeholder={isTrade ? '물품 이름' : '제목'} placeholderTextColor="#9CA3AF" />
+          {isTrade && <TextInput style={styles.inputField} value={price} onChangeText={setPrice} placeholder="가격 (예: 12,000원)" placeholderTextColor="#9CA3AF" />}
+          <TextInput style={[styles.inputField, styles.inputMultiline]} value={content} onChangeText={setContent} placeholder={isTrade ? '거래 장소 및 상태 설명' : '내용을 입력하세요'} placeholderTextColor="#9CA3AF" multiline textAlignVertical="top" />
 
-          {/* 가격 (중고거래만) */}
-          {isTrade && (
-            <TextInput
-              style={styles.inputField}
-              value={price}
-              onChangeText={setPrice}
-              placeholder="가격 (예: 12,000원)"
-              placeholderTextColor="#9CA3AF"
-            />
-          )}
-
-          {/* 내용 */}
-          <TextInput
-            style={[styles.inputField, styles.inputMultiline]}
-            value={content}
-            onChangeText={setContent}
-            placeholder={isTrade ? '거래 장소 및 상태 설명' : '내용을 입력하세요'}
-            placeholderTextColor="#9CA3AF"
-            multiline
-            textAlignVertical="top"
-          />
-
-          <TouchableOpacity
-            style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={!canSubmit}
-          >
+          <TouchableOpacity style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={!canSubmit}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>게시하기</Text>}
           </TouchableOpacity>
         </Pressable>
@@ -356,35 +499,61 @@ function WriteSheet({
 export default function BoardScreen() {
   const insets = useSafeAreaInsets();
   const topPad = isWeb ? 67 : insets.top;
-  const [activeCategory, setActiveCategory] = useState<CategoryId>('전체');
+  const [activeCategory, setActiveCategory] = useState<string>('전체');
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showWrite, setShowWrite] = useState(false);
+  const [showDeptBrowser, setShowDeptBrowser] = useState(false);
+  const [showReorder, setShowReorder] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
+  const [pinnedDepts, setPinnedDepts] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const PER_PAGE = 20;
 
-  // 프로필 로드
+  // 초기 로드
   useEffect(() => {
     AsyncStorage.getItem('campus_life_profile').then(raw => {
       if (raw) { try { setProfile(JSON.parse(raw)); } catch {} }
     });
+    AsyncStorage.getItem(PINNED_KEY).then(raw => {
+      if (raw) { try { setPinnedDepts(JSON.parse(raw)); } catch {} }
+    });
   }, []);
+
+  const savePinned = useCallback((depts: string[]) => {
+    setPinnedDepts(depts);
+    AsyncStorage.setItem(PINNED_KEY, JSON.stringify(depts));
+  }, []);
+
+  const pinDept = useCallback((dept: string) => {
+    setPinnedDepts(prev => {
+      if (prev.includes(dept)) return prev;
+      const next = [...prev, dept];
+      AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const unpinDept = useCallback((dept: string) => {
+    setPinnedDepts(prev => {
+      const next = prev.filter(d => d !== dept);
+      AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+      if (activeCategory === dept) setActiveCategory('전체');
+      return next;
+    });
+  }, [activeCategory]);
 
   const fetchPosts = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
-      if (activeCategory !== '전체') params.set('category', activeCategory);
-      params.set('limit', '100');
-      const r = await fetch(`${API}/community?${params}`);
+      const r = await fetch(`${API}/community?limit=100`);
       if (r.ok) {
         const data = await r.json();
         setPosts(Array.isArray(data) ? data : (data.posts ?? []));
       }
     } catch {}
     finally { setLoading(false); }
-  }, [activeCategory]);
+  }, []);
 
   useEffect(() => { setLoading(true); fetchPosts(); }, [fetchPosts]);
   useEffect(() => { setPage(1); }, [activeCategory]);
@@ -398,59 +567,73 @@ export default function BoardScreen() {
   const handleSubmit = async (data: { title: string; content: string; category: string; subCategory: string; author: string }) => {
     try {
       const r = await fetch(`${API}/community`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (r.ok) {
         const newPost = await r.json();
         setPosts(prev => [newPost, ...prev]);
-      } else {
-        Alert.alert('오류', '게시글 작성에 실패했습니다.');
-      }
-    } catch {
-      Alert.alert('오류', '게시글 작성에 실패했습니다.');
-    }
+      } else { Alert.alert('오류', '게시글 작성에 실패했습니다.'); }
+    } catch { Alert.alert('오류', '게시글 작성에 실패했습니다.'); }
   };
 
-  const paged = posts.slice(0, page * PER_PAGE);
-  const hasMore = paged.length < posts.length;
+  const filtered = filterPosts(posts, activeCategory, profile);
+  const paged = filtered.slice(0, page * PER_PAGE);
+  const hasMore = paged.length < filtered.length;
+  const hasPinned = pinnedDepts.length > 0;
+
+  // 활성 카테고리가 dept탭인지
+  const isDepTabActive = !FIXED_IDS.includes(activeCategory);
+  const activeLabel = isDepTabActive ? activeCategory : FIXED_CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory;
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Text style={styles.headerLabel}>부산대학교</Text>
-        <Text style={styles.headerTitle}>커뮤니티</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.headerLabel}>부산대학교</Text>
+            <Text style={styles.headerTitle}>커뮤니티</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.reorderBtn}
+            onPress={() => setShowReorder(true)}
+          >
+            <Ionicons name="list-outline" size={20} color={hasPinned ? '#374151' : '#D1D5DB'} />
+          </TouchableOpacity>
+        </View>
 
         {/* 카테고리 칩바 */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catBar}
-          style={styles.catBarScroll}
-        >
-          {CATEGORIES.map(cat => {
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catBar} style={styles.catBarScroll}>
+          {/* 고정 카테고리 */}
+          {FIXED_CATEGORIES.map(cat => {
             const active = activeCategory === cat.id;
             return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.catChipBar, active && styles.catChipBarActive]}
-                onPress={() => setActiveCategory(cat.id)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={cat.icon as any}
-                  size={13}
-                  color={active ? '#fff' : '#9CA3AF'}
-                />
-                <Text style={[styles.catChipBarText, active && styles.catChipBarTextActive]}>
-                  {cat.label}
+              <TouchableOpacity key={cat.id} style={[styles.catChipBar, active && styles.catChipBarActive]} onPress={() => setActiveCategory(cat.id)} activeOpacity={0.8}>
+                <Ionicons name={cat.icon as any} size={13} color={active ? '#fff' : '#9CA3AF'} />
+                <Text style={[styles.catChipBarText, active && styles.catChipBarTextActive]}>{cat.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* 고정된 학과 탭 */}
+          {pinnedDepts.map(dept => {
+            const active = activeCategory === dept;
+            return (
+              <TouchableOpacity key={dept} style={[styles.catChipBar, styles.catChipBarDept, active && styles.catChipBarDeptActive]} onPress={() => setActiveCategory(dept)} activeOpacity={0.8}>
+                <Ionicons name="school-outline" size={13} color={active ? '#fff' : '#F59E0B'} />
+                <Text style={[styles.catChipBarText, { color: active ? '#fff' : '#92400E' }]} numberOfLines={1}>
+                  {dept.length > 6 ? dept.slice(0, 5) + '..' : dept}
                 </Text>
               </TouchableOpacity>
             );
           })}
+
+          {/* + 버튼 */}
+          <TouchableOpacity style={styles.catChipBarPlus} onPress={() => setShowDeptBrowser(true)} activeOpacity={0.8}>
+            <Ionicons name="add" size={16} color={C.primary} />
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -461,9 +644,25 @@ export default function BoardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
       >
+        {/* 내 학과 안내 */}
+        {activeCategory === '내 학과' && !profile.department && (
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={16} color={C.primary} />
+            <Text style={styles.infoText}>설정에서 학과를 등록하면 학과 게시글만 볼 수 있어요</Text>
+          </View>
+        )}
+
+        {/* dept 탭 안내 */}
+        {isDepTabActive && (
+          <View style={styles.deptTabBanner}>
+            <Ionicons name="school-outline" size={14} color="#92400E" />
+            <Text style={styles.deptTabBannerText}>{activeCategory} 게시판</Text>
+          </View>
+        )}
+
         {loading ? (
           <ActivityIndicator color={C.primary} style={{ marginTop: 48 }} />
-        ) : posts.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <View style={styles.emptyBox}>
             <Ionicons name="chatbubbles-outline" size={44} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>아직 게시글이 없어요</Text>
@@ -484,20 +683,27 @@ export default function BoardScreen() {
       </ScrollView>
 
       {/* ── FAB ── */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: isWeb ? 28 : insets.bottom + 88 }]}
-        onPress={() => setShowWrite(true)}
-        activeOpacity={0.9}
-      >
+      <TouchableOpacity style={[styles.fab, { bottom: isWeb ? 28 : insets.bottom + 88 }]} onPress={() => setShowWrite(true)} activeOpacity={0.9}>
         <Feather name="edit-2" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* ── Write Sheet ── */}
-      <WriteSheet
-        visible={showWrite}
-        onClose={() => setShowWrite(false)}
-        onSubmit={handleSubmit}
-        profile={profile}
+      {/* ── Modals ── */}
+      <WriteSheet visible={showWrite} onClose={() => setShowWrite(false)} onSubmit={handleSubmit} profile={profile} />
+
+      <DeptBrowserModal
+        visible={showDeptBrowser}
+        onClose={() => setShowDeptBrowser(false)}
+        pinnedDepts={pinnedDepts}
+        onPin={pinDept}
+        onUnpin={unpinDept}
+        onView={(dept) => setActiveCategory(dept)}
+      />
+
+      <ReorderModal
+        visible={showReorder}
+        onClose={() => setShowReorder(false)}
+        pinnedDepts={pinnedDepts}
+        onChange={savePinned}
       />
     </View>
   );
@@ -507,52 +713,34 @@ export default function BoardScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F7F8FA' },
 
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  headerLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter_700Bold',
-    color: C.primary,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 30,
-    fontFamily: 'Inter_700Bold',
-    color: '#111827',
-    letterSpacing: -0.8,
-    marginBottom: 16,
-  },
-  catBarScroll: { marginHorizontal: -20, marginBottom: 0 },
-  catBar: { paddingHorizontal: 20, gap: 6, paddingBottom: 14 },
-  catChipBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: '#F3F4F6',
-  },
+  header: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10 },
+  headerLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 },
+  headerTitle: { fontSize: 30, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -0.8 },
+  reorderBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+
+  catBarScroll: { marginHorizontal: -0, marginBottom: 0 },
+  catBar: { paddingHorizontal: 14, gap: 6, paddingBottom: 14, paddingTop: 2 },
+  catChipBar: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: '#F3F4F6' },
   catChipBarActive: { backgroundColor: C.primary },
   catChipBarText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
   catChipBarTextActive: { color: '#fff' },
+  catChipBarDept: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' },
+  catChipBarDeptActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
+  catChipBarPlus: {
+    width: 32, height: 32, borderRadius: 999,
+    borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   feed: { paddingHorizontal: 12, paddingTop: 10 },
 
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
+  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF4FF', borderRadius: 12, padding: 12, marginBottom: 10 },
+  infoText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: C.primary },
+  deptTabBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFBEB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: '#FDE68A' },
+  deptTabBannerText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#92400E' },
+
+  card: { backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   cardHeader: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
   authorLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
@@ -565,15 +753,10 @@ const styles = StyleSheet.create({
 
   postTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a', lineHeight: 21, marginBottom: 4 },
   postBody: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 19 },
-
   tradeBody: { flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 2 },
-  tradeImageBox: {
-    width: 76, height: 76, borderRadius: 10,
-    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
+  tradeImageBox: { width: 76, height: 76, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   tradePrice: { fontSize: 15, fontFamily: 'Inter_700Bold', color: C.primary, marginBottom: 3 },
   tradeLocation: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-
   cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   actionText: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#B0B7C3' },
@@ -585,26 +768,34 @@ const styles = StyleSheet.create({
   moreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 16 },
   moreBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: C.primary },
 
-  fab: {
-    position: 'absolute', right: 20, width: 52, height: 52, borderRadius: 26,
-    backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center',
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
-  },
+  fab: { position: 'absolute', right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
 
-  // Write Sheet
+  // Sheets
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '92%' },
+  sheetContainer: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12 },
   sheetHandle: { width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  sheetTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  sheetTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
+  sheetSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
 
+  // Dept Browser
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  searchInput: { flex: 1, fontSize: 14, color: '#111827', fontFamily: 'Inter_400Regular' },
+  deptItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  deptItemLeft: { flex: 1 },
+  deptItemName: { fontSize: 15, fontFamily: 'Inter_500Medium', color: '#111827' },
+  deptPinnedLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#F59E0B', marginTop: 2 },
+
+  // Reorder
+  reorderItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  reorderItemName: { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium', color: '#111827' },
+  reorderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reorderArrow: { padding: 4 },
+
+  // Write
   fieldLabel: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#6B7280', marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' },
-
   identityRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  identityCard: {
-    flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8,
-    borderRadius: 16, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB', position: 'relative',
-  },
+  identityCard: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB', position: 'relative' },
   identityCardSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
   identityAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   identityAvatarText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
@@ -612,18 +803,12 @@ const styles = StyleSheet.create({
   identityLabelSel: { color: C.primary },
   identitySub: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF', textAlign: 'center', marginTop: 2 },
   identityCheck: { position: 'absolute', top: 6, right: 6 },
-
   catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#F3F4F6' },
   catChipSel: { backgroundColor: C.primary },
   catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
   catChipTextSel: { color: '#fff' },
-
-  inputField: {
-    backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13,
-    fontSize: 15, fontFamily: 'Inter_400Regular', color: '#111827', marginBottom: 10,
-  },
+  inputField: { backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15, fontFamily: 'Inter_400Regular', color: '#111827', marginBottom: 10 },
   inputMultiline: { minHeight: 90, textAlignVertical: 'top' },
-
   submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
   submitBtnDisabled: { backgroundColor: '#D1D5DB' },
   submitBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
