@@ -238,9 +238,26 @@ function DeptBrowserModal({
 
   const isSearching = !!q.trim();
   const filtered: DeptItem[] = isSearching
-    ? depts.filter(d => d.name.includes(q.trim()) || d.college.includes(q.trim()))
+    ? (() => {
+        const q2 = q.trim();
+        const results = depts.filter(d => d.name.includes(q2) || d.college.includes(q2));
+        // 내 학과 최상단 표시
+        const mine = results.find(d => d.name === myDept);
+        return mine ? [mine, ...results.filter(d => d.name !== myDept)] : results;
+      })()
     : [];
-  const sections = React.useMemo(() => buildSections(depts), [depts]);
+
+  const sections = React.useMemo(() => {
+    const base = buildSections(depts);
+    if (!myDept) return base;
+    const myItem = depts.find(d => d.name === myDept);
+    if (!myItem) return base;
+    // 내 학과 섹션 최상단 + 해당 대학 섹션에서 제거
+    const rest = base
+      .map(s => ({ ...s, data: s.data.filter(d => d.name !== myDept) }))
+      .filter(s => s.data.length > 0);
+    return [{ title: '내 학과', data: [myItem] }, ...rest];
+  }, [depts, myDept]);
   const collegeNames = sections.map(s => s.title);
 
   const scrollToSection = (college: string) => {
@@ -333,11 +350,15 @@ function DeptBrowserModal({
                 showsVerticalScrollIndicator={false}
                 style={{ flex: 1 }}
                 stickySectionHeadersEnabled
-                renderSectionHeader={({ section }) => (
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionHeaderText}>{section.title}</Text>
-                  </View>
-                )}
+                renderSectionHeader={({ section }) => {
+                  const isMySection = section.title === '내 학과';
+                  return (
+                    <View style={[styles.sectionHeader, isMySection && { backgroundColor: '#EBF5FF', borderBottomColor: '#BFDBFE' }]}>
+                      {isMySection && <Ionicons name="home-outline" size={11} color={C.primary} style={{ marginRight: 4 }} />}
+                      <Text style={[styles.sectionHeaderText, isMySection && { color: C.primary }]}>{section.title}</Text>
+                    </View>
+                  );
+                }}
                 renderItem={({ item }) => renderDeptItem(item)}
                 ListEmptyComponent={
                   <View style={{ alignItems: 'center', paddingVertical: 32 }}>
@@ -366,7 +387,10 @@ function ReorderModal({
   const insets = useSafeAreaInsets();
   const [local, setLocal] = useState<string[]>([]);
 
-  useEffect(() => { if (visible) setLocal([...tabOrder]); }, [visible, tabOrder]);
+  // myDept는 local에서 제외 – 상단 고정 처리
+  useEffect(() => {
+    if (visible) setLocal(tabOrder.filter(t => t !== myDept));
+  }, [visible, tabOrder, myDept]);
 
   const move = (i: number, dir: -1 | 1) => {
     const next = [...local];
@@ -380,7 +404,12 @@ function ReorderModal({
     setLocal(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  const save = () => { onChange(local); onClose(); };
+  const save = () => {
+    // myDept는 항상 맨 앞
+    const final = myDept ? [myDept, ...local] : local;
+    onChange(final);
+    onClose();
+  };
 
   const getTabDisplay = (tabId: string) => {
     const isMyDept = tabId === myDept && !!myDept;
@@ -411,6 +440,18 @@ function ReorderModal({
             <Ionicons name="grid-outline" size={15} color="#9CA3AF" style={{ marginRight: 6 }} />
             <Text style={[styles.reorderItemName, { color: '#9CA3AF' }]}>전체 (항상 첫 번째)</Text>
           </View>
+
+          {/* 고정: 내 학과 탭 (항상 두 번째, 편집 불가) */}
+          {!!myDept && (
+            <View style={[styles.reorderItem, { backgroundColor: '#EBF5FF', borderRadius: 10, paddingHorizontal: 10, marginBottom: 4 }]}>
+              <Ionicons name="lock-closed-outline" size={16} color={C.primary} style={{ marginRight: 10 }} />
+              <Ionicons name="home-outline" size={15} color={C.primary} style={{ marginRight: 6 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.reorderItemName, { color: C.primary }]} numberOfLines={1}>내 학과 ({myDept})</Text>
+                <Text style={{ fontSize: 10, color: C.primary, fontFamily: 'Inter_400Regular' }}>학생증 인증 · 항상 두 번째</Text>
+              </View>
+            </View>
+          )}
 
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             {local.map((tabId, i) => {
@@ -603,10 +644,14 @@ export default function BoardScreen() {
   }, []);
 
   const saveTabOrder = useCallback((order: string[]) => {
-    setTabOrder(order);
-    AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
-    if (!order.includes(activeCategory)) setActiveCategory('전체');
-  }, [activeCategory]);
+    // myDept는 항상 첫 번째 위치 보장
+    const normalized = myDept
+      ? [myDept, ...order.filter(t => t !== myDept)]
+      : order;
+    setTabOrder(normalized);
+    AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(normalized));
+    if (!normalized.includes(activeCategory)) setActiveCategory('전체');
+  }, [activeCategory, myDept]);
 
   const pinDept = useCallback((dept: string) => {
     setTabOrder(prev => {
@@ -893,7 +938,7 @@ const styles = StyleSheet.create({
   deptPinnedLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#F59E0B', marginTop: 2 },
 
   // Section index
-  sectionHeader: { backgroundColor: '#F9FAFB', paddingHorizontal: 4, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', paddingHorizontal: 4, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   sectionHeaderText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1 },
   indexBar: { width: 22, justifyContent: 'center', alignItems: 'center', paddingVertical: 4, gap: 1 },
   indexItem: { paddingVertical: 2, paddingHorizontal: 2, alignItems: 'center' },
