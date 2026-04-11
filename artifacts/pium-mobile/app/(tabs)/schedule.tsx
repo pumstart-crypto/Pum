@@ -596,22 +596,34 @@ export default function ScheduleScreen() {
     const msg = semSchedules.length > 0
       ? `${label} 시간표와 수업 ${semSchedules.length}개가 모두 삭제됩니다.`
       : `${label} 시간표를 삭제하시겠습니까?`;
+
+    const doDelete = async () => {
+      await Promise.all(
+        semSchedules.map(s => fetch(`${API}/schedule/${s.id}`, { method: 'DELETE', headers: { ...authHeader } }))
+      );
+      setSemesters(prev => {
+        const next = prev.filter((_, i) => i !== idx);
+        setSelectedSemIdx(i => {
+          if (i === idx) return Math.max(0, idx - 1);
+          if (i > idx) return i - 1;
+          return i;
+        });
+        return next;
+      });
+      refetch();
+    };
+
     Alert.alert('학기 삭제', msg, [
       { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => {
-        await Promise.all(
-          semSchedules.map(s => fetch(`${API}/schedule/${s.id}`, { method: 'DELETE', headers: { ...authHeader } }))
+      { text: '삭제', style: 'destructive', onPress: () => {
+        Alert.alert(
+          '정말 삭제하시겠습니까?',
+          '삭제 후 복구할 수 없습니다.',
+          [
+            { text: '취소', style: 'cancel' },
+            { text: '삭제', style: 'destructive', onPress: doDelete },
+          ]
         );
-        setSemesters(prev => {
-          const next = prev.filter((_, i) => i !== idx);
-          setSelectedSemIdx(i => {
-            if (i === idx) return Math.max(0, idx - 1);
-            if (i > idx) return i - 1;
-            return i;
-          });
-          return next;
-        });
-        refetch();
       }},
     ]);
   };
