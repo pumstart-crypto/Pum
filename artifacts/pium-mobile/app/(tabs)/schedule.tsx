@@ -765,7 +765,7 @@ export default function ScheduleScreen() {
   const totalCredits = eligible.reduce((s, g) => s + g.credits, 0);
   const weightedSum = eligible.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0);
   const gpa = totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : '—';
-  const totalCreditCount = grades.filter(g => !g.isRetake && g.grade !== '-').reduce((s, g) => s + g.credits, 0);
+  const totalCreditCount = grades.filter(g => !g.isRetake && g.grade !== '-' && g.grade !== 'F').reduce((s, g) => s + g.credits, 0);
   // 전공평점: 전공필수/기초/선택만
   const majorEligible = eligible.filter(g => g.category && MAJOR_CATEGORIES.includes(g.category));
   const majorCredits = majorEligible.reduce((s, g) => s + g.credits, 0);
@@ -802,6 +802,7 @@ export default function ScheduleScreen() {
   for (const g of grades) {
     if (g.isRetake) continue;           // 재수강으로 대체된 구 성적 제외
     if (g.grade === '-') continue;      // 수강 중(미확정) 제외
+    if (g.grade === 'F') continue;      // 낙제 과목 제외 (이수 인정 불가)
     if (g.grade === 'NP') continue;     // 불합격 과목 제외
     if (!g.category || !g.credits) continue;
     if (seenSubjects.has(g.subjectName)) continue; // 동일 과목명 중복 방지
@@ -1077,7 +1078,7 @@ export default function ScheduleScreen() {
                       const semGpa = semTotalCr > 0
                         ? (semEl.reduce((s, g) => s + (GRADE_POINTS[g.grade] ?? 0) * g.credits, 0) / semTotalCr).toFixed(2)
                         : '—';
-                      const semTotalCredits = gs.filter(g => !g.isRetake && g.grade !== '-').reduce((s, g) => s + g.credits, 0);
+                      const semTotalCredits = gs.filter(g => !g.isRetake && g.grade !== '-' && g.grade !== 'F').reduce((s, g) => s + g.credits, 0);
                       return (
                         <View key={key} style={styles.semesterGroup}>
                           <TouchableOpacity
