@@ -7,8 +7,20 @@ import {
   insertCommunityCommentSchema,
 } from "@workspace/db";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { ALL_PNU_DEPTS } from "../data/all-pnu-depts";
 
 const router: IRouter = Router();
+
+// ── All PNU departments (for community board dept browser) ──
+router.get("/community/depts", (_req, res) => {
+  const seen = new Set<string>();
+  const depts = ALL_PNU_DEPTS.filter(d => {
+    if (seen.has(d.name)) return false;
+    seen.add(d.name);
+    return true;
+  });
+  return res.json({ depts });
+});
 
 // ── List posts ──────────────────────────────
 router.get("/community", async (req, res) => {

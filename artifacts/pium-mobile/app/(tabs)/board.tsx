@@ -41,7 +41,6 @@ interface Post {
   createdAt: string;
 }
 interface Profile { department?: string; studentId?: string | number; }
-interface DeptInfo { name: string; hasNotice: boolean; hasJobs: boolean; }
 
 /* ── 정체성 ── */
 const IDENTITY_STYLE = {
@@ -92,12 +91,13 @@ function getInitial(str: string): string {
   return initials[Math.floor(code / 588)] ?? '#';
 }
 
-function buildSections(names: string[]): { title: string; data: string[] }[] {
-  const map = new Map<string, string[]>();
-  for (const name of names) {
-    const c = getInitial(name);
-    if (!map.has(c)) map.set(c, []);
-    map.get(c)!.push(name);
+interface DeptItem { name: string; college: string; }
+
+function buildSections(depts: DeptItem[]): { title: string; data: DeptItem[] }[] {
+  const map = new Map<string, DeptItem[]>();
+  for (const d of depts) {
+    if (!map.has(d.college)) map.set(d.college, []);
+    map.get(d.college)!.push(d);
   }
   return [...map.entries()].map(([title, data]) => ({ title, data }));
 }
@@ -221,7 +221,7 @@ function DeptBrowserModal({
   onView: (dept: string) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [depts, setDepts] = useState<string[]>([]);
+  const [depts, setDepts] = useState<DeptItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const sectionListRef = useRef<SectionList>(null);
@@ -231,45 +231,44 @@ function DeptBrowserModal({
     if (!visible) return;
     setLoading(true);
     setQ('');
-    fetch(`${API}/dept-list`)
+    fetch(`${API}/community/depts`)
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => {
-        const list: DeptInfo[] = data.depts ?? data ?? [];
-        setDepts(list.map((d: DeptInfo) => d.name));
-      })
+      .then(data => setDepts(data.depts ?? []))
       .catch(() => setDepts([]))
       .finally(() => setLoading(false));
   }, [visible]);
 
   const isSearching = !!q.trim();
-  const filtered = isSearching ? depts.filter(d => d.includes(q.trim())) : [];
+  const filtered: DeptItem[] = isSearching
+    ? depts.filter(d => d.name.includes(q.trim()) || d.college.includes(q.trim()))
+    : [];
   const sections = React.useMemo(() => buildSections(depts), [depts]);
-  const indexConsonants = sections.map(s => s.title);
+  const collegeNames = sections.map(s => s.title);
 
-  const scrollToSection = (consonant: string) => {
-    const idx = sections.findIndex(s => s.title === consonant);
+  const scrollToSection = (college: string) => {
+    const idx = sections.findIndex(s => s.title === college);
     if (idx < 0 || !sectionListRef.current) return;
     try { sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true, viewOffset: 4 }); } catch {}
   };
 
-  const renderDeptItem = (item: string) => {
-    const isPinned = pinnedSet.has(item);
+  const renderDeptItem = (item: DeptItem) => {
+    const isPinned = pinnedSet.has(item.name);
     return (
       <TouchableOpacity
-        key={item}
+        key={item.name}
         style={styles.deptItem}
-        onPress={() => { onView(item); onClose(); }}
-        onLongPress={() => { isPinned ? onUnpin(item) : onPin(item); }}
+        onPress={() => { onView(item.name); onClose(); }}
+        onLongPress={() => { isPinned ? onUnpin(item.name) : onPin(item.name); }}
         delayLongPress={400}
         activeOpacity={0.7}
       >
         <View style={styles.deptItemLeft}>
           <Text style={[styles.deptItemName, isPinned && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>
-            {item}
+            {item.name}
           </Text>
           {isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
         </View>
-        <TouchableOpacity onPress={() => isPinned ? onUnpin(item) : onPin(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={() => isPinned ? onUnpin(item.name) : onPin(item.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name={isPinned ? 'star' : 'star-outline'} size={18} color={isPinned ? '#F59E0B' : '#D1D5DB'} />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -309,7 +308,7 @@ function DeptBrowserModal({
             /* 검색 결과: 평탄 리스트 */
             <FlatList
               data={filtered}
-              keyExtractor={item => item}
+              keyExtractor={item => item.name}
               showsVerticalScrollIndicator={false}
               style={{ flex: 1 }}
               renderItem={({ item }) => renderDeptItem(item)}
@@ -320,12 +319,12 @@ function DeptBrowserModal({
               }
             />
           ) : (
-            /* 초성별 섹션 + 우측 인덱스 바 */
+            /* 단과대학별 섹션 + 우측 인덱스 바 */
             <View style={{ flex: 1, flexDirection: 'row' }}>
               <SectionList
                 ref={sectionListRef}
                 sections={sections}
-                keyExtractor={(item, index) => item + index}
+                keyExtractor={(item) => item.name}
                 showsVerticalScrollIndicator={false}
                 style={{ flex: 1 }}
                 stickySectionHeadersEnabled
@@ -341,12 +340,12 @@ function DeptBrowserModal({
                   </View>
                 }
               />
-              {/* 우측 초성 인덱스 바 */}
-              {indexConsonants.length > 0 && (
+              {/* 우측 단과대학 인덱스 */}
+              {collegeNames.length > 0 && (
                 <View style={styles.indexBar}>
-                  {indexConsonants.map(c => (
+                  {collegeNames.map(c => (
                     <TouchableOpacity key={c} style={styles.indexItem} onPress={() => scrollToSection(c)} hitSlop={{ top: 2, bottom: 2, left: 6, right: 6 }}>
-                      <Text style={styles.indexText}>{c}</Text>
+                      <Text style={[styles.indexText, { fontSize: 8 }]}>{c.replace('대학', '').replace('전문대학원', '원').replace('대학원', '원')}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
