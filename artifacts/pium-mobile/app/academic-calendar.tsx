@@ -101,7 +101,7 @@ const EVENTS: CalendarEvent[] = [
 ];
 
 type FilterTab = '전체' | '진행중' | '예정' | '지난' | '즐겨찾기';
-const TABS: FilterTab[] = ['전체', '진행중', '예정', '지난', '즐겨찾기'];
+const TABS: FilterTab[] = ['전체', '즐겨찾기', '진행중', '예정', '지난'];
 
 function getEvId(ev: CalendarEvent) { return ev.startDate + '|' + ev.title; }
 
@@ -442,8 +442,8 @@ const styles = StyleSheet.create({
   pageSubtitle: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_400Regular', marginTop: 4 },
 
   tabsScroll: { marginBottom: 20 },
-  tabsContainer: { paddingHorizontal: 20, gap: 8, paddingRight: 20 },
-  tab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: '#F3F4F6' },
+  tabsContainer: { paddingHorizontal: 20, gap: 5, paddingRight: 20 },
+  tab: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, backgroundColor: '#F3F4F6' },
   tabText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#6B7280' },
   tabTextActive: { color: '#fff' },
 
