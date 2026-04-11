@@ -619,7 +619,7 @@ export default function BoardScreen() {
       const legacyRaw = pairs.find(p => p[0] === PINNED_KEY)?.[1];
 
       let dept = '';
-      if (profileRaw) { try { const pr = JSON.parse(profileRaw); dept = pr.department ?? ''; setProfile(pr); } catch {} }
+      if (profileRaw) { try { const pr = JSON.parse(profileRaw); dept = pr.major ?? pr.department ?? ''; setProfile(pr); } catch {} }
       setMyDept(dept);
 
       let order: string[];

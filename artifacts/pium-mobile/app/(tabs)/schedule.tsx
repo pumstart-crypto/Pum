@@ -795,15 +795,17 @@ export default function ScheduleScreen() {
       }));
   }, [grades]);
 
-  // 졸업요건 이수학점: schedules의 category 기준으로 중복 제거 후 계산
+  // 졸업요건 이수학점: grades 기준, isRetake 제외, NP 제외, 과목명 단위 중복 제거
+  // (schedules에는 is_retake 컬럼이 없어서 grades 사용)
   const earnedByCategory: Record<string, number> = {};
-  const seenSchedKeys = new Set<string>();
-  for (const s of (schedules as Schedule[])) {
-    if (!s.category || !s.credits || !s.year || !s.semester) continue;
-    const key = `${s.year}-${s.semester}-${s.subjectName}`;
-    if (seenSchedKeys.has(key)) continue;
-    seenSchedKeys.add(key);
-    earnedByCategory[s.category] = (earnedByCategory[s.category] || 0) + s.credits;
+  const seenSubjects = new Set<string>();
+  for (const g of grades) {
+    if (g.isRetake) continue;           // 재수강으로 대체된 구 성적 제외
+    if (g.grade === 'NP') continue;     // 불합격 과목 제외
+    if (!g.category || !g.credits) continue;
+    if (seenSubjects.has(g.subjectName)) continue; // 동일 과목명 중복 방지
+    seenSubjects.add(g.subjectName);
+    earnedByCategory[g.category] = (earnedByCategory[g.category] || 0) + g.credits;
   }
   const getEarned = (req: typeof GRAD_REQS[0]) =>
     req.categories.reduce((s, cat) => s + (earnedByCategory[cat] || 0), 0);
