@@ -95,11 +95,12 @@ function isCurrentClass(startTime: string, endTime: string): boolean {
   return nowMins >= startMins && nowMins < endMins;
 }
 
-const PALETTE = ['#4F46E5', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777', '#0F766E'];
-function getSubjectColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return PALETTE[Math.abs(h) % PALETTE.length];
+const PALETTE = ['#C4EBDC','#FFD6C4','#FFCFCF','#E6D9F3','#E8F5D8','#D0EBFA','#FDD6DC','#FEE6BF'];
+function buildColorMap(subjects: string[]): Record<string, string> {
+  const unique = Array.from(new Set(subjects));
+  const map: Record<string, string> = {};
+  unique.forEach((name, i) => { map[name] = PALETTE[i % PALETTE.length]; });
+  return map;
 }
 
 export default function HomeScreen() {
@@ -125,6 +126,11 @@ export default function HomeScreen() {
   const today = getNow();
   const todaySchedules = getTodaySchedules(schedules);
   const pendingTodos = todos.filter(t => !t.completed);
+
+  // 시간표와 동일한 colorMap: 현재 학기 전체 과목 등록 순서 기준
+  const { year: curYear, sem: curSem } = getCurrentSemester();
+  const semSchedules = (schedules as any[]).filter(s => s.year === curYear && s.semester === curSem);
+  const colorMap = buildColorMap(semSchedules.map((s: any) => s.subjectName));
 
   const fetchTodos = useCallback(async () => {
     try {
@@ -262,25 +268,25 @@ export default function HomeScreen() {
             <View style={styles.scheduleList}>
               {todaySchedules.slice(0, 4).map((s: any) => {
                 const active = isCurrentClass(s.startTime, s.endTime);
-                const accentColor = getSubjectColor(s.subjectName);
+                const accentColor = colorMap[s.subjectName] ?? PALETTE[0];
                 return (
                   <View
                     key={s.id}
                     style={[
                       styles.scheduleCard,
-                      { backgroundColor: colors.card, borderColor: active ? accentColor : colors.border },
+                      { backgroundColor: colors.card, borderColor: active ? C.primary : colors.border },
                       active && styles.scheduleCardActive,
                     ]}
                   >
                     {active && (
                       <View style={[styles.nowBadge, { backgroundColor: accentColor }]}>
-                        <Text style={styles.nowBadgeText}>지금 수업 중</Text>
+                        <Text style={[styles.nowBadgeText, { color: '#1F2937' }]}>지금 수업 중</Text>
                       </View>
                     )}
                     <View style={[styles.scheduleCardAccent, { backgroundColor: accentColor }]} />
                     <View style={styles.scheduleCardBody}>
                       <View style={styles.scheduleTime}>
-                        <Text style={[styles.scheduleTimeText, { color: active ? accentColor : colors.text }]}>{s.startTime}</Text>
+                        <Text style={[styles.scheduleTimeText, { color: active ? C.primary : colors.text }]}>{s.startTime}</Text>
                         <Text style={[styles.scheduleTimeEnd, { color: colors.textSecondary }]}>{s.endTime}</Text>
                       </View>
                       <View style={styles.scheduleInfo}>
