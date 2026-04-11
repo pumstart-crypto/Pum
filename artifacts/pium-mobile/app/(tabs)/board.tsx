@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Modal, ActivityIndicator,
-  Platform, Alert, Pressable, FlatList,
+  Platform, Alert, Pressable, FlatList, SectionList,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,6 +82,24 @@ function relTime(dateStr: string) {
   if (hr < 24) return `${hr}시간 전`;
   const day = Math.floor(hr / 24);
   return day < 7 ? `${day}일 전` : new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
+/* ── 초성 추출 ── */
+function getInitial(str: string): string {
+  const code = str.charCodeAt(0) - 0xAC00;
+  if (code < 0) return str[0]?.toUpperCase() ?? '#';
+  const initials = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  return initials[Math.floor(code / 588)] ?? '#';
+}
+
+function buildSections(names: string[]): { title: string; data: string[] }[] {
+  const map = new Map<string, string[]>();
+  for (const name of names) {
+    const c = getInitial(name);
+    if (!map.has(c)) map.set(c, []);
+    map.get(c)!.push(name);
+  }
+  return [...map.entries()].map(([title, data]) => ({ title, data }));
 }
 
 function filterPosts(posts: Post[], category: string, profile: Profile): Post[] {
@@ -206,27 +224,62 @@ function DeptBrowserModal({
   const [depts, setDepts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const sectionListRef = useRef<SectionList>(null);
   const pinnedSet = new Set(pinnedDepts);
 
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
+    setQ('');
     fetch(`${API}/dept-list`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         const list: DeptInfo[] = data.depts ?? data ?? [];
-        setDepts(list.map(d => d.name));
+        setDepts(list.map((d: DeptInfo) => d.name));
       })
       .catch(() => setDepts([]))
       .finally(() => setLoading(false));
   }, [visible]);
 
-  const filtered = q.trim() ? depts.filter(d => d.includes(q.trim())) : depts;
+  const isSearching = !!q.trim();
+  const filtered = isSearching ? depts.filter(d => d.includes(q.trim())) : [];
+  const sections = React.useMemo(() => buildSections(depts), [depts]);
+  const indexConsonants = sections.map(s => s.title);
+
+  const scrollToSection = (consonant: string) => {
+    const idx = sections.findIndex(s => s.title === consonant);
+    if (idx < 0 || !sectionListRef.current) return;
+    try { sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true, viewOffset: 4 }); } catch {}
+  };
+
+  const renderDeptItem = (item: string) => {
+    const isPinned = pinnedSet.has(item);
+    return (
+      <TouchableOpacity
+        key={item}
+        style={styles.deptItem}
+        onPress={() => { onView(item); onClose(); }}
+        onLongPress={() => { isPinned ? onUnpin(item) : onPin(item); }}
+        delayLongPress={400}
+        activeOpacity={0.7}
+      >
+        <View style={styles.deptItemLeft}>
+          <Text style={[styles.deptItemName, isPinned && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>
+            {item}
+          </Text>
+          {isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
+        </View>
+        <TouchableOpacity onPress={() => isPinned ? onUnpin(item) : onPin(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name={isPinned ? 'star' : 'star-outline'} size={18} color={isPinned ? '#F59E0B' : '#D1D5DB'} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        <Pressable style={[styles.sheetContainer, { paddingBottom: (isWeb ? 16 : insets.bottom) + 20 }]} onPress={() => {}}>
+        <Pressable style={[styles.sheetContainer, styles.sheetContainerTall, { paddingBottom: (isWeb ? 16 : insets.bottom) + 12 }]} onPress={() => {}}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTitleRow}>
             <View>
@@ -252,47 +305,53 @@ function DeptBrowserModal({
 
           {loading ? (
             <ActivityIndicator color={C.primary} style={{ marginTop: 32 }} />
-          ) : (
+          ) : isSearching ? (
+            /* 검색 결과: 평탄 리스트 */
             <FlatList
               data={filtered}
               keyExtractor={item => item}
               showsVerticalScrollIndicator={false}
-              style={{ maxHeight: 400 }}
-              renderItem={({ item }) => {
-                const isPinned = pinnedSet.has(item);
-                return (
-                  <TouchableOpacity
-                    style={styles.deptItem}
-                    onPress={() => { onView(item); onClose(); }}
-                    onLongPress={() => isPinned ? onUnpin(item) : onPin(item)}
-                    delayLongPress={400}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.deptItemLeft}>
-                      <Text style={styles.deptItemName}>{item}</Text>
-                      {isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => isPinned ? onUnpin(item) : onPin(item)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons
-                        name={isPinned ? 'star' : 'star-outline'}
-                        size={18}
-                        color={isPinned ? '#F59E0B' : '#D1D5DB'}
-                      />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                );
-              }}
+              style={{ flex: 1 }}
+              renderItem={({ item }) => renderDeptItem(item)}
               ListEmptyComponent={
                 <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular' }}>
-                    검색 결과가 없습니다
-                  </Text>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular' }}>검색 결과가 없습니다</Text>
                 </View>
               }
             />
+          ) : (
+            /* 초성별 섹션 + 우측 인덱스 바 */
+            <View style={{ flex: 1, flexDirection: 'row' }}>
+              <SectionList
+                ref={sectionListRef}
+                sections={sections}
+                keyExtractor={(item, index) => item + index}
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1 }}
+                stickySectionHeadersEnabled
+                renderSectionHeader={({ section }) => (
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionHeaderText}>{section.title}</Text>
+                  </View>
+                )}
+                renderItem={({ item }) => renderDeptItem(item)}
+                ListEmptyComponent={
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular' }}>학과 목록이 없습니다</Text>
+                  </View>
+                }
+              />
+              {/* 우측 초성 인덱스 바 */}
+              {indexConsonants.length > 0 && (
+                <View style={styles.indexBar}>
+                  {indexConsonants.map(c => (
+                    <TouchableOpacity key={c} style={styles.indexItem} onPress={() => scrollToSection(c)} hitSlop={{ top: 2, bottom: 2, left: 6, right: 6 }}>
+                      <Text style={styles.indexText}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
           )}
         </Pressable>
       </Pressable>
@@ -773,6 +832,7 @@ const styles = StyleSheet.create({
   // Sheets
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheetContainer: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12 },
+  sheetContainerTall: { maxHeight: '88%' },
   sheetHandle: { width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   sheetTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
@@ -781,10 +841,17 @@ const styles = StyleSheet.create({
   // Dept Browser
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
   searchInput: { flex: 1, fontSize: 14, color: '#111827', fontFamily: 'Inter_400Regular' },
-  deptItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  deptItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   deptItemLeft: { flex: 1 },
   deptItemName: { fontSize: 15, fontFamily: 'Inter_500Medium', color: '#111827' },
   deptPinnedLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#F59E0B', marginTop: 2 },
+
+  // Section index
+  sectionHeader: { backgroundColor: '#F9FAFB', paddingHorizontal: 4, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  sectionHeaderText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1 },
+  indexBar: { width: 22, justifyContent: 'center', alignItems: 'center', paddingVertical: 4, gap: 1 },
+  indexItem: { paddingVertical: 2, paddingHorizontal: 2, alignItems: 'center' },
+  indexText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: C.primary, lineHeight: 14 },
 
   // Reorder
   reorderItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
