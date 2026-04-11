@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
   // Sheets
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheetContainer: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12 },
-  sheetContainerTall: { maxHeight: '88%' },
+  sheetContainerTall: { height: '88%' },
   sheetHandle: { width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   sheetTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
