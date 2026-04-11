@@ -340,16 +340,6 @@ function DeptBrowserModal({
                   </View>
                 }
               />
-              {/* 우측 단과대학 인덱스 */}
-              {collegeNames.length > 0 && (
-                <View style={styles.indexBar}>
-                  {collegeNames.map(c => (
-                    <TouchableOpacity key={c} style={styles.indexItem} onPress={() => scrollToSection(c)} hitSlop={{ top: 2, bottom: 2, left: 6, right: 6 }}>
-                      <Text style={[styles.indexText, { fontSize: 8 }]}>{c.replace('대학', '').replace('전문대학원', '원').replace('대학원', '원')}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
             </View>
           )}
         </Pressable>
