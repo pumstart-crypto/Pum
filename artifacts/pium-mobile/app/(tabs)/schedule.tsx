@@ -287,26 +287,19 @@ export default function ScheduleScreen() {
   );
   const [showGradSettings, setShowGradSettings] = useState(false);
   const [gradSettingsDraft, setGradSettingsDraft] = useState<Record<string, string>>({});
-  const gradReqLoaded = useRef(false);
 
   // AsyncStorage 로드 (최초 1회)
   useEffect(() => {
     AsyncStorage.getItem('pium_grad_req_settings').then(val => {
-      if (val) {
-        try {
-          const saved: Record<string, number> = JSON.parse(val);
-          setGradReqRequired(prev => ({ ...prev, ...saved }));
-        } catch {}
-      }
-      gradReqLoaded.current = true;
+      if (!val) return;
+      try {
+        const saved: Record<string, number> = JSON.parse(val);
+        setGradReqRequired(Object.fromEntries(
+          GRAD_REQS.map(r => [r.label, saved[r.label] ?? r.required])
+        ));
+      } catch {}
     });
   }, []);
-
-  // gradReqRequired 변경 시 자동 저장 (로드 완료 후에만)
-  useEffect(() => {
-    if (!gradReqLoaded.current) return;
-    AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(gradReqRequired));
-  }, [gradReqRequired]);
 
   const openGradSettings = () => {
     setGradSettingsDraft(Object.fromEntries(
@@ -315,15 +308,15 @@ export default function ScheduleScreen() {
     setShowGradSettings(true);
   };
 
-  const saveGradSettings = () => {
-    const parsed: Record<string, number> = {};
-    for (const [k, v] of Object.entries(gradSettingsDraft)) {
-      const n = parseInt(v);
-      if (!isNaN(n) && n >= 0) parsed[k] = n;
+  const saveGradSettings = async () => {
+    const next: Record<string, number> = {};
+    for (const req of GRAD_REQS) {
+      const v = gradSettingsDraft[req.label];
+      const n = v !== undefined ? parseInt(v) : NaN;
+      next[req.label] = (!isNaN(n) && n >= 0) ? n : (gradReqRequired[req.label] ?? req.required);
     }
-    const next = { ...gradReqRequired, ...parsed };
     setGradReqRequired(next);
-    AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(next));
+    await AsyncStorage.setItem('pium_grad_req_settings', JSON.stringify(next));
     setShowGradSettings(false);
   };
 
