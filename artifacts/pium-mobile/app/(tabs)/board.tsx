@@ -633,9 +633,12 @@ export default function BoardScreen() {
         order = [...DEFAULT_TAB_ORDER];
       }
 
-      // 인증된 학과 자동 등록
-      if (dept && !order.includes(dept)) {
-        order = [dept, ...order];
+      // 구버전에서 '내 학과' 문자열이 탭 ID로 저장된 경우 제거
+      order = order.filter(t => t !== '내 학과');
+
+      // 인증된 학과: 항상 첫 번째 위치 보장 (이미 있어도 앞으로 이동)
+      if (dept) {
+        order = [dept, ...order.filter(t => t !== dept)];
       }
 
       setTabOrder(order);
