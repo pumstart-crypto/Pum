@@ -16,15 +16,16 @@ const PINNED_KEY = 'pium_community_pinned_depts';
 /* ── 고정 카테고리 ── */
 const FIXED_CATEGORIES = [
   { id: '전체',    label: '전체',    icon: 'grid-outline' },
-  { id: '내 학과', label: '내 학과', icon: 'school-outline' },
   { id: '수업Q&A', label: '수업Q&A', icon: 'help-circle-outline' },
   { id: '중고거래', label: '중고거래', icon: 'swap-horizontal-outline' },
   { id: '동아리',  label: '동아리',  icon: 'people-outline' },
   { id: '분실물',  label: '분실물',  icon: 'search-outline' },
   { id: '꿀팁',    label: '꿀팁',    icon: 'bulb-outline' },
 ] as const;
-type FixedCatId = typeof FIXED_CATEGORIES[number]['id'];
 const FIXED_IDS = FIXED_CATEGORIES.map(c => c.id) as string[];
+const FIXED_ORDERABLE_IDS = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁']; // 순서 조정 가능한 고정 탭
+const DEFAULT_TAB_ORDER = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁'];
+const TAB_ORDER_KEY = 'pium_community_tab_order';
 const WRITE_CATEGORIES = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁'];
 
 /* ── 타입 ── */
@@ -102,14 +103,10 @@ function buildSections(depts: DeptItem[]): { title: string; data: DeptItem[] }[]
   return [...map.entries()].map(([title, data]) => ({ title, data }));
 }
 
-function filterPosts(posts: Post[], category: string, profile: Profile): Post[] {
-  if (category === '전체') return posts;
-  if (category === '내 학과') {
-    if (!profile.department) return posts;
-    return posts.filter(p => p.author.includes(profile.department!));
-  }
-  if (FIXED_IDS.includes(category)) return posts.filter(p => p.category === category);
-  return posts.filter(p => p.author.includes(category));
+function filterPosts(posts: Post[], activeTab: string): Post[] {
+  if (activeTab === '전체') return posts;
+  if (FIXED_ORDERABLE_IDS.includes(activeTab)) return posts.filter(p => p.category === activeTab);
+  return posts.filter(p => p.author.includes(activeTab));
 }
 
 /* ── Avatar ── */
@@ -350,17 +347,18 @@ function DeptBrowserModal({
 
 /* ── Reorder Modal ── */
 function ReorderModal({
-  visible, onClose, pinnedDepts, onChange,
+  visible, onClose, tabOrder, myDept, onChange,
 }: {
   visible: boolean;
   onClose: () => void;
-  pinnedDepts: string[];
-  onChange: (depts: string[]) => void;
+  tabOrder: string[];
+  myDept: string;
+  onChange: (order: string[]) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [local, setLocal] = useState<string[]>([]);
 
-  useEffect(() => { if (visible) setLocal([...pinnedDepts]); }, [visible, pinnedDepts]);
+  useEffect(() => { if (visible) setLocal([...tabOrder]); }, [visible, tabOrder]);
 
   const move = (i: number, dir: -1 | 1) => {
     const next = [...local];
@@ -374,70 +372,71 @@ function ReorderModal({
     setLocal(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  const save = () => {
-    onChange(local);
-    onClose();
+  const save = () => { onChange(local); onClose(); };
+
+  const getTabDisplay = (tabId: string) => {
+    const isMyDept = tabId === myDept && !!myDept;
+    const fixedCat = FIXED_CATEGORIES.find(c => c.id === tabId);
+    if (isMyDept) return { label: `내 학과 (${tabId})`, icon: 'home-outline' as const, isFixed: false, isMyDept: true };
+    if (fixedCat) return { label: fixedCat.label, icon: fixedCat.icon as any, isFixed: true, isMyDept: false };
+    return { label: tabId, icon: 'school-outline' as const, isFixed: false, isMyDept: false };
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        <Pressable style={[styles.sheetContainer, { paddingBottom: (isWeb ? 16 : insets.bottom) + 16 }]} onPress={() => {}}>
+        <Pressable style={[styles.sheetContainer, styles.sheetContainerTall, { paddingBottom: (isWeb ? 16 : insets.bottom) + 16 }]} onPress={() => {}}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTitleRow}>
-            <Text style={styles.sheetTitle}>탭 순서 편집</Text>
+            <View>
+              <Text style={styles.sheetTitle}>탭 순서 편집</Text>
+              <Text style={styles.sheetSub}>전체 탭을 제외한 모든 탭 순서를 조정할 수 있어요</Text>
+            </View>
             <TouchableOpacity onPress={onClose}>
               <Feather name="x" size={22} color="#9CA3AF" />
             </TouchableOpacity>
           </View>
 
-          {local.length === 0 ? (
-            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <Ionicons name="star-outline" size={36} color="#D1D5DB" />
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter_400Regular', marginTop: 8 }}>
-                고정된 학과 탭이 없어요
-              </Text>
-              <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
-                + 버튼으로 학과 게시판을 추가해보세요
-              </Text>
-            </View>
-          ) : (
-            <>
-              <Text style={[styles.fieldLabel, { marginBottom: 12 }]}>고정된 학과 탭</Text>
-              {local.map((dept, i) => (
-                <View key={dept} style={styles.reorderItem}>
-                  <Ionicons name="menu-outline" size={18} color="#D1D5DB" style={{ marginRight: 10 }} />
-                  <Text style={styles.reorderItemName} numberOfLines={1}>{dept}</Text>
+          {/* 고정: 전체 탭 (항상 첫 번째, 편집 불가) */}
+          <View style={[styles.reorderItem, { opacity: 0.4 }]}>
+            <Ionicons name="lock-closed-outline" size={16} color="#9CA3AF" style={{ marginRight: 10 }} />
+            <Ionicons name="grid-outline" size={15} color="#9CA3AF" style={{ marginRight: 6 }} />
+            <Text style={[styles.reorderItemName, { color: '#9CA3AF' }]}>전체 (항상 첫 번째)</Text>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            {local.map((tabId, i) => {
+              const { label, icon, isFixed, isMyDept } = getTabDisplay(tabId);
+              return (
+                <View key={tabId} style={styles.reorderItem}>
+                  <Ionicons name="menu-outline" size={18} color="#D1D5DB" style={{ marginRight: 8 }} />
+                  <Ionicons name={icon} size={15} color={isMyDept ? C.primary : isFixed ? '#6B7280' : '#F59E0B'} style={{ marginRight: 6 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.reorderItemName, isMyDept && { color: C.primary }]} numberOfLines={1}>{label}</Text>
+                    {isFixed && <Text style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }}>고정 카테고리 · 삭제 불가</Text>}
+                    {isMyDept && <Text style={{ fontSize: 10, color: C.primary, fontFamily: 'Inter_400Regular' }}>학생증 인증 · 삭제 불가</Text>}
+                  </View>
                   <View style={styles.reorderActions}>
-                    <TouchableOpacity
-                      onPress={() => move(i, -1)}
-                      disabled={i === 0}
-                      style={[styles.reorderArrow, i === 0 && { opacity: 0.25 }]}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
+                    <TouchableOpacity onPress={() => move(i, -1)} disabled={i === 0} style={[styles.reorderArrow, i === 0 && { opacity: 0.25 }]} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
                       <Ionicons name="chevron-up" size={16} color="#6B7280" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => move(i, 1)}
-                      disabled={i === local.length - 1}
-                      style={[styles.reorderArrow, i === local.length - 1 && { opacity: 0.25 }]}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
+                    <TouchableOpacity onPress={() => move(i, 1)} disabled={i === local.length - 1} style={[styles.reorderArrow, i === local.length - 1 && { opacity: 0.25 }]} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
                       <Ionicons name="chevron-down" size={16} color="#6B7280" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => remove(i)}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#F87171" />
-                    </TouchableOpacity>
+                    {!isFixed && !isMyDept ? (
+                      <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+                        <Ionicons name="close-circle" size={20} color="#F87171" />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={{ width: 20 }} />
+                    )}
                   </View>
                 </View>
-              ))}
-            </>
-          )}
+              );
+            })}
+          </ScrollView>
 
-          <TouchableOpacity style={[styles.submitBtn, { marginTop: 20 }]} onPress={save}>
+          <TouchableOpacity style={[styles.submitBtn, { marginTop: 12 }]} onPress={save}>
             <Text style={styles.submitBtnText}>저장</Text>
           </TouchableOpacity>
         </Pressable>
@@ -555,38 +554,65 @@ export default function BoardScreen() {
   const [showDeptBrowser, setShowDeptBrowser] = useState(false);
   const [showReorder, setShowReorder] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
-  const [pinnedDepts, setPinnedDepts] = useState<string[]>([]);
+  const [tabOrder, setTabOrder] = useState<string[]>([...DEFAULT_TAB_ORDER]);
+  const [myDept, setMyDept] = useState('');
   const [page, setPage] = useState(1);
   const PER_PAGE = 20;
 
+  // pinnedDepts: tabOrder에서 고정 카테고리 제외한 학과 탭
+  const pinnedDepts = tabOrder.filter(t => !FIXED_ORDERABLE_IDS.includes(t));
+
   // 초기 로드
   useEffect(() => {
-    AsyncStorage.getItem('campus_life_profile').then(raw => {
-      if (raw) { try { setProfile(JSON.parse(raw)); } catch {} }
-    });
-    AsyncStorage.getItem(PINNED_KEY).then(raw => {
-      if (raw) { try { setPinnedDepts(JSON.parse(raw)); } catch {} }
+    AsyncStorage.multiGet(['campus_life_profile', TAB_ORDER_KEY, PINNED_KEY]).then(pairs => {
+      const profileRaw = pairs.find(p => p[0] === 'campus_life_profile')?.[1];
+      const orderRaw = pairs.find(p => p[0] === TAB_ORDER_KEY)?.[1];
+      const legacyRaw = pairs.find(p => p[0] === PINNED_KEY)?.[1];
+
+      let dept = '';
+      if (profileRaw) { try { const pr = JSON.parse(profileRaw); dept = pr.department ?? ''; setProfile(pr); } catch {} }
+      setMyDept(dept);
+
+      let order: string[];
+      if (orderRaw) {
+        try { order = JSON.parse(orderRaw); } catch { order = [...DEFAULT_TAB_ORDER]; }
+      } else if (legacyRaw) {
+        // 이전 버전 데이터 마이그레이션
+        try { const pinned: string[] = JSON.parse(legacyRaw); order = [...DEFAULT_TAB_ORDER, ...pinned]; }
+        catch { order = [...DEFAULT_TAB_ORDER]; }
+      } else {
+        order = [...DEFAULT_TAB_ORDER];
+      }
+
+      // 인증된 학과 자동 등록
+      if (dept && !order.includes(dept)) {
+        order = [dept, ...order];
+      }
+
+      setTabOrder(order);
+      AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
     });
   }, []);
 
-  const savePinned = useCallback((depts: string[]) => {
-    setPinnedDepts(depts);
-    AsyncStorage.setItem(PINNED_KEY, JSON.stringify(depts));
-  }, []);
+  const saveTabOrder = useCallback((order: string[]) => {
+    setTabOrder(order);
+    AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
+    if (!order.includes(activeCategory)) setActiveCategory('전체');
+  }, [activeCategory]);
 
   const pinDept = useCallback((dept: string) => {
-    setPinnedDepts(prev => {
+    setTabOrder(prev => {
       if (prev.includes(dept)) return prev;
       const next = [...prev, dept];
-      AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+      AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(next));
       return next;
     });
   }, []);
 
   const unpinDept = useCallback((dept: string) => {
-    setPinnedDepts(prev => {
+    setTabOrder(prev => {
       const next = prev.filter(d => d !== dept);
-      AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+      AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(next));
       if (activeCategory === dept) setActiveCategory('전체');
       return next;
     });
@@ -625,14 +651,16 @@ export default function BoardScreen() {
     } catch { Alert.alert('오류', '게시글 작성에 실패했습니다.'); }
   };
 
-  const filtered = filterPosts(posts, activeCategory, profile);
+  const filtered = filterPosts(posts, activeCategory);
   const paged = filtered.slice(0, page * PER_PAGE);
   const hasMore = paged.length < filtered.length;
-  const hasPinned = pinnedDepts.length > 0;
 
-  // 활성 카테고리가 dept탭인지
+  // 활성 카테고리가 학과 탭인지
   const isDepTabActive = !FIXED_IDS.includes(activeCategory);
-  const activeLabel = isDepTabActive ? activeCategory : FIXED_CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory;
+  const activeIsMyDept = isDepTabActive && activeCategory === myDept;
+  const activeLabel = isDepTabActive
+    ? (activeIsMyDept ? `내 학과 · ${activeCategory}` : activeCategory)
+    : FIXED_CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory;
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
@@ -648,31 +676,52 @@ export default function BoardScreen() {
             style={styles.reorderBtn}
             onPress={() => setShowReorder(true)}
           >
-            <Ionicons name="list-outline" size={20} color={hasPinned ? '#374151' : '#D1D5DB'} />
+            <Ionicons name="list-outline" size={20} color="#374151" />
           </TouchableOpacity>
         </View>
 
         {/* 카테고리 칩바 */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catBar} style={styles.catBarScroll}>
-          {/* 고정 카테고리 */}
-          {FIXED_CATEGORIES.map(cat => {
-            const active = activeCategory === cat.id;
-            return (
-              <TouchableOpacity key={cat.id} style={[styles.catChipBar, active && styles.catChipBarActive]} onPress={() => setActiveCategory(cat.id)} activeOpacity={0.8}>
-                <Ionicons name={cat.icon as any} size={13} color={active ? '#fff' : '#9CA3AF'} />
-                <Text style={[styles.catChipBarText, active && styles.catChipBarTextActive]}>{cat.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
+          {/* 전체 탭 (항상 첫 번째) */}
+          {(() => { const cat = FIXED_CATEGORIES[0]; const active = activeCategory === cat.id; return (
+            <TouchableOpacity key={cat.id} style={[styles.catChipBar, active && styles.catChipBarActive]} onPress={() => setActiveCategory(cat.id)} activeOpacity={0.8}>
+              <Ionicons name={cat.icon as any} size={13} color={active ? '#fff' : '#9CA3AF'} />
+              <Text style={[styles.catChipBarText, active && styles.catChipBarTextActive]}>{cat.label}</Text>
+            </TouchableOpacity>
+          ); })()}
 
-          {/* 고정된 학과 탭 */}
-          {pinnedDepts.map(dept => {
-            const active = activeCategory === dept;
+          {/* tabOrder 순서대로 탭 렌더링 */}
+          {tabOrder.map(tabId => {
+            const active = activeCategory === tabId;
+            const isMyDeptTab = tabId === myDept && !!myDept;
+            const fixedCat = FIXED_CATEGORIES.find(c => c.id === tabId);
+
+            if (fixedCat) {
+              return (
+                <TouchableOpacity key={tabId} style={[styles.catChipBar, active && styles.catChipBarActive]} onPress={() => setActiveCategory(tabId)} activeOpacity={0.8}>
+                  <Ionicons name={fixedCat.icon as any} size={13} color={active ? '#fff' : '#9CA3AF'} />
+                  <Text style={[styles.catChipBarText, active && styles.catChipBarTextActive]}>{fixedCat.label}</Text>
+                </TouchableOpacity>
+              );
+            }
+
+            // 학과 탭
+            if (isMyDeptTab) {
+              return (
+                <TouchableOpacity key={tabId} style={[styles.catChipBar, styles.catChipBarMyDept, active && styles.catChipBarMyDeptActive]} onPress={() => setActiveCategory(tabId)} activeOpacity={0.8}>
+                  <Ionicons name="home-outline" size={13} color={active ? '#fff' : C.primary} />
+                  <View>
+                    <Text style={[styles.catChipBarText, { color: active ? '#fff' : C.primary, fontFamily: 'Inter_700Bold' }]}>내 학과</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+
             return (
-              <TouchableOpacity key={dept} style={[styles.catChipBar, styles.catChipBarDept, active && styles.catChipBarDeptActive]} onPress={() => setActiveCategory(dept)} activeOpacity={0.8}>
+              <TouchableOpacity key={tabId} style={[styles.catChipBar, styles.catChipBarDept, active && styles.catChipBarDeptActive]} onPress={() => setActiveCategory(tabId)} activeOpacity={0.8}>
                 <Ionicons name="school-outline" size={13} color={active ? '#fff' : '#F59E0B'} />
                 <Text style={[styles.catChipBarText, { color: active ? '#fff' : '#92400E' }]} numberOfLines={1}>
-                  {dept.length > 6 ? dept.slice(0, 5) + '..' : dept}
+                  {tabId.length > 6 ? tabId.slice(0, 5) + '..' : tabId}
                 </Text>
               </TouchableOpacity>
             );
@@ -692,19 +741,13 @@ export default function BoardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
       >
-        {/* 내 학과 안내 */}
-        {activeCategory === '내 학과' && !profile.department && (
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color={C.primary} />
-            <Text style={styles.infoText}>설정에서 학과를 등록하면 학과 게시글만 볼 수 있어요</Text>
-          </View>
-        )}
-
-        {/* dept 탭 안내 */}
+        {/* 내 학과 탭 안내 배너 */}
         {isDepTabActive && (
-          <View style={styles.deptTabBanner}>
-            <Ionicons name="school-outline" size={14} color="#92400E" />
-            <Text style={styles.deptTabBannerText}>{activeCategory} 게시판</Text>
+          <View style={[styles.deptTabBanner, activeIsMyDept && styles.deptTabBannerMyDept]}>
+            <Ionicons name={activeIsMyDept ? 'home-outline' : 'school-outline'} size={14} color={activeIsMyDept ? C.primary : '#92400E'} />
+            <Text style={[styles.deptTabBannerText, activeIsMyDept && { color: C.primary }]}>
+              {activeIsMyDept ? `내 학과 · ${activeCategory} 게시판` : `${activeCategory} 게시판`}
+            </Text>
           </View>
         )}
 
@@ -750,8 +793,9 @@ export default function BoardScreen() {
       <ReorderModal
         visible={showReorder}
         onClose={() => setShowReorder(false)}
-        pinnedDepts={pinnedDepts}
-        onChange={savePinned}
+        tabOrder={tabOrder}
+        myDept={myDept}
+        onChange={saveTabOrder}
       />
     </View>
   );
@@ -775,6 +819,8 @@ const styles = StyleSheet.create({
   catChipBarTextActive: { color: '#fff' },
   catChipBarDept: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' },
   catChipBarDeptActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
+  catChipBarMyDept: { backgroundColor: '#EBF5FF', borderWidth: 1.5, borderColor: C.primary },
+  catChipBarMyDeptActive: { backgroundColor: C.primary, borderColor: C.primary },
   catChipBarPlus: {
     width: 32, height: 32, borderRadius: 999,
     borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed',
@@ -786,6 +832,7 @@ const styles = StyleSheet.create({
   infoBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF4FF', borderRadius: 12, padding: 12, marginBottom: 10 },
   infoText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: C.primary },
   deptTabBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFBEB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: '#FDE68A' },
+  deptTabBannerMyDept: { backgroundColor: '#EBF5FF', borderColor: '#BFDBFE' },
   deptTabBannerText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#92400E' },
 
   card: { backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
