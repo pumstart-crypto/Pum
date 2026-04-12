@@ -63,6 +63,10 @@ export interface IndividualSeat {
   code: string;
   status: { code: string; name: string };
   isMine: boolean;
+  /** Pyxis 좌석 그리드 열 위치 (0-based) */
+  x?: number;
+  /** Pyxis 좌석 그리드 행 위치 (0-based) */
+  y?: number;
 }
 
 export interface SeatHistoryItem {
@@ -303,11 +307,20 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
       return { success: false, message: raw.message || "좌석 정보를 불러올 수 없습니다." };
     }
     // Pyxis 응답 포맷: { data: { list: [...] } } 또는 { data: [...] } 모두 처리
-    const list: IndividualSeat[] = Array.isArray(raw.data?.list)
+    const rawList: any[] = Array.isArray(raw.data?.list)
       ? raw.data.list
       : Array.isArray(raw.data)
       ? raw.data
       : [];
+    const list: IndividualSeat[] = rawList.map((s: any) => ({
+      id: s.id,
+      name: s.name ?? "",
+      code: s.code ?? s.name ?? "",
+      status: s.status ?? { code: "", name: "" },
+      isMine: s.isMine ?? false,
+      x: typeof s.x === "number" ? s.x : undefined,
+      y: typeof s.y === "number" ? s.y : undefined,
+    }));
     return { success: true, message: "좌석 목록을 불러왔습니다.", data: list };
   } catch (e: any) {
     return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
