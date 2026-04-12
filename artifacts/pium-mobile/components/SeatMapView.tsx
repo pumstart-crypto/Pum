@@ -3,12 +3,15 @@
  *
  * Pyxis API의 x/y 좌표 데이터를 사용해 실제 열람실 좌석 배치도를
  * 핀치 줌 + 팬 제스처로 탐색 가능하게 렌더링하는 컴포넌트.
+ *
+ * [중요] GestureDetector 내부에서는 반드시 react-native-gesture-handler의
+ * TouchableOpacity를 사용해야 합니다. react-native의 것을 쓰면 제스처 충돌로
+ * 앱이 멈춥니다.
  */
 
-import React, { useMemo } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator,
-} from 'react-native';
+import React, { useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -22,7 +25,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CELL = 34;
 const GAP  = 4;
 const STEP = CELL + GAP;
-const MIN_SCALE = 0.4;
+const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.5;
 
 const STATUS_CFG: Record<string, { bg: string; border: string; text: string }> = {
@@ -34,7 +37,7 @@ const STATUS_CFG: Record<string, { bg: string; border: string; text: string }> =
   DEFAULT: { bg: '#E5E7EB', border: '#D1D5DB', text: '#9CA3AF' },
 };
 
-function cfg(seat: IndividualSeat) {
+function seatCfg(seat: IndividualSeat) {
   if (seat.isMine) return STATUS_CFG.MINE;
   const code = (seat.status?.code ?? '').toUpperCase();
   return STATUS_CFG[code] ?? STATUS_CFG.DEFAULT;
@@ -79,30 +82,46 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
     return Math.min(Math.max(s, MIN_SCALE), 1);
   }, [mapW]);
 
-  // ── 제스처 상태 ───────────────────────────────────────────
-  const scale      = useSharedValue(initScale);
-  const savedScale = useSharedValue(initScale);
+  // ── 제스처 공유 값 ────────────────────────────────────────
+  const scale      = useSharedValue(1);
+  const savedScale = useSharedValue(1);
   const tx         = useSharedValue(0);
   const ty         = useSharedValue(0);
   const savedTx    = useSharedValue(0);
   const savedTy    = useSharedValue(0);
 
+  // 좌석 데이터가 로드되어 mapW가 확정된 후 초기 스케일 적용
+  useEffect(() => {
+    if (mapW === 0) return;
+    scale.value      = initScale;
+    savedScale.value = initScale;
+    tx.value = 0; ty.value = 0;
+    savedTx.value = 0; savedTy.value = 0;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapW]);
+
+  // ── 핀치 제스처 ───────────────────────────────────────────
   const pinch = Gesture.Pinch()
-    .onUpdate(e => {
+    .onUpdate((e) => {
+      'worklet';
       const next = savedScale.value * e.scale;
       scale.value = Math.min(Math.max(next, MIN_SCALE), MAX_SCALE);
     })
     .onEnd(() => {
+      'worklet';
       savedScale.value = scale.value;
     });
 
+  // ── 팬 제스처 ─────────────────────────────────────────────
   const pan = Gesture.Pan()
-    .minDistance(2)
-    .onUpdate(e => {
+    .minDistance(5)
+    .onUpdate((e) => {
+      'worklet';
       tx.value = savedTx.value + e.translationX;
       ty.value = savedTy.value + e.translationY;
     })
     .onEnd(() => {
+      'worklet';
       savedTx.value = tx.value;
       savedTy.value = ty.value;
     });
@@ -117,7 +136,7 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
     ],
   }));
 
-  // ── 좌석 없음 / 좌표 없음 처리 ───────────────────────────
+  // ── 좌표 없음 폴백 ────────────────────────────────────────
   if (seatsWithPos.length === 0) {
     return (
       <View style={[styles.fallback, { height: containerHeight }]}>
@@ -129,13 +148,16 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
   return (
     <View style={[styles.container, { height: containerHeight }]}>
       <GestureDetector gesture={composed}>
-        <Animated.View style={[styles.canvas, animStyle, { width: mapW, height: mapH }]}>
+        <Animated.View
+          style={[styles.canvas, { width: mapW, height: mapH }, animStyle]}
+        >
           {seatsWithPos.map(seat => {
-            const c = cfg(seat);
+            const c = seatCfg(seat);
             const reservable = isReservable(seat);
             const isLoading = reserving === seat.id;
             const left = (seat.x! - minX) * STEP + GAP;
             const top  = (seat.y! - minY) * STEP + GAP;
+
             return (
               <TouchableOpacity
                 key={seat.id}
@@ -145,7 +167,9 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
                   !reservable && !seat.isMine && styles.cellDisabled,
                   seat.isMine && styles.cellMine,
                 ]}
-                onPress={() => reservable && !isLoading && onReserve(seat)}
+                onPress={() => {
+                  if (reservable && reserving === null) onReserve(seat);
+                }}
                 disabled={!reservable || reserving !== null}
                 activeOpacity={0.7}
               >
@@ -162,8 +186,8 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
         </Animated.View>
       </GestureDetector>
 
-      {/* 힌트 */}
-      <View style={styles.hint}>
+      {/* 조작 힌트 */}
+      <View style={styles.hint} pointerEvents="none">
         <Text style={styles.hintText}>두 손가락으로 확대/축소 · 드래그로 이동</Text>
       </View>
     </View>
@@ -173,10 +197,10 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
   },
   canvas: {
     position: 'absolute',
@@ -190,8 +214,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cellDisabled: { opacity: 0.45 },
-  cellMine: { borderWidth: 2 },
+  cellDisabled: { opacity: 0.4 },
+  cellMine: { borderWidth: 2.5 },
   cellText: {
     fontSize: 9,
     fontWeight: '700',
@@ -215,7 +239,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
