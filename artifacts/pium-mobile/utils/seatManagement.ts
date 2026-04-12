@@ -12,7 +12,10 @@
  */
 
 import { Platform } from "react-native";
-import { getLibApiToken } from "./schoolAuth";
+import { getLibApiToken, getLibPyxisToken } from "./schoolAuth";
+
+// Pyxis 직접 호출 (기기 IP = 한국 IP, Cookie 불필요)
+const PYXIS_DIRECT = "https://lib.pusan.ac.kr/pyxis-api";
 
 // 모든 인증 API 호출은 API 서버를 경유합니다.
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -294,35 +297,58 @@ export async function cancelSeat(): Promise<SeatActionResult> {
 
 // ─────────────────────────────────────────────────────────────
 // getSeatRoomSeats — 열람실 내 개별 좌석 목록
+//
+// ★ Pyxis /1/api/ 엔드포인트는 서버 IP(해외 IP)에서는 항상 needsLogin 반환.
+//   → 기기(한국 IP)에서 직접 호출 + Authorization: Bearer 헤더만 사용.
+//   → iOS는 Cookie 헤더만 차단하고 Authorization 헤더는 허용.
 // ─────────────────────────────────────────────────────────────
 export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionResult<IndividualSeat[]>> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const token = await getLibApiToken();
-    if (!token) return noSession();
-    const raw = await apiGet(`/library/seat-room-seats?seatRoomId=${seatRoomId}`, token);
+    const pyxisToken = await getLibPyxisToken();
+    if (!pyxisToken) {
+      const apiToken = await getLibApiToken();
+      if (!apiToken) return noSession();
+      return { success: false, message: "세션이 만료되었습니다. 다시 로그인해 주세요.", needsLogin: true };
+    }
+
+    // 기기에서 Pyxis에 직접 GET (한국 IP 보장, Bearer 헤더만 사용)
+    const resp = await fetch(
+      `${PYXIS_DIRECT}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
+      {
+        headers: {
+          "Accept": "application/json",
+          "Authorization": `Bearer ${pyxisToken}`,
+          "Referer": "https://lib.pusan.ac.kr/facility/seat",
+          "Origin": "https://lib.pusan.ac.kr",
+        },
+      }
+    );
+    const raw: PyxisBody = await resp.json();
+
     if (!raw.success) {
       const expired = checkSessionExpired(raw);
       if (expired) return expired as SeatActionResult<IndividualSeat[]>;
       return { success: false, message: raw.message || "좌석 정보를 불러올 수 없습니다." };
     }
+
     // Pyxis 응답 포맷: { data: { list: [...] } } 또는 { data: [...] } 모두 처리
     const rawList: any[] = Array.isArray(raw.data?.list)
       ? raw.data.list
       : Array.isArray(raw.data)
       ? raw.data
       : [];
-    // 디버그: 첫 번째 좌석의 모든 필드 확인 (개발 중에만)
+
     if (rawList.length > 0) {
       console.log("[SeatMap] 좌석 필드 샘플:", JSON.stringify(rawList[0]).slice(0, 400));
     }
+
     const list: IndividualSeat[] = rawList.map((s: any) => ({
       id: s.id,
       name: s.name ?? "",
       code: s.code ?? s.name ?? "",
       status: s.status ?? { code: "", name: "" },
       isMine: s.isMine ?? false,
-      // Pyxis API 필드명 후보: x/y, col/row, column/row, xpos/ypos
       x: typeof s.x === "number" ? s.x
         : typeof s.col === "number" ? s.col
         : typeof s.column === "number" ? s.column

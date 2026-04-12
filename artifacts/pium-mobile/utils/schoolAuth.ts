@@ -23,8 +23,9 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const KEY_SCHOOL_SESSION = "pium_school_session";
-const KEY_LIB_TOKEN      = "pium_lib_token"; // API 서버 세션 토큰
+const KEY_SCHOOL_SESSION  = "pium_school_session";
+const KEY_LIB_TOKEN       = "pium_lib_token";       // API 서버 세션 토큰
+const KEY_LIB_PYXIS_TOKEN = "pium_lib_pyxis_token"; // Pyxis Bearer 토큰 (기기 직접 호출용)
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED,
@@ -102,10 +103,13 @@ export async function loginWithCredentials(id: string, password: string): Promis
     throw new SchoolAuthError(code, friendlyMessage(code, json.message ?? ""));
   }
 
-  const { token, userId, userName } = json.data ?? {};
+  const { token, pyxisToken, userId, userName } = json.data ?? {};
 
   if (token) {
     await SecureStore.setItemAsync(KEY_LIB_TOKEN, token, STORE_OPTIONS);
+  }
+  if (pyxisToken) {
+    await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, pyxisToken, STORE_OPTIONS);
   }
 
   const session: SchoolSession = {
@@ -138,12 +142,19 @@ export async function getLibApiToken(): Promise<string | null> {
   return SecureStore.getItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS);
 }
 
+/** Pyxis Bearer 토큰 조회 (기기 직접 호출용, 한국 IP 보장) */
+export async function getLibPyxisToken(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  return SecureStore.getItemAsync(KEY_LIB_PYXIS_TOKEN, STORE_OPTIONS);
+}
+
 /** 세션 전체 삭제 (로그아웃 시 호출) */
 export async function clearSchoolSession(): Promise<void> {
   if (Platform.OS === "web") return;
   await Promise.all([
     SecureStore.deleteItemAsync(KEY_SCHOOL_SESSION, STORE_OPTIONS),
     SecureStore.deleteItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS),
+    SecureStore.deleteItemAsync(KEY_LIB_PYXIS_TOKEN, STORE_OPTIONS),
     // 구버전 호환: 이전에 기기에 저장했던 Pyxis 쿠키 키들도 삭제
     SecureStore.deleteItemAsync("pium_pyxis_jsid", STORE_OPTIONS).catch(() => {}),
     SecureStore.deleteItemAsync("pium_pyxis_at", STORE_OPTIONS).catch(() => {}),

@@ -260,6 +260,7 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
       success: true,
       data: {
         token,
+        pyxisToken: accessToken ?? null,
         userId: json.data?.userId ?? json.data?.loginId ?? loginId,
         userName: json.data?.name ?? json.data?.userName ?? null,
       },
