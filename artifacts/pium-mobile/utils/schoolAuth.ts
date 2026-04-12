@@ -4,19 +4,16 @@
  * 학교 포털(Pyxis 도서관 시스템) 인증 유틸리티.
  *
  * ┌─ 아키텍처 ─────────────────────────────────────────────────┐
- * │ • 로그인: 앱 → API 서버 → Pyxis                           │
- * │   API 서버가 로그인을 대행하여 JSESSIONID를 DB에 저장      │
- * │   앱에는 세션 토큰(lib_token)만 반환                       │
- * │ • 이후 요청: 앱 → API 서버 (Authorization: Bearer <token>) │
- * │   API 서버가 DB에서 JSESSIONID를 조회하여 Pyxis에 전달     │
- * │ • Pyxis 세션은 접속 IP에 바인딩 → 모든 요청을 API 서버가  │
- * │   동일 IP로 처리하여 세션 유지 보장                        │
+ * │ • 로그인: 앱이 디바이스에서 직접 Pyxis에 요청              │
+ * │   → JSESSIONID가 디바이스(한국) IP에 바인딩되어 인증 유지  │
+ * │ • 쿠키(JSESSIONID, AT, SS)는 SecureStore에 저장            │
+ * │ • 이후 API 호출: 앱이 직접 Pyxis에 쿠키 첨부하여 요청      │
  * └───────────────────────────────────────────────────────────┘
  *
  * ┌─ 보안 원칙 ────────────────────────────────────────────────┐
  * │ • 학번·비밀번호는 절대 저장하지 않습니다.                  │
- * │ • JSESSIONID는 API 서버 DB에만 보관, 앱에 절대 노출 안 함  │
- * │ • 앱에는 세션 토큰(64자 hex)만 SecureStore에 저장          │
+ * │ • JSESSIONID는 SecureStore(하드웨어 암호화)에만 보관       │
+ * │ • 세션 유효기간: 8시간 (Pyxis 서버 정책)                  │
  * └───────────────────────────────────────────────────────────┘
  */
 
@@ -24,11 +21,16 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const KEY_SCHOOL_SESSION = "pium_school_session";
-const KEY_LIB_TOKEN     = "pium_lib_token";
+const KEY_PYXIS_JSID     = "pium_pyxis_jsid";
+const KEY_PYXIS_AT       = "pium_pyxis_at";
+const KEY_PYXIS_SS       = "pium_pyxis_ss";
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED,
 };
+
+const PYXIS_BASE = "https://lib.pusan.ac.kr/pyxis-api";
+const PYXIS_HOMEPAGE_ID = 1;
 
 const ERROR_MSG: Record<string, string> = {
   "warning.authentication.invalidCredential":
@@ -59,54 +61,77 @@ function friendlyMessage(code: string, raw: string): string {
   return ERROR_MSG[code] ?? raw ?? "알 수 없는 오류가 발생했습니다.";
 }
 
-function getApiBase(): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}/api` : "";
+/** Set-Cookie 헤더 문자열에서 특정 쿠키 값 추출 */
+function extractCookie(setCookieHeader: string | null, name: string): string | null {
+  if (!setCookieHeader) return null;
+  // Set-Cookie 헤더는 여러 개가 콤마 또는 줄바꿈으로 합쳐질 수 있음
+  const pattern = new RegExp(`(?:^|,)\\s*${name}=([^;,]+)`, "i");
+  return setCookieHeader.match(pattern)?.[1]?.trim() ?? null;
 }
 
 // ── 로그인 ──────────────────────────────────────────────────
 async function performLogin(loginId: string, password: string): Promise<SchoolSession> {
-  const apiBase = getApiBase();
-  if (!apiBase) throw new SchoolAuthError("config.error", "서버 설정이 올바르지 않습니다.");
+  // 세션 UUID 생성 (PUSAN_PYXIS3_SS 역할)
+  const sessionUuid = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
 
-  let response: Response;
+  let loginRes: Response;
   try {
-    response = await fetch(`${apiBase}/library/login`, {
+    loginRes = await fetch(`${PYXIS_BASE}/api/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ loginId, password }),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Cookie": `PUSAN_PYXIS3_SS=${sessionUuid}`,
+        "User-Agent": "PiumApp/1.0 (Expo React Native)",
+        "Origin": "https://lib.pusan.ac.kr",
+        "Referer": "https://lib.pusan.ac.kr/facility/seat",
+      },
+      body: JSON.stringify({ loginId, password, homepageId: PYXIS_HOMEPAGE_ID }),
     });
   } catch (e: any) {
     throw new SchoolAuthError(
       "network.error",
-      `서버에 연결할 수 없습니다. 네트워크를 확인해 주세요. (${e?.message ?? "unknown"})`
+      `도서관 서버에 연결할 수 없습니다. 네트워크를 확인해 주세요. (${e?.message ?? "unknown"})`
     );
   }
 
-  let body: { success: boolean; code?: string; message?: string; data?: any };
+  let json: { success: boolean; code?: string; message?: string; data?: any };
   try {
-    body = await response.json();
+    json = await loginRes.json();
   } catch {
     throw new SchoolAuthError("parse.error", "서버 응답을 처리할 수 없습니다.");
   }
 
-  if (!body.success) {
-    const code = body.code ?? "unknown";
-    throw new SchoolAuthError(code, friendlyMessage(code, body.message ?? ""));
+  if (!json.success) {
+    const code = json.code ?? "unknown";
+    throw new SchoolAuthError(code, friendlyMessage(code, json.message ?? ""));
   }
 
-  // 서버에서 반환한 세션 토큰을 SecureStore에 저장
-  if (body.data?.token) {
-    await SecureStore.setItemAsync(KEY_LIB_TOKEN, body.data.token, STORE_OPTIONS);
+  // JSESSIONID 추출 (Set-Cookie 헤더에서)
+  const setCookie = loginRes.headers.get("set-cookie");
+  const jsid = extractCookie(setCookie, "JSESSIONID");
+
+  const accessToken: string | null = json.data?.accessToken ?? null;
+  const userName: string | null = json.data?.name ?? null;
+  const userId: string = json.data?.memberNo ?? loginId;
+
+  // SecureStore에 Pyxis 세션 쿠키 저장
+  // (JSESSIONID가 없어도 accessToken만으로 동작하는 경우를 위해 저장)
+  if (jsid) {
+    await SecureStore.setItemAsync(KEY_PYXIS_JSID, jsid, STORE_OPTIONS);
   }
+  if (accessToken) {
+    await SecureStore.setItemAsync(KEY_PYXIS_AT, accessToken, STORE_OPTIONS);
+  }
+  await SecureStore.setItemAsync(KEY_PYXIS_SS, sessionUuid, STORE_OPTIONS);
 
-  const session: SchoolSession = {
-    userId:   body.data?.userId   ?? loginId,
-    userName: body.data?.userName ?? null,
-    savedAt:  Date.now(),
-  };
-
+  // 사용자 세션 정보 저장
+  const session: SchoolSession = { userId, userName, savedAt: Date.now() };
   await SecureStore.setItemAsync(KEY_SCHOOL_SESSION, JSON.stringify(session), STORE_OPTIONS);
+
   return session;
 }
 
@@ -137,53 +162,86 @@ export async function getSchoolSession(): Promise<SchoolSession | null> {
   }
 }
 
-/** 저장된 라이브러리 세션 토큰 조회 */
-export async function getLibToken(): Promise<string | null> {
+/** Pyxis 요청용 Cookie 헤더 문자열 조회 */
+export async function getPyxisCookieHeader(): Promise<string | null> {
   if (Platform.OS === "web") return null;
-  return await SecureStore.getItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS);
+  const [jsid, at, ss] = await Promise.all([
+    SecureStore.getItemAsync(KEY_PYXIS_JSID, STORE_OPTIONS),
+    SecureStore.getItemAsync(KEY_PYXIS_AT, STORE_OPTIONS),
+    SecureStore.getItemAsync(KEY_PYXIS_SS, STORE_OPTIONS),
+  ]);
+  if (!at && !jsid) return null;
+
+  const parts: string[] = [];
+  if (jsid) parts.push(`JSESSIONID=${jsid}`);
+  if (at)   parts.push(`PUSAN_PYXIS3=${at}`);
+  if (ss)   parts.push(`PUSAN_PYXIS3_SS=${ss}`);
+  return parts.join("; ");
 }
 
-/** 인증 헤더 빌드 (Bearer 토큰) */
+/** @deprecated getPyxisCookieHeader() 사용 */
+export async function getLibToken(): Promise<string | null> {
+  return getPyxisCookieHeader();
+}
+
+/** 인증 헤더 빌드 (Pyxis 직접 요청용) */
 export async function buildLibAuthHeaders(): Promise<HeadersInit> {
-  const token = await getLibToken();
-  return {
+  const cookie = await getPyxisCookieHeader();
+  const base: HeadersInit = {
     "Content-Type": "application/json",
     "Accept": "application/json",
-    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    "Origin": "https://lib.pusan.ac.kr",
+    "Referer": "https://lib.pusan.ac.kr/facility/seat",
+    "User-Agent": "PiumApp/1.0 (Expo React Native)",
   };
+  return cookie ? { ...base, "Cookie": cookie } : base;
+}
+
+/** 로그인 상태 여부 (세션 정보 존재 여부) */
+export async function isLoggedIn(): Promise<boolean> {
+  const session = await getSchoolSession();
+  if (!session) return false;
+  const at = await SecureStore.getItemAsync(KEY_PYXIS_AT, STORE_OPTIONS);
+  return !!at;
 }
 
 export async function clearSchoolSession(): Promise<void> {
   if (Platform.OS === "web") return;
-  await SecureStore.deleteItemAsync(KEY_SCHOOL_SESSION, STORE_OPTIONS);
-  await SecureStore.deleteItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS);
+  await Promise.all([
+    SecureStore.deleteItemAsync(KEY_SCHOOL_SESSION, STORE_OPTIONS),
+    SecureStore.deleteItemAsync(KEY_PYXIS_JSID, STORE_OPTIONS),
+    SecureStore.deleteItemAsync(KEY_PYXIS_AT, STORE_OPTIONS),
+    SecureStore.deleteItemAsync(KEY_PYXIS_SS, STORE_OPTIONS),
+  ]);
 }
 
-// ── 로그아웃 (서버에도 세션 삭제 요청) ────────────────────────
+// ── 로그아웃 ──────────────────────────────────────────────────
 export async function logoutFromLibrary(): Promise<void> {
   if (Platform.OS === "web") return;
   try {
-    const token = await getLibToken();
-    if (token) {
-      const apiBase = getApiBase();
-      if (apiBase) {
-        await fetch(`${apiBase}/library/logout`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        });
-      }
+    const cookie = await getPyxisCookieHeader();
+    if (cookie) {
+      await fetch(`${PYXIS_BASE}/api/logout`, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Cookie": cookie,
+          "Origin": "https://lib.pusan.ac.kr",
+          "User-Agent": "PiumApp/1.0 (Expo React Native)",
+        },
+      });
     }
   } catch {}
   await clearSchoolSession();
 }
 
-// ── 하위 호환성 유지 ─────────────────────────────────────────
-/** @deprecated getLibToken() 사용 */
-export async function getJsessionid(): Promise<string | null> {
-  return getLibToken();
-}
-
+// ── 하위 호환성 ─────────────────────────────────────────────
 /** @deprecated buildLibAuthHeaders() 사용 */
 export async function buildAuthHeaders(): Promise<HeadersInit> {
   return buildLibAuthHeaders();
+}
+
+/** @deprecated clearSchoolSession() 사용 */
+export async function getJsessionid(): Promise<string | null> {
+  return getPyxisCookieHeader();
 }

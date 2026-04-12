@@ -194,6 +194,13 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Angular 앱처럼 accessToken을 PUSAN_PYXIS3 쿠키로 설정
+    // (Angular 앱은 login 성공 후 document.cookie로 PUSAN_PYXIS3=accessToken 세팅)
+    const accessToken = json.data?.accessToken;
+    if (accessToken) {
+      cookieMap["PUSAN_PYXIS3"] = accessToken;
+    }
+
     // 모든 쿠키를 하나의 문자열로 저장 (이후 요청에서 그대로 Cookie 헤더로 사용)
     const fullCookieString = Object.entries(cookieMap)
       .map(([k, v]) => `${k}=${v}`)

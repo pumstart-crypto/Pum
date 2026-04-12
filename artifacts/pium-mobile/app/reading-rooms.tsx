@@ -15,7 +15,7 @@ import {
   MySeatData, extractSeatName, extractRoomName, extractBranchName,
 } from '@/utils/seatManagement';
 import {
-  getSchoolSession, logoutFromLibrary, SchoolSession,
+  getSchoolSession, logoutFromLibrary, getPyxisCookieHeader, SchoolSession,
 } from '@/utils/schoolAuth';
 import { saveFavoriteSeat } from '@/utils/favoriteSeat';
 import {
@@ -682,11 +682,21 @@ export default function ReadingRoomsScreen() {
   const pendingRoom = useRef<{ id: number; name: string; branch?: string } | null>(null);
 
   // ── Load session ───────────────────────────────────────────
-  const loadMySeat = useCallback(async () => {
+  const loadMySeat = useCallback(async (forceLogoutOnExpiry = false) => {
     setMySeatLoading(true);
     const result = await getMySeat();
     setMySeatLoading(false);
-    if (result.needsLogin) { setSession(null); await logoutFromLibrary(); setMySeat(null); return; }
+    if (result.needsLogin) {
+      // 세션 토큰 자체가 없는 경우에만 로그아웃 처리
+      // Pyxis 서버 오류(needLogin 코드)는 로그인 상태 유지
+      const cookie = await getPyxisCookieHeader();
+      if (!cookie || forceLogoutOnExpiry) {
+        setSession(null);
+        await logoutFromLibrary();
+      }
+      setMySeat(null);
+      return;
+    }
     if (result.success) setMySeat(result.data ?? null);
   }, []);
 
@@ -697,9 +707,13 @@ export default function ReadingRoomsScreen() {
     })();
   }, [loadMySeat]);
 
-  const handleSessionExpired = useCallback(() => {
-    setSession(null); setMySeat(null);
-    logoutFromLibrary();
+  const handleSessionExpired = useCallback(async () => {
+    // 쿠키가 없는 경우에만 실제 로그아웃, 있으면 로그인 모달만 표시
+    const cookie = await getPyxisCookieHeader();
+    if (!cookie) {
+      setSession(null); setMySeat(null);
+      await logoutFromLibrary();
+    }
     setShowLogin(true);
   }, []);
 
