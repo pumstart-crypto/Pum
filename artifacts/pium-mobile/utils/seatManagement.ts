@@ -32,13 +32,59 @@ export interface SeatActionResult<T = unknown> {
 
 export interface MySeatData {
   id: number | null;
-  seatId: number | null;
-  seatName: string | null;
-  roomName: string | null;
-  branchName: string | null;
+  // Nested structure (Pyxis standard)
+  seat?: {
+    id: number; name: string; code?: string;
+    seatRoom?: {
+      id: number; name: string;
+      branch?: { id: number; name: string; alias?: string };
+    };
+  } | null;
+  seatRoom?: {
+    id: number; name: string;
+    branch?: { id: number; name: string; alias?: string };
+  } | null;
+  // Legacy flat fields
+  seatId?: number | null;
+  seatName?: string | null;
+  roomName?: string | null;
+  branchName?: string | null;
+  // Time
   startTime: string | null;
   endTime: string | null;
+  extendableTime?: string | null;
+  temporaryEndTime?: string | null;
+  // State
   state: { code: string; name: string } | null;
+}
+
+/** 좌석 번호 추출 (중첩 구조 vs 플랫 구조 모두 처리) */
+export function extractSeatName(data: MySeatData | null): string | null {
+  if (!data) return null;
+  return data.seat?.name ?? data.seatName ?? null;
+}
+
+/** 열람실 이름 추출 */
+export function extractRoomName(data: MySeatData | null): string | null {
+  if (!data) return null;
+  return data.seat?.seatRoom?.name ?? data.seatRoom?.name ?? data.roomName ?? null;
+}
+
+/** 도서관(지점) 이름 추출 */
+export function extractBranchName(data: MySeatData | null): string | null {
+  if (!data) return null;
+  return (
+    data.seat?.seatRoom?.branch?.name ??
+    data.seatRoom?.branch?.name ??
+    data.branchName ??
+    null
+  );
+}
+
+/** seatRoom ID 추출 */
+export function extractRoomId(data: MySeatData | null): number | null {
+  if (!data) return null;
+  return data.seat?.seatRoom?.id ?? data.seatRoom?.id ?? null;
 }
 
 export interface IndividualSeat {

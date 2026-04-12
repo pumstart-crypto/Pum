@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { getSeatRoomSeats, reserveSeat, IndividualSeat } from '@/utils/seatManagement';
+import { saveFavoriteSeat } from '@/utils/favoriteSeat';
 import C from '@/constants/colors';
 
 interface SeatRoom {
@@ -72,6 +73,16 @@ export default function SeatPickerModal({ visible, room, onDismiss, onReserved, 
     setReserving(null);
     if (result.needsLogin) { onDismiss(); onSessionExpired(); return; }
     if (result.success) {
+      // 마지막 예약 좌석을 즐겨찾기로 저장
+      if (room) {
+        saveFavoriteSeat({
+          seatId: seat.id,
+          seatName: seat.name,
+          roomId: room.id,
+          roomName: room.name,
+          branchName: room.branch ?? '',
+        });
+      }
       onReserved(result.message);
       onDismiss();
     } else {

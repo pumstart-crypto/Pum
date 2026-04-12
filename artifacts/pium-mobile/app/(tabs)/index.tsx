@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Platform, Linking, RefreshControl, TextInput, Modal,
-  ActivityIndicator, Image, KeyboardAvoidingView, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
@@ -13,6 +13,10 @@ import C from '@/constants/colors';
 import { getNow } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import MySeatCard from '@/components/MySeatCard';
+import { getFavoriteSeat, FavoriteSeat } from '@/utils/favoriteSeat';
+import { getSchoolSession } from '@/utils/schoolAuth';
+import { reserveSeat } from '@/utils/seatManagement';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
@@ -119,6 +123,10 @@ export default function HomeScreen() {
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   const [submitting, setSubmitting] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [favSeat, setFavSeat] = useState<FavoriteSeat | null>(null);
+  const [quickReserving, setQuickReserving] = useState(false);
+  const [quickToast, setQuickToast] = useState('');
+  const seatCardKey = useRef(0);
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : 0;
@@ -141,6 +149,34 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => { fetchTodos(); }, [fetchTodos]);
+
+  // 즐겨찾기 좌석 로드 (모바일 전용)
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      getFavoriteSeat().then(setFavSeat);
+    }
+  }, []);
+
+  const handleQuickReserve = useCallback(async () => {
+    if (!favSeat) return;
+    setQuickReserving(true);
+    try {
+      const session = await getSchoolSession();
+      if (!session) { router.push('/reading-rooms'); return; }
+      const r = await reserveSeat(favSeat.seatId);
+      if (r.needsLogin) { router.push('/reading-rooms'); return; }
+      if (r.success) {
+        setQuickToast('예약 완료! 좌석 카드를 확인하세요.');
+        seatCardKey.current += 1;
+        setTimeout(() => setQuickToast(''), 3000);
+      } else {
+        setQuickToast(r.message);
+        setTimeout(() => setQuickToast(''), 3000);
+      }
+    } finally {
+      setQuickReserving(false);
+    }
+  }, [favSeat]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -248,6 +284,49 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ── 내 도서관 좌석 ──────────────────────────────────── */}
+        {Platform.OS !== 'web' && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>내 도서관 좌석</Text>
+              <TouchableOpacity onPress={() => router.push('/reading-rooms')}>
+                <Text style={styles.sectionLink}>열람실 현황</Text>
+              </TouchableOpacity>
+            </View>
+            <MySeatCard key={seatCardKey.current} />
+
+            {/* 즐겨찾기 빠른 예약 */}
+            {favSeat && (
+              <View style={styles.favCard}>
+                <View style={styles.favLeft}>
+                  <Feather name="heart" size={14} color="#EF4444" />
+                  <View>
+                    <Text style={[styles.favTitle, { color: colors.text }]}>
+                      {favSeat.roomName} {favSeat.seatName}번
+                    </Text>
+                    <Text style={styles.favSub}>{favSeat.branchName || '도서관'} · 최근 예약</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[styles.favBtn, quickReserving && { opacity: 0.6 }]}
+                  onPress={handleQuickReserve}
+                  disabled={quickReserving}
+                  activeOpacity={0.8}
+                >
+                  {quickReserving
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.favBtnText}>바로 예약</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!quickToast && (
+              <View style={[styles.quickToastBox, { backgroundColor: quickToast.includes('완료') ? '#065F46' : '#7F1D1D' }]}>
+                <Text style={styles.quickToastText}>{quickToast}</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Today Timetable */}
         <View style={styles.section}>
@@ -502,6 +581,27 @@ const styles = StyleSheet.create({
   scheduleCardBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 },
   nowBadge: { position: 'absolute', top: 8, right: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   nowBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#fff' },
+
+  // 즐겨찾기 빠른 예약
+  favCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 10, paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: '#FFF7F7', borderRadius: 14,
+    borderWidth: 1, borderColor: '#FECACA',
+  },
+  favLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  favTitle: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  favSub: { fontSize: 11, color: '#9CA3AF', marginTop: 1, fontFamily: 'Inter_400Regular' },
+  favBtn: {
+    backgroundColor: C.primary, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 8,
+  },
+  favBtnText: { fontSize: 13, fontWeight: '700', color: '#fff', fontFamily: 'Inter_700Bold' },
+  quickToastBox: {
+    marginTop: 8, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  quickToastText: { fontSize: 13, color: '#fff', fontFamily: 'Inter_500Medium' },
 
   todoItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   todoCheck: { padding: 2 },

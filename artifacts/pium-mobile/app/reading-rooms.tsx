@@ -12,7 +12,7 @@ import SchoolLoginModal from '@/components/SchoolLoginModal';
 import SeatPickerModal from '@/components/SeatPickerModal';
 import {
   getMySeat, extendSeat, returnSeat,
-  MySeatData,
+  MySeatData, extractSeatName, extractRoomName,
 } from '@/utils/seatManagement';
 import {
   getSchoolSession, clearSchoolSession, SchoolSession,
@@ -122,7 +122,10 @@ function MySeatBanner({ mySeat, loading, onExtend, onReturn, onLogout, extending
       </View>
     );
   }
-  if (!mySeat || !mySeat.seatName) {
+  const seatName = extractSeatName(mySeat);
+  const roomName = extractRoomName(mySeat);
+
+  if (!mySeat || !seatName) {
     return (
       <View style={[styles.mySeatBanner, styles.mySeatEmpty]}>
         <Feather name="map-pin" size={14} color="#9CA3AF" />
@@ -141,8 +144,8 @@ function MySeatBanner({ mySeat, loading, onExtend, onReturn, onLogout, extending
         </View>
         <View>
           <Text style={styles.mySeatName} numberOfLines={1}>
-            {mySeat.seatName}
-            {mySeat.roomName ? <Text style={styles.mySeatRoom}> · {mySeat.roomName}</Text> : null}
+            {seatName}번 좌석
+            {roomName ? <Text style={styles.mySeatRoom}> · {roomName}</Text> : null}
           </Text>
           {mySeat.endTime ? (
             <Text style={styles.mySeatTime}>~{mySeat.endTime} 이용 가능</Text>
@@ -237,6 +240,13 @@ function RoomCard({ room, onSelect, sessionActive }: {
           <View style={styles.seatCountRow}>
             <Text style={[styles.availableNum, { color: cfg.bar }]}>{available}</Text>
             <Text style={styles.totalCount}>/{total} 잔여석</Text>
+            {total > 0 && (
+              <View style={[styles.pctBadge, { backgroundColor: cfg.bg }]}>
+                <Text style={[styles.pctText, { color: cfg.text }]}>
+                  {Math.round((available / total) * 100)}% 여유
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -689,7 +699,9 @@ const styles = StyleSheet.create({
   statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, gap: 4 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  seatCountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  seatCountRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pctBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 2 },
+  pctText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   availableNum: { fontSize: 20, fontWeight: '800', fontFamily: 'Inter_700Bold' },
   totalCount: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   unableMsg: { fontSize: 12, color: '#9CA3AF', marginTop: 2, fontFamily: 'Inter_400Regular', lineHeight: 16 },
