@@ -496,7 +496,7 @@ export default function ReadingRoomsScreen() {
         ) : (
           <TouchableOpacity
             style={styles.headerLoginBtn}
-            onPress={() => { setLoginTitle(''); setShowLogin(true); }}
+            onPress={() => setShowLogin(true)}
             hitSlop={8}
           >
             <Feather name="log-in" size={14} color={C.primary} />
