@@ -150,7 +150,17 @@ router.get("/library/seat-room-seats", async (req: Request, res: Response): Prom
   if (!token) { noAuth(res); return; }
   const cookieStr = await getCookieString(token);
   if (!cookieStr) { noAuth(res); return; }
-  await proxyGet(`${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`, cookieStr, res);
+  try {
+    const upstream = await fetch(
+      `${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
+      { headers: pyxisHeaders(cookieStr) },
+    );
+    const json = await upstream.json() as any;
+    console.log("[DEBUG seat-room-seats] code:", json?.code, "success:", json?.success, "seats:", Array.isArray(json?.data?.list) ? json.data.list.length : json?.data?.list);
+    res.json(json);
+  } catch (e: any) {
+    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+  }
 });
 
 // ── 로그인 ─────────────────────────────────────────────────────
@@ -205,6 +215,9 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
     }
 
     const jsessionid = cookieMap["JSESSIONID"] ?? null;
+    console.log("[DEBUG login] Set-Cookie 개수:", allSetCookies.length);
+    console.log("[DEBUG login] 캡처된 쿠키 키:", Object.keys(cookieMap).join(", "));
+    console.log("[DEBUG login] JSESSIONID 존재:", !!jsessionid);
     if (!jsessionid) {
       res.status(502).json({ success: false, message: "도서관 서버에서 세션을 발급받지 못했습니다." });
       return;
@@ -221,6 +234,7 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
     const fullCookieString = Object.entries(cookieMap)
       .map(([k, v]) => `${k}=${v}`)
       .join("; ");
+    console.log("[DEBUG login] 저장할 쿠키 키:", Object.keys(cookieMap).join(", "));
 
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
