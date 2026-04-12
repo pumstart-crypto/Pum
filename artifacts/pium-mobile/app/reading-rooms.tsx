@@ -15,7 +15,7 @@ import {
   MySeatData, extractSeatName, extractRoomName, extractBranchName,
 } from '@/utils/seatManagement';
 import {
-  getSchoolSession, logoutFromLibrary, getPyxisCookieHeader, SchoolSession,
+  getSchoolSession, logoutFromLibrary, getLibApiToken, SchoolSession,
 } from '@/utils/schoolAuth';
 import { saveFavoriteSeat } from '@/utils/favoriteSeat';
 import {
@@ -687,10 +687,9 @@ export default function ReadingRoomsScreen() {
     const result = await getMySeat();
     setMySeatLoading(false);
     if (result.needsLogin) {
-      // 세션 토큰 자체가 없는 경우에만 로그아웃 처리
-      // Pyxis 서버 오류(needLogin 코드)는 로그인 상태 유지
-      const cookie = await getPyxisCookieHeader();
-      if (!cookie || forceLogoutOnExpiry) {
+      // lib 토큰이 없는 경우에만 완전 로그아웃 처리
+      const token = await getLibApiToken();
+      if (!token || forceLogoutOnExpiry) {
         setSession(null);
         await logoutFromLibrary();
       }
@@ -708,9 +707,9 @@ export default function ReadingRoomsScreen() {
   }, [loadMySeat]);
 
   const handleSessionExpired = useCallback(async () => {
-    // 쿠키가 없는 경우에만 실제 로그아웃, 있으면 로그인 모달만 표시
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) {
+    // lib 토큰이 없는 경우에만 완전 로그아웃 처리
+    const token = await getLibApiToken();
+    if (!token) {
       setSession(null); setMySeat(null);
       await logoutFromLibrary();
     }

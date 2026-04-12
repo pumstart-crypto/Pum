@@ -104,6 +104,31 @@ async function proxyDelete(url: string, jsessionid: string, res: Response): Prom
 
 setInterval(cleanupExpiredSessions, 30 * 60 * 1000);
 
+// ── 기기 로그인 후 Pyxis 세션 등록 ────────────────────────────
+// 앱이 한국 IP(디바이스)에서 Pyxis에 직접 로그인한 뒤
+// 획득한 쿠키 문자열을 서버 DB에 등록하고 앱 토큰을 발급합니다.
+router.post("/library/register-session", async (req: Request, res: Response): Promise<void> => {
+  const { cookieString, userId, userName } = req.body ?? {};
+  if (!cookieString) {
+    res.status(400).json({ success: false, message: "cookieString이 필요합니다." });
+    return;
+  }
+  try {
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    await db.insert(librarySessionsTable).values({
+      token,
+      jsessionid: cookieString,
+      userId: userId ?? "unknown",
+      userName: userName ?? null,
+      expiresAt,
+    });
+    res.json({ success: true, data: { token } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: `세션 등록 실패: ${err?.message ?? "unknown"}` });
+  }
+});
+
 // ── 열람실 목록 (공개) ─────────────────────────────────────────
 router.get("/library/seat-rooms", async (req: Request, res: Response): Promise<void> => {
   const branchGroupId = req.query.branchGroupId ?? "1";
@@ -117,24 +142,15 @@ router.get("/library/seat-rooms", async (req: Request, res: Response): Promise<v
   }
 });
 
-// ── 개별 좌석 목록 ─────────────────────────────────────────────
+// ── 개별 좌석 목록 (인증 필요) ────────────────────────────────
 router.get("/library/seat-room-seats", async (req: Request, res: Response): Promise<void> => {
   const { seatRoomId } = req.query;
   if (!seatRoomId) { res.status(400).json({ success: false, message: "seatRoomId가 필요합니다." }); return; }
-
   const token = extractToken(req);
-  let jsessionid: string | null = null;
-  if (token) jsessionid = await getJsessionid(token);
-
-  try {
-    const url = `${PYXIS_BASE}/1/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`;
-    const headers = jsessionid ? pyxisHeaders(jsessionid) : PYXIS_HEADERS;
-    const upstream = await fetch(url, { headers });
-    const json = await upstream.json();
-    res.json(json);
-  } catch {
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
-  }
+  if (!token) { noAuth(res); return; }
+  const cookieStr = await getCookieString(token);
+  if (!cookieStr) { noAuth(res); return; }
+  await proxyGet(`${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`, cookieStr, res);
 });
 
 // ── 로그인 ─────────────────────────────────────────────────────

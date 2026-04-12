@@ -3,18 +3,19 @@
  *
  * 도서관 좌석 예약 · 연장 · 반납 · 이석 · 내역 · 제한현황.
  *
- * [아키텍처]
- * 앱이 디바이스에서 직접 Pyxis API를 호출합니다.
- * - SecureStore에서 Pyxis 세션 쿠키(JSESSIONID, PUSAN_PYXIS3, SS)를 읽어 Cookie 헤더로 전송
- * - JSESSIONID가 디바이스(한국) IP에 바인딩되어 인증 유지
- * - 세션 만료 시 needsLogin: true 반환
+ * [아키텍처] — 하이브리드 프록시 방식
+ * 1. 기기에서 Pyxis에 직접 로그인 (한국 IP) → 쿠키 취득
+ * 2. 쿠키를 API 서버 DB에 등록 → 앱 토큰(Bearer) 발급
+ * 3. 이후 모든 인증 API는 앱 토큰으로 API 서버 호출
+ * 4. API 서버가 저장된 쿠키를 사용하여 Pyxis에 요청을 프록시
+ * → iOS에서 수동 Cookie 헤더가 무시되는 문제 완벽 우회
  */
 
 import { Platform } from "react-native";
-import { getPyxisCookieHeader, clearSchoolSession } from "./schoolAuth";
+import { getLibApiToken } from "./schoolAuth";
 
-const PYXIS_BASE = "https://lib.pusan.ac.kr/pyxis-api";
-const HOMEPAGE_ID = 1;
+// 모든 인증 API 호출은 API 서버를 경유합니다.
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
 const SESSION_EXPIRED_CODES = new Set([
   "error.authentication.needLogin",
@@ -157,51 +158,38 @@ function noSession(): SeatActionResult<any> {
   return { success: false, message: "로그인이 필요합니다.", needsLogin: true };
 }
 
-/** Pyxis 공통 헤더 */
-function pyxisHeaders(cookie: string): HeadersInit {
+/** API 서버 인증 헤더 */
+function apiHeaders(token: string): HeadersInit {
   return {
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "Cookie": cookie,
-    "Origin": "https://lib.pusan.ac.kr",
-    "Referer": "https://lib.pusan.ac.kr/facility/seat",
-    "User-Agent": "PiumApp/1.0 (Expo React Native)",
+    "Authorization": `Bearer ${token}`,
   };
 }
 
-function pyxisGetHeaders(cookie: string): HeadersInit {
-  return {
-    "Accept": "application/json",
-    "Cookie": cookie,
-    "Origin": "https://lib.pusan.ac.kr",
-    "Referer": "https://lib.pusan.ac.kr/facility/seat",
-    "User-Agent": "PiumApp/1.0 (Expo React Native)",
-  };
-}
-
-/** Pyxis GET */
-async function pyxisGet(path: string, cookie: string): Promise<PyxisBody> {
-  const res = await fetch(`${PYXIS_BASE}${path}`, {
-    headers: pyxisGetHeaders(cookie),
+/** API 서버 GET */
+async function apiGet(path: string, token: string): Promise<PyxisBody> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { "Accept": "application/json", "Authorization": `Bearer ${token}` },
   });
   return res.json();
 }
 
-/** Pyxis POST */
-async function pyxisPost(path: string, cookie: string, body?: object): Promise<PyxisBody> {
-  const res = await fetch(`${PYXIS_BASE}${path}`, {
+/** API 서버 POST */
+async function apiPost(path: string, token: string, body?: object): Promise<PyxisBody> {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: pyxisHeaders(cookie),
+    headers: apiHeaders(token),
     body: JSON.stringify(body ?? {}),
   });
   return res.json();
 }
 
-/** Pyxis DELETE */
-async function pyxisDelete(path: string, cookie: string): Promise<PyxisBody> {
-  const res = await fetch(`${PYXIS_BASE}${path}`, {
+/** API 서버 DELETE */
+async function apiDelete(path: string, token: string): Promise<PyxisBody> {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
-    headers: pyxisGetHeaders(cookie),
+    headers: { "Accept": "application/json", "Authorization": `Bearer ${token}` },
   });
   return res.json();
 }
@@ -212,9 +200,9 @@ async function pyxisDelete(path: string, cookie: string): Promise<PyxisBody> {
 export async function getMySeat(): Promise<SeatActionResult<MySeatData>> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisGet(`/api/my-seat`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiGet("/library/my-seat", token);
     const expired = checkSessionExpired<MySeatData>(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: "좌석 정보를 불러왔습니다.", data: raw.data ?? undefined };
@@ -234,9 +222,9 @@ export async function getMySeat(): Promise<SeatActionResult<MySeatData>> {
 export async function reserveSeat(seatId: number): Promise<SeatActionResult> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisPost(`/${HOMEPAGE_ID}/api/my-seat`, cookie, { seatId });
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiPost("/library/my-seat", token, { seatId });
     const expired = checkSessionExpired(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: raw.message ?? "좌석 예약이 완료되었습니다.", data: raw.data };
@@ -252,9 +240,9 @@ export async function reserveSeat(seatId: number): Promise<SeatActionResult> {
 export async function extendSeat(): Promise<SeatActionResult> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisPost(`/${HOMEPAGE_ID}/api/my-seat/extend`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiPost("/library/my-seat/extend", token);
     const expired = checkSessionExpired(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: raw.message ?? "이용 시간이 연장되었습니다.", data: raw.data };
@@ -270,9 +258,9 @@ export async function extendSeat(): Promise<SeatActionResult> {
 export async function returnSeat(): Promise<SeatActionResult> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisPost(`/${HOMEPAGE_ID}/api/my-seat/return`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiPost("/library/my-seat/return", token);
     const expired = checkSessionExpired(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: raw.message ?? "좌석이 반납되었습니다.", data: raw.data };
@@ -288,9 +276,9 @@ export async function returnSeat(): Promise<SeatActionResult> {
 export async function cancelSeat(): Promise<SeatActionResult> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisDelete(`/${HOMEPAGE_ID}/api/my-seat`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiDelete("/library/my-seat", token);
     const expired = checkSessionExpired(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: raw.message ?? "예약이 취소되었습니다.", data: raw.data };
@@ -306,16 +294,9 @@ export async function cancelSeat(): Promise<SeatActionResult> {
 export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionResult<IndividualSeat[]>> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    // 인증 API: JSESSIONID 필요 (디바이스 한국 IP에서 동작)
-    const url = `${PYXIS_BASE}/${HOMEPAGE_ID}/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=${HOMEPAGE_ID}`;
-    const headers: HeadersInit = cookie
-      ? { "Accept": "application/json", "Cookie": cookie, "Origin": "https://lib.pusan.ac.kr", "User-Agent": "PiumApp/1.0 (Expo React Native)" }
-      : { "Accept": "application/json", "Origin": "https://lib.pusan.ac.kr" };
-    const res = await fetch(url, { headers });
-    const raw: PyxisBody = await res.json();
-    // 디버그: 실제 응답 구조 확인
-    console.log('[SeatPicker] API 응답:', JSON.stringify({ success: raw.success, code: raw.code, dataKeys: raw.data ? Object.keys(raw.data) : null, listLen: raw.data?.list?.length, dataIsArr: Array.isArray(raw.data) }).slice(0, 300));
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiGet(`/library/seat-room-seats?seatRoomId=${seatRoomId}`, token);
     if (!raw.success) {
       const expired = checkSessionExpired(raw);
       if (expired) return expired as SeatActionResult<IndividualSeat[]>;
@@ -339,9 +320,9 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
 export async function setAway(): Promise<SeatActionResult<AwayStatus>> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisPost(`/${HOMEPAGE_ID}/api/my-seat/away`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiPost("/library/my-seat/away", token);
     const expired = checkSessionExpired<AwayStatus>(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: raw.message ?? "이석 처리되었습니다.", data: raw.data };
@@ -357,9 +338,9 @@ export async function setAway(): Promise<SeatActionResult<AwayStatus>> {
 export async function returnFromAway(): Promise<SeatActionResult> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisDelete(`/${HOMEPAGE_ID}/api/my-seat/away`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiDelete("/library/my-seat/away", token);
     const expired = checkSessionExpired(raw);
     if (expired) return expired;
     if (raw.success) return { success: true, message: raw.message ?? "이석 복귀 처리되었습니다." };
@@ -375,9 +356,9 @@ export async function returnFromAway(): Promise<SeatActionResult> {
 export async function getMySeatHistories(): Promise<SeatActionResult<SeatHistoryItem[]>> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisGet(`/${HOMEPAGE_ID}/api/my-seat/histories?homepageId=${HOMEPAGE_ID}`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiGet("/library/my-seat/histories", token);
     const expired = checkSessionExpired<SeatHistoryItem[]>(raw);
     if (expired) return expired;
     if (raw.success) {
@@ -405,9 +386,9 @@ export async function getMySeatHistories(): Promise<SeatActionResult<SeatHistory
 export async function getMySeatViolations(): Promise<SeatActionResult<SeatViolation[]>> {
   if (Platform.OS === "web") return webUnsupported();
   try {
-    const cookie = await getPyxisCookieHeader();
-    if (!cookie) return noSession();
-    const raw = await pyxisGet(`/${HOMEPAGE_ID}/api/my-seat/violations?homepageId=${HOMEPAGE_ID}`, cookie);
+    const token = await getLibApiToken();
+    if (!token) return noSession();
+    const raw = await apiGet("/library/my-seat/violations", token);
     const expired = checkSessionExpired<SeatViolation[]>(raw);
     if (expired) return expired;
     if (raw.success) {
