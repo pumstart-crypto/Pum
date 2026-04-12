@@ -150,7 +150,25 @@ router.get("/library/seat-room-seats", async (req: Request, res: Response): Prom
   if (!token) { noAuth(res); return; }
   const cookieStr = await getCookieString(token);
   if (!cookieStr) { noAuth(res); return; }
-  await proxyGet(`${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`, cookieStr, res);
+  try {
+    const upstream = await fetch(
+      `${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
+      { headers: pyxisHeaders(cookieStr) },
+    );
+    const json = await upstream.json() as any;
+    // 임시 디버그: Pyxis 응답의 실제 좌석 필드 구조 확인
+    const list = json?.data?.list ?? json?.data ?? [];
+    if (Array.isArray(list) && list.length > 0) {
+      console.log("[DEBUG seat-room-seats] 첫 번째 좌석:", JSON.stringify(list[0]));
+      console.log("[DEBUG seat-room-seats] 데이터 키:", JSON.stringify(Object.keys(json?.data ?? {})));
+      console.log("[DEBUG seat-room-seats] 총 좌석 수:", list.length);
+    } else {
+      console.log("[DEBUG seat-room-seats] 응답:", JSON.stringify(json).slice(0, 300));
+    }
+    res.json(json);
+  } catch {
+    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+  }
 });
 
 // ── 로그인 ─────────────────────────────────────────────────────
