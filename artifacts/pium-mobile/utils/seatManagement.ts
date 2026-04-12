@@ -190,6 +190,24 @@ export async function extendSeat(): Promise<SeatActionResult> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// cancelSeat — 예약 취소 (배정확정 전)
+// ─────────────────────────────────────────────────────────────
+export async function cancelSeat(): Promise<SeatActionResult> {
+  if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
+  try {
+    const raw = await withSessionCheck(
+      () => pyxisRequest("DELETE", "/api/my-seat"),
+      "세션이 만료되었습니다. 다시 로그인해 주세요."
+    );
+    if (raw.needsLogin) return { success: false, message: raw.message!, needsLogin: true };
+    if (raw.success) return { success: true, message: raw.message ?? "예약이 취소되었습니다.", data: raw.data };
+    return { success: false, message: raw.message || fallback(raw.code, "예약 취소에 실패했습니다.") };
+  } catch (e: any) {
+    return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // returnSeat — 좌석 반납
 // ─────────────────────────────────────────────────────────────
 export async function returnSeat(): Promise<SeatActionResult> {
