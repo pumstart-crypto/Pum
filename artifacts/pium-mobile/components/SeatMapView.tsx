@@ -1,39 +1,28 @@
 /**
  * SeatMapView.tsx
  *
- * Pyxis API의 x/y 좌표 데이터를 사용해 실제 열람실 좌석 배치도를
- * 핀치 줌 + 팬 제스처로 탐색 가능하게 렌더링하는 컴포넌트.
- *
- * [중요] GestureDetector 내부에서는 반드시 react-native-gesture-handler의
- * TouchableOpacity를 사용해야 합니다. react-native의 것을 쓰면 제스처 충돌로
- * 앱이 멈춥니다.
+ * Pyxis x/y 좌표로 좌석 배치도를 그리드로 렌더링합니다.
+ * Expo Go에서 안정적으로 동작하도록 ScrollView 기반으로 구현합니다.
+ * GestureDetector / Reanimated 없이 순수 RN ScrollView + TouchableOpacity 사용.
  */
 
-import React, { useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
-import { TouchableOpacity } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import React, { useMemo, useRef } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, ActivityIndicator,
+} from 'react-native';
 import { IndividualSeat } from '@/utils/seatManagement';
 import C from '@/constants/colors';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-
-const CELL = 34;
-const GAP  = 4;
-const STEP = CELL + GAP;
-const MIN_SCALE = 0.35;
-const MAX_SCALE = 2.5;
+const CELL = 38;
+const GAP  = 5;
 
 const STATUS_CFG: Record<string, { bg: string; border: string; text: string }> = {
   EMPTY:   { bg: '#DBEAFE', border: '#3B82F6', text: '#1D4ED8' },
   USING:   { bg: '#F3F4F6', border: '#D1D5DB', text: '#9CA3AF' },
   FIXED:   { bg: '#E5E7EB', border: '#D1D5DB', text: '#9CA3AF' },
   AWAY:    { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },
-  MINE:    { bg: `${C.primary}20`, border: C.primary, text: C.primary },
+  MINE:    { bg: `${C.primary}22`, border: C.primary, text: C.primary },
   DEFAULT: { bg: '#E5E7EB', border: '#D1D5DB', text: '#9CA3AF' },
 };
 
@@ -56,87 +45,40 @@ interface Props {
 }
 
 export default function SeatMapView({ seats, reserving, onReserve, containerHeight }: Props) {
-  // ── 그리드 범위 계산 ──────────────────────────────────────
-  const { seatsWithPos, minX, minY, mapW, mapH } = useMemo(() => {
-    const withPos = seats.filter(s => s.x !== undefined && s.y !== undefined);
-    if (withPos.length === 0) return { seatsWithPos: [], minX: 0, minY: 0, mapW: 0, mapH: 0 };
-    const xs = withPos.map(s => s.x!);
-    const ys = withPos.map(s => s.y!);
+  const hScrollRef = useRef<ScrollView>(null);
+
+  // ── 좌표 있는 좌석만 추출 ─────────────────────────────────
+  const seatsWithPos = useMemo(
+    () => seats.filter(s => s.x !== undefined && s.y !== undefined),
+    [seats],
+  );
+
+  // ── 그리드 빌드 ───────────────────────────────────────────
+  // grid[row][col] = IndividualSeat | null (null = 빈 공간)
+  const { grid, rows, cols, minX, minY } = useMemo(() => {
+    if (seatsWithPos.length === 0) {
+      return { grid: [], rows: 0, cols: 0, minX: 0, minY: 0 };
+    }
+    const xs = seatsWithPos.map(s => s.x!);
+    const ys = seatsWithPos.map(s => s.y!);
     const mX = Math.min(...xs);
     const mY = Math.min(...ys);
     const maxX = Math.max(...xs);
     const maxY = Math.max(...ys);
-    return {
-      seatsWithPos: withPos,
-      minX: mX,
-      minY: mY,
-      mapW: (maxX - mX + 1) * STEP + GAP,
-      mapH: (maxY - mY + 1) * STEP + GAP,
-    };
-  }, [seats]);
+    const numCols = maxX - mX + 1;
+    const numRows = maxY - mY + 1;
 
-  // ── 초기 스케일: 화면 너비에 맞게 ───────────────────────
-  const initScale = useMemo(() => {
-    if (mapW === 0) return 1;
-    const s = (SCREEN_W - 32) / mapW;
-    return Math.min(Math.max(s, MIN_SCALE), 1);
-  }, [mapW]);
+    // 2D 배열 초기화
+    const g: (IndividualSeat | null)[][] = Array.from(
+      { length: numRows },
+      () => Array(numCols).fill(null),
+    );
+    for (const seat of seatsWithPos) {
+      g[seat.y! - mY][seat.x! - mX] = seat;
+    }
+    return { grid: g, rows: numRows, cols: numCols, minX: mX, minY: mY };
+  }, [seatsWithPos]);
 
-  // ── 제스처 공유 값 ────────────────────────────────────────
-  const scale      = useSharedValue(1);
-  const savedScale = useSharedValue(1);
-  const tx         = useSharedValue(0);
-  const ty         = useSharedValue(0);
-  const savedTx    = useSharedValue(0);
-  const savedTy    = useSharedValue(0);
-
-  // 좌석 데이터가 로드되어 mapW가 확정된 후 초기 스케일 적용
-  useEffect(() => {
-    if (mapW === 0) return;
-    scale.value      = initScale;
-    savedScale.value = initScale;
-    tx.value = 0; ty.value = 0;
-    savedTx.value = 0; savedTy.value = 0;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapW]);
-
-  // ── 핀치 제스처 ───────────────────────────────────────────
-  const pinch = Gesture.Pinch()
-    .onUpdate((e) => {
-      'worklet';
-      const next = savedScale.value * e.scale;
-      scale.value = Math.min(Math.max(next, MIN_SCALE), MAX_SCALE);
-    })
-    .onEnd(() => {
-      'worklet';
-      savedScale.value = scale.value;
-    });
-
-  // ── 팬 제스처 ─────────────────────────────────────────────
-  const pan = Gesture.Pan()
-    .minDistance(5)
-    .onUpdate((e) => {
-      'worklet';
-      tx.value = savedTx.value + e.translationX;
-      ty.value = savedTy.value + e.translationY;
-    })
-    .onEnd(() => {
-      'worklet';
-      savedTx.value = tx.value;
-      savedTy.value = ty.value;
-    });
-
-  const composed = Gesture.Simultaneous(pan, pinch);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: tx.value },
-      { translateY: ty.value },
-      { scale: scale.value },
-    ],
-  }));
-
-  // ── 좌표 없음 폴백 ────────────────────────────────────────
   if (seatsWithPos.length === 0) {
     return (
       <View style={[styles.fallback, { height: containerHeight }]}>
@@ -146,67 +88,90 @@ export default function SeatMapView({ seats, reserving, onReserve, containerHeig
   }
 
   return (
-    <View style={[styles.container, { height: containerHeight }]}>
-      <GestureDetector gesture={composed}>
-        <Animated.View
-          style={[styles.canvas, { width: mapW, height: mapH }, animStyle]}
+    <View style={[styles.wrapper, { height: containerHeight }]}>
+      {/* 가로 스크롤 (외부) */}
+      <ScrollView
+        ref={hScrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 8 }}
+      >
+        {/* 세로 스크롤 (내부) */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          nestedScrollEnabled
         >
-          {seatsWithPos.map(seat => {
-            const c = seatCfg(seat);
-            const reservable = isReservable(seat);
-            const isLoading = reserving === seat.id;
-            const left = (seat.x! - minX) * STEP + GAP;
-            const top  = (seat.y! - minY) * STEP + GAP;
+          <View style={styles.gridContainer}>
+            {grid.map((row, rowIdx) => (
+              <View key={rowIdx} style={styles.row}>
+                {row.map((seat, colIdx) => {
+                  if (!seat) {
+                    // 빈 공간 — 자리 없음 표시
+                    return <View key={colIdx} style={styles.emptySpacer} />;
+                  }
+                  const c = seatCfg(seat);
+                  const reservable = isReservable(seat);
+                  const isLoading = reserving === seat.id;
 
-            return (
-              <TouchableOpacity
-                key={seat.id}
-                style={[
-                  styles.cell,
-                  { left, top, backgroundColor: c.bg, borderColor: c.border },
-                  !reservable && !seat.isMine && styles.cellDisabled,
-                  seat.isMine && styles.cellMine,
-                ]}
-                onPress={() => {
-                  if (reservable && reserving === null) onReserve(seat);
-                }}
-                disabled={!reservable || reserving !== null}
-                activeOpacity={0.7}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color={c.border} />
-                ) : (
-                  <Text style={[styles.cellText, { color: c.text }]} numberOfLines={1}>
-                    {seat.code || seat.name}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </Animated.View>
-      </GestureDetector>
+                  return (
+                    <TouchableOpacity
+                      key={seat.id}
+                      style={[
+                        styles.cell,
+                        { backgroundColor: c.bg, borderColor: c.border },
+                        !reservable && !seat.isMine && styles.cellDisabled,
+                        seat.isMine && styles.cellMine,
+                      ]}
+                      onPress={() => {
+                        if (reservable && reserving === null) onReserve(seat);
+                      }}
+                      disabled={!reservable || reserving !== null}
+                      activeOpacity={0.7}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator size="small" color={c.border} />
+                      ) : (
+                        <Text style={[styles.cellText, { color: c.text }]} numberOfLines={1}>
+                          {seat.code || seat.name}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </ScrollView>
 
       {/* 조작 힌트 */}
       <View style={styles.hint} pointerEvents="none">
-        <Text style={styles.hintText}>두 손가락으로 확대/축소 · 드래그로 이동</Text>
+        <Text style={styles.hintText}>↔ 좌우로 스크롤 · 위아래로 스크롤</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    overflow: 'hidden',
+  wrapper: {
     backgroundColor: '#F1F5F9',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    overflow: 'hidden',
   },
-  canvas: {
-    position: 'absolute',
+  gridContainer: {
+    flexDirection: 'column',
+    gap: GAP,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: GAP,
   },
   cell: {
-    position: 'absolute',
     width: CELL,
     height: CELL,
     borderRadius: 6,
@@ -214,13 +179,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cellDisabled: { opacity: 0.4 },
+  cellDisabled: { opacity: 0.38 },
   cellMine: { borderWidth: 2.5 },
   cellText: {
     fontSize: 9,
     fontWeight: '700',
     fontFamily: 'Inter_700Bold',
     textAlign: 'center',
+  },
+  emptySpacer: {
+    width: CELL,
+    height: CELL,
   },
   fallback: {
     alignItems: 'center',
@@ -239,7 +208,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.38)',
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,

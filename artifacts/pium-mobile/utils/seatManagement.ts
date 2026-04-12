@@ -312,14 +312,26 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
       : Array.isArray(raw.data)
       ? raw.data
       : [];
+    // 디버그: 첫 번째 좌석의 모든 필드 확인 (개발 중에만)
+    if (rawList.length > 0) {
+      console.log("[SeatMap] 좌석 필드 샘플:", JSON.stringify(rawList[0]).slice(0, 400));
+    }
     const list: IndividualSeat[] = rawList.map((s: any) => ({
       id: s.id,
       name: s.name ?? "",
       code: s.code ?? s.name ?? "",
       status: s.status ?? { code: "", name: "" },
       isMine: s.isMine ?? false,
-      x: typeof s.x === "number" ? s.x : undefined,
-      y: typeof s.y === "number" ? s.y : undefined,
+      // Pyxis API 필드명 후보: x/y, col/row, column/row, xpos/ypos
+      x: typeof s.x === "number" ? s.x
+        : typeof s.col === "number" ? s.col
+        : typeof s.column === "number" ? s.column
+        : typeof s.xpos === "number" ? s.xpos
+        : undefined,
+      y: typeof s.y === "number" ? s.y
+        : typeof s.row === "number" ? s.row
+        : typeof s.ypos === "number" ? s.ypos
+        : undefined,
     }));
     return { success: true, message: "좌석 목록을 불러왔습니다.", data: list };
   } catch (e: any) {
