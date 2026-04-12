@@ -717,6 +717,12 @@ export default function ReadingRoomsScreen() {
     setShowLogin(true);
   }, []);
 
+  // SeatPickerModal에 안정된 참조로 전달 — 인라인 함수 사용 시 useEffect 무한 루프 발생
+  const handleSeatSessionExpired = useCallback(() => {
+    setShowPicker(false);
+    handleSessionExpired();
+  }, [handleSessionExpired]);
+
   const handleLoginSuccess = useCallback((s: SchoolSession) => {
     setSession(s);
     setShowLogin(false);
@@ -954,7 +960,7 @@ export default function ReadingRoomsScreen() {
         room={pickerRoom}
         onDismiss={() => setShowPicker(false)}
         onReserved={(msg) => { showToast(msg, 'success'); loadMySeat(); }}
-        onSessionExpired={() => { setShowPicker(false); handleSessionExpired(); }}
+        onSessionExpired={handleSeatSessionExpired}
       />
     </View>
   );

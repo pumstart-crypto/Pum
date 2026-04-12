@@ -314,12 +314,20 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
       : { "Accept": "application/json", "Origin": "https://lib.pusan.ac.kr" };
     const res = await fetch(url, { headers });
     const raw: PyxisBody = await res.json();
+    // 디버그: 실제 응답 구조 확인
+    console.log('[SeatPicker] API 응답:', JSON.stringify({ success: raw.success, code: raw.code, dataKeys: raw.data ? Object.keys(raw.data) : null, listLen: raw.data?.list?.length, dataIsArr: Array.isArray(raw.data) }).slice(0, 300));
     if (!raw.success) {
       const expired = checkSessionExpired(raw);
       if (expired) return expired as SeatActionResult<IndividualSeat[]>;
       return { success: false, message: raw.message || "좌석 정보를 불러올 수 없습니다." };
     }
-    return { success: true, message: "좌석 목록을 불러왔습니다.", data: raw.data?.list ?? [] };
+    // Pyxis 응답 포맷: { data: { list: [...] } } 또는 { data: [...] } 모두 처리
+    const list: IndividualSeat[] = Array.isArray(raw.data?.list)
+      ? raw.data.list
+      : Array.isArray(raw.data)
+      ? raw.data
+      : [];
+    return { success: true, message: "좌석 목록을 불러왔습니다.", data: list };
   } catch (e: any) {
     return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
   }
