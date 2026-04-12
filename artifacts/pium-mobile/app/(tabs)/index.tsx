@@ -42,7 +42,7 @@ const QUICK_LINKS = [
   { label: '홈페이지', icon: 'globe', set: 'feather', href: 'https://www.pusan.ac.kr/kor/Main.do' },
   { label: '학생지원', icon: 'help-circle', set: 'feather', href: 'https://onestop.pusan.ac.kr/login' },
   { label: 'PLATO', icon: 'book-open', set: 'feather', href: 'https://plato.pusan.ac.kr' },
-  { label: '도서관', icon: 'book', set: 'feather', href: 'https://lib.pusan.ac.kr' },
+  { label: '도서관', icon: 'book', set: 'feather', screen: '/reading-rooms' },
   { label: '학사일정', icon: 'calendar', set: 'feather', screen: '/academic-calendar' },
   { label: '식단', icon: 'restaurant-outline', set: 'ionicons', screen: '/meals' },
   { label: '순환버스', icon: 'bus-outline', set: 'ionicons', screen: '/bus' },

@@ -13,6 +13,7 @@ import busRouter from "./bus";
 import communityRouter from "./community";
 import authRouter from "./auth";
 import academicCalendarRouter from "./academic-calendar";
+import libraryRouter from "./library";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(busRouter);
 router.use(communityRouter);
 router.use(authRouter);
 router.use(academicCalendarRouter);
+router.use(libraryRouter);
 
 export default router;
