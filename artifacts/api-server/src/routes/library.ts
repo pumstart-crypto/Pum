@@ -12,7 +12,8 @@ const PYXIS_HEADERS = {
 
 router.get("/library/seat-rooms", async (req, res) => {
   try {
-    const url = `${PYXIS_BASE}/seat-rooms?homepageId=1&smufMethodCode=SEAT&branchGroupId=1`;
+    const branchGroupId = req.query.branchGroupId ?? "1";
+    const url = `${PYXIS_BASE}/seat-rooms?homepageId=1&smufMethodCode=SEAT&branchGroupId=${branchGroupId}`;
     const upstream = await fetch(url, { headers: PYXIS_HEADERS });
     const json = await upstream.json() as any;
     res.json(json);
