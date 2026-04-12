@@ -5,6 +5,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+app.set("etag", false); // ETag 비활성화 → 304 응답 방지
 
 app.use(
   pinoHttp({
