@@ -918,16 +918,12 @@ export default function ReadingRoomsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {/* Room content */}
+            {/* Room content — display:none으로 탭 마운트 유지 + zIndex 충돌 없음 */}
             <View style={{ flex: 1 }}>
               {ROOM_TABS.map(tab => (
                 <View
                   key={tab.key}
-                  style={[
-                    StyleSheet.absoluteFill,
-                    { opacity: activeRoomTab === tab.key ? 1 : 0, zIndex: activeRoomTab === tab.key ? 1 : 0 },
-                  ]}
-                  pointerEvents={activeRoomTab === tab.key ? 'auto' : 'none'}
+                  style={{ flex: 1, display: activeRoomTab === tab.key ? 'flex' : 'none' }}
                 >
                   <TabContent
                     branchGroupId={tab.branchGroupId}

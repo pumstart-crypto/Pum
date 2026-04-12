@@ -307,7 +307,8 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
   if (Platform.OS === "web") return webUnsupported();
   try {
     const cookie = await getPyxisCookieHeader();
-    const url = `${PYXIS_BASE}/${HOMEPAGE_ID}/api/seat-rooms/${seatRoomId}/seats?homepageId=${HOMEPAGE_ID}`;
+    // 인증 API: JSESSIONID 필요 (디바이스 한국 IP에서 동작)
+    const url = `${PYXIS_BASE}/${HOMEPAGE_ID}/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=${HOMEPAGE_ID}`;
     const headers: HeadersInit = cookie
       ? { "Accept": "application/json", "Cookie": cookie, "Origin": "https://lib.pusan.ac.kr", "User-Agent": "PiumApp/1.0 (Expo React Native)" }
       : { "Accept": "application/json", "Origin": "https://lib.pusan.ac.kr" };
