@@ -15,7 +15,7 @@ import {
   MySeatData, extractSeatName, extractRoomName, extractBranchName,
 } from '@/utils/seatManagement';
 import {
-  getSchoolSession, clearSchoolSession, SchoolSession,
+  getSchoolSession, logoutFromLibrary, SchoolSession,
 } from '@/utils/schoolAuth';
 import { saveFavoriteSeat } from '@/utils/favoriteSeat';
 import {
@@ -686,7 +686,7 @@ export default function ReadingRoomsScreen() {
     setMySeatLoading(true);
     const result = await getMySeat();
     setMySeatLoading(false);
-    if (result.needsLogin) { setSession(null); await clearSchoolSession(); setMySeat(null); return; }
+    if (result.needsLogin) { setSession(null); await logoutFromLibrary(); setMySeat(null); return; }
     if (result.success) setMySeat(result.data ?? null);
   }, []);
 
@@ -699,7 +699,7 @@ export default function ReadingRoomsScreen() {
 
   const handleSessionExpired = useCallback(() => {
     setSession(null); setMySeat(null);
-    clearSchoolSession();
+    logoutFromLibrary();
     setShowLogin(true);
   }, []);
 
@@ -777,7 +777,7 @@ export default function ReadingRoomsScreen() {
 
   // ── Logout ─────────────────────────────────────────────────
   const handleLogout = useCallback(async () => {
-    await clearSchoolSession();
+    await logoutFromLibrary();
     setSession(null); setMySeat(null);
     showToast('로그아웃되었습니다.', 'success');
   }, [showToast]);

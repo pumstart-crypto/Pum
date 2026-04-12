@@ -3,25 +3,28 @@
  *
  * 학교 포털(Pyxis 도서관 시스템) 인증 유틸리티.
  *
+ * ┌─ 아키텍처 ─────────────────────────────────────────────────┐
+ * │ • 로그인: 앱 → API 서버 → Pyxis                           │
+ * │   API 서버가 로그인을 대행하여 JSESSIONID를 DB에 저장      │
+ * │   앱에는 세션 토큰(lib_token)만 반환                       │
+ * │ • 이후 요청: 앱 → API 서버 (Authorization: Bearer <token>) │
+ * │   API 서버가 DB에서 JSESSIONID를 조회하여 Pyxis에 전달     │
+ * │ • Pyxis 세션은 접속 IP에 바인딩 → 모든 요청을 API 서버가  │
+ * │   동일 IP로 처리하여 세션 유지 보장                        │
+ * └───────────────────────────────────────────────────────────┘
+ *
  * ┌─ 보안 원칙 ────────────────────────────────────────────────┐
  * │ • 학번·비밀번호는 절대 저장하지 않습니다.                  │
- * │ • 인증 성공 시 userId/userName만 SecureStore에 저장        │
- * │ • JSESSIONID는 API 서버가 추출 → 앱이 SecureStore에 보관  │
- * │   이후 모든 Pyxis 요청에 Cookie 헤더로 직접 포함          │
- * │   (Expo Go는 cross-origin 쿠키 자동전송 미지원이므로)     │
+ * │ • JSESSIONID는 API 서버 DB에만 보관, 앱에 절대 노출 안 함  │
+ * │ • 앱에는 세션 토큰(64자 hex)만 SecureStore에 저장          │
  * └───────────────────────────────────────────────────────────┘
  */
 
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-export const MOBILE_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) " +
-  "AppleWebKit/605.1.15 (KHTML, like Gecko) " +
-  "Version/18.0 Mobile/15E148 Safari/604.1";
-
 const KEY_SCHOOL_SESSION = "pium_school_session";
-const KEY_JSESSIONID     = "pium_jsessionid";
+const KEY_LIB_TOKEN     = "pium_lib_token";
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED,
@@ -56,14 +59,12 @@ function friendlyMessage(code: string, raw: string): string {
   return ERROR_MSG[code] ?? raw ?? "알 수 없는 오류가 발생했습니다.";
 }
 
-// API 서버 base URL (Expo 환경변수)
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   return domain ? `https://${domain}/api` : "";
 }
 
 // ── 로그인 ──────────────────────────────────────────────────
-// API 서버(library.ts)에 로그인 요청 → JSESSIONID 추출 후 반환
 async function performLogin(loginId: string, password: string): Promise<SchoolSession> {
   const apiBase = getApiBase();
   if (!apiBase) throw new SchoolAuthError("config.error", "서버 설정이 올바르지 않습니다.");
@@ -94,9 +95,9 @@ async function performLogin(loginId: string, password: string): Promise<SchoolSe
     throw new SchoolAuthError(code, friendlyMessage(code, body.message ?? ""));
   }
 
-  // JSESSIONID를 SecureStore에 별도 저장 (Pyxis API 요청 시 Cookie 헤더에 직접 포함)
-  if (body.data?.jsessionid) {
-    await SecureStore.setItemAsync(KEY_JSESSIONID, body.data.jsessionid, STORE_OPTIONS);
+  // 서버에서 반환한 세션 토큰을 SecureStore에 저장
+  if (body.data?.token) {
+    await SecureStore.setItemAsync(KEY_LIB_TOKEN, body.data.token, STORE_OPTIONS);
   }
 
   const session: SchoolSession = {
@@ -123,7 +124,7 @@ export async function loginWithCredentials(id: string, password: string): Promis
 }
 
 // ─────────────────────────────────────────────────────────────
-// getSchoolSession / clearSchoolSession / buildAuthHeaders
+// 세션 조회
 // ─────────────────────────────────────────────────────────────
 export async function getSchoolSession(): Promise<SchoolSession | null> {
   if (Platform.OS === "web") return null;
@@ -136,35 +137,53 @@ export async function getSchoolSession(): Promise<SchoolSession | null> {
   }
 }
 
-/** 저장된 JSESSIONID 조회 */
-export async function getJsessionid(): Promise<string | null> {
+/** 저장된 라이브러리 세션 토큰 조회 */
+export async function getLibToken(): Promise<string | null> {
   if (Platform.OS === "web") return null;
-  return await SecureStore.getItemAsync(KEY_JSESSIONID, STORE_OPTIONS);
+  return await SecureStore.getItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS);
+}
+
+/** 인증 헤더 빌드 (Bearer 토큰) */
+export async function buildLibAuthHeaders(): Promise<HeadersInit> {
+  const token = await getLibToken();
+  return {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+  };
 }
 
 export async function clearSchoolSession(): Promise<void> {
   if (Platform.OS === "web") return;
   await SecureStore.deleteItemAsync(KEY_SCHOOL_SESSION, STORE_OPTIONS);
-  await SecureStore.deleteItemAsync(KEY_JSESSIONID, STORE_OPTIONS);
+  await SecureStore.deleteItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS);
 }
 
-/**
- * buildAuthHeaders
- *
- * JSESSIONID를 Cookie 헤더에 명시적으로 포함합니다.
- * Expo Go는 cross-origin 쿠키를 자동 전송하지 않으므로
- * SecureStore에서 꺼내 직접 설정합니다.
- */
-export async function buildAuthHeaders(): Promise<HeadersInit> {
-  const jsessionid = Platform.OS !== "web"
-    ? await SecureStore.getItemAsync(KEY_JSESSIONID, STORE_OPTIONS)
-    : null;
+// ── 로그아웃 (서버에도 세션 삭제 요청) ────────────────────────
+export async function logoutFromLibrary(): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    const token = await getLibToken();
+    if (token) {
+      const apiBase = getApiBase();
+      if (apiBase) {
+        await fetch(`${apiBase}/library/logout`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+      }
+    }
+  } catch {}
+  await clearSchoolSession();
+}
 
-  return {
-    "User-Agent": MOBILE_UA,
-    "Origin": "https://lib.pusan.ac.kr",
-    "Referer": "https://lib.pusan.ac.kr/",
-    "Accept": "application/json",
-    ...(jsessionid ? { "Cookie": `JSESSIONID=${jsessionid}` } : {}),
-  };
+// ── 하위 호환성 유지 ─────────────────────────────────────────
+/** @deprecated getLibToken() 사용 */
+export async function getJsessionid(): Promise<string | null> {
+  return getLibToken();
+}
+
+/** @deprecated buildLibAuthHeaders() 사용 */
+export async function buildAuthHeaders(): Promise<HeadersInit> {
+  return buildLibAuthHeaders();
 }
