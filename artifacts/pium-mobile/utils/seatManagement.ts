@@ -1,8 +1,10 @@
 /**
  * seatManagement.ts
  *
- * 도서관 좌석 예약 · 연장 · 반납 · 개별 좌석 조회.
- * 기기 → lib.pusan.ac.kr 직접 통신 (Replit 서버 미경유).
+ * 도서관 좌석 예약 · 연장 · 반납 · 이석 · 내역 · 제한현황 조회.
+ * 기기 → lib.pusan.ac.kr 직접 통신.
+ * buildAuthHeaders()가 SecureStore에서 JSESSIONID를 꺼내
+ * Cookie 헤더에 명시 포함 → Expo Go 쿠키 자동전송 미지원 문제 해결.
  *
  * 세션 만료 시 needsLogin: true 를 반환합니다.
  * UI는 이 플래그를 보고 로그인 모달을 다시 띄워야 합니다.
@@ -32,7 +34,6 @@ export interface SeatActionResult<T = unknown> {
 
 export interface MySeatData {
   id: number | null;
-  // Nested structure (Pyxis standard)
   seat?: {
     id: number; name: string; code?: string;
     seatRoom?: {
@@ -44,18 +45,48 @@ export interface MySeatData {
     id: number; name: string;
     branch?: { id: number; name: string; alias?: string };
   } | null;
-  // Legacy flat fields
   seatId?: number | null;
   seatName?: string | null;
   roomName?: string | null;
   branchName?: string | null;
-  // Time
   startTime: string | null;
   endTime: string | null;
   extendableTime?: string | null;
   temporaryEndTime?: string | null;
-  // State
   state: { code: string; name: string } | null;
+}
+
+export interface IndividualSeat {
+  id: number;
+  name: string;
+  code: string;
+  status: { code: string; name: string };
+  isMine: boolean;
+}
+
+export interface SeatHistoryItem {
+  id: number;
+  seatName: string | null;
+  roomName: string | null;
+  branchName: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  usageMinutes: number | null;
+  date: string | null;
+}
+
+export interface SeatViolation {
+  id: number;
+  violationType: string | null;
+  restrictedUntil: string | null;
+  description: string | null;
+  createdAt: string | null;
+}
+
+export interface AwayStatus {
+  isAway: boolean;
+  awayStartTime: string | null;
+  awayDeadline: string | null;
 }
 
 /** 좌석 번호 추출 (중첩 구조 vs 플랫 구조 모두 처리) */
@@ -87,14 +118,6 @@ export function extractRoomId(data: MySeatData | null): number | null {
   return data.seat?.seatRoom?.id ?? data.seatRoom?.id ?? null;
 }
 
-export interface IndividualSeat {
-  id: number;
-  name: string;
-  code: string;
-  status: { code: string; name: string };
-  isMine: boolean;
-}
-
 interface PyxisBody {
   success: boolean;
   code?: string;
@@ -118,11 +141,6 @@ async function pyxisRequest(
   return res.json();
 }
 
-/**
- * 세션 만료 감지 래퍼.
- * 세션이 만료됐으면 재로그인 없이 needsLogin: true 를 반환합니다.
- * (자격 증명은 저장하지 않으므로 자동 재로그인 불가)
- */
 async function withSessionCheck(
   fn: () => Promise<PyxisBody>,
   expiredMessage: string
@@ -142,6 +160,9 @@ const FALLBACK: Record<string, string> = {
   "error.mySeat.notFound":        "현재 사용 중인 좌석이 없습니다.",
   "error.mySeat.cannotExtend":    "연장 가능한 시간이 아닙니다.",
   "error.mySeat.alreadyExtended": "이미 연장된 좌석입니다.",
+  "error.mySeat.away.alreadyAway": "이미 이석 처리된 상태입니다.",
+  "error.mySeat.away.notAway":    "이석 상태가 아닙니다.",
+  "error.mySeat.away.expired":    "이석 가능 시간이 초과되었습니다.",
 };
 
 function fallback(code: string | undefined, def: string) {
@@ -154,7 +175,6 @@ function webUnsupported<T>(msg: string): SeatActionResult<T> {
 
 // ─────────────────────────────────────────────────────────────
 // reserveSeat — 선택한 좌석 예약
-// seatId: getSeatRoomSeats()로 얻은 개별 좌석 id
 // ─────────────────────────────────────────────────────────────
 export async function reserveSeat(seatId: number): Promise<SeatActionResult> {
   if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
@@ -245,7 +265,6 @@ export async function getMySeat(): Promise<SeatActionResult<MySeatData>> {
 
 // ─────────────────────────────────────────────────────────────
 // getSeatRoomSeats — 열람실 내 개별 좌석 목록
-// seatRoomId: reading-rooms 화면의 SeatRoom.id
 // ─────────────────────────────────────────────────────────────
 export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionResult<IndividualSeat[]>> {
   if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
@@ -266,6 +285,99 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
       };
     }
     return { success: true, message: "좌석 목록을 불러왔습니다.", data: raw.data?.list ?? [] };
+  } catch (e: any) {
+    return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// setAway — 이석 처리 (자리를 잠깐 비울 때)
+// ─────────────────────────────────────────────────────────────
+export async function setAway(): Promise<SeatActionResult<AwayStatus>> {
+  if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
+  try {
+    const raw = await withSessionCheck(
+      () => pyxisRequest("POST", "/api/my-seat/away", { homepageId: 1 }),
+      "세션이 만료되었습니다. 다시 로그인해 주세요."
+    );
+    if (raw.needsLogin) return { success: false, message: raw.message!, needsLogin: true };
+    if (raw.success) return { success: true, message: raw.message ?? "이석 처리되었습니다.", data: raw.data };
+    return { success: false, message: raw.message || fallback(raw.code, "이석 처리에 실패했습니다.") };
+  } catch (e: any) {
+    return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// returnFromAway — 이석 복귀
+// ─────────────────────────────────────────────────────────────
+export async function returnFromAway(): Promise<SeatActionResult> {
+  if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
+  try {
+    const raw = await withSessionCheck(
+      () => pyxisRequest("DELETE", "/api/my-seat/away"),
+      "세션이 만료되었습니다. 다시 로그인해 주세요."
+    );
+    if (raw.needsLogin) return { success: false, message: raw.message!, needsLogin: true };
+    if (raw.success) return { success: true, message: raw.message ?? "이석 복귀 처리되었습니다." };
+    return { success: false, message: raw.message || fallback(raw.code, "이석 복귀에 실패했습니다.") };
+  } catch (e: any) {
+    return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// getMySeatHistories — 좌석 이용 내역
+// ─────────────────────────────────────────────────────────────
+export async function getMySeatHistories(): Promise<SeatActionResult<SeatHistoryItem[]>> {
+  if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
+  try {
+    const raw = await withSessionCheck(
+      () => pyxisRequest("GET", "/api/my-seat/histories"),
+      "세션이 만료되었습니다. 다시 로그인해 주세요."
+    );
+    if (raw.needsLogin) return { success: false, message: raw.message!, needsLogin: true };
+    if (raw.success) {
+      const list: SeatHistoryItem[] = (raw.data?.list ?? []).map((item: any) => ({
+        id: item.id,
+        seatName: item.seat?.name ?? item.seatName ?? null,
+        roomName: item.seat?.seatRoom?.name ?? item.seatRoom?.name ?? item.roomName ?? null,
+        branchName: item.seat?.seatRoom?.branch?.name ?? item.branchName ?? null,
+        startTime: item.startTime ?? null,
+        endTime: item.endTime ?? null,
+        usageMinutes: item.usageMinutes ?? null,
+        date: item.date ?? null,
+      }));
+      return { success: true, message: "이용 내역을 불러왔습니다.", data: list };
+    }
+    return { success: false, message: raw.message || "이용 내역을 불러올 수 없습니다." };
+  } catch (e: any) {
+    return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// getMySeatViolations — 이용 제한 현황 (패널티)
+// ─────────────────────────────────────────────────────────────
+export async function getMySeatViolations(): Promise<SeatActionResult<SeatViolation[]>> {
+  if (Platform.OS === "web") return webUnsupported("웹 환경에서는 지원하지 않습니다.");
+  try {
+    const raw = await withSessionCheck(
+      () => pyxisRequest("GET", "/api/my-seat/violations"),
+      "세션이 만료되었습니다. 다시 로그인해 주세요."
+    );
+    if (raw.needsLogin) return { success: false, message: raw.message!, needsLogin: true };
+    if (raw.success) {
+      const list: SeatViolation[] = (raw.data?.list ?? raw.data ?? []).map((item: any) => ({
+        id: item.id,
+        violationType: item.violationType ?? item.type ?? null,
+        restrictedUntil: item.restrictedUntil ?? item.endDate ?? null,
+        description: item.description ?? item.reason ?? null,
+        createdAt: item.createdAt ?? item.date ?? null,
+      }));
+      return { success: true, message: "이용 제한 현황을 불러왔습니다.", data: list };
+    }
+    return { success: false, message: raw.message || "이용 제한 현황을 불러올 수 없습니다." };
   } catch (e: any) {
     return { success: false, message: `네트워크 오류: ${e?.message ?? "알 수 없는 오류"}` };
   }

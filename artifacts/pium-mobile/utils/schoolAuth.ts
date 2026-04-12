@@ -6,21 +6,14 @@
  * ┌─ 보안 원칙 ────────────────────────────────────────────────┐
  * │ • 학번·비밀번호는 절대 저장하지 않습니다.                  │
  * │ • 인증 성공 시 userId/userName만 SecureStore에 저장        │
- * │ • JSESSIONID 쿠키는 네이티브 HTTP 스택이 자동으로 관리     │
- * │ • 모든 HTTP 요청은 기기 → 학교 서버 직접 전송            │
+ * │ • JSESSIONID는 API 서버가 추출 → 앱이 SecureStore에 보관  │
+ * │   이후 모든 Pyxis 요청에 Cookie 헤더로 직접 포함          │
+ * │   (Expo Go는 cross-origin 쿠키 자동전송 미지원이므로)     │
  * └───────────────────────────────────────────────────────────┘
- *
- * [쿠키 처리 원칙]
- * React Native의 fetch는 set-cookie 헤더를 JS에 노출하지 않습니다.
- * 대신 iOS NSURLSession / Android OkHttp가 쿠키 저장소를 자동 관리하며,
- * 같은 도메인 요청 시 Cookie 헤더를 자동으로 포함합니다.
- * 따라서 JSESSIONID를 직접 추출/저장/세팅하지 않습니다.
  */
 
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-
-const PYXIS_LOGIN_URL = "https://lib.pusan.ac.kr/pyxis-api/api/login";
 
 export const MOBILE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) " +
@@ -28,6 +21,7 @@ export const MOBILE_UA =
   "Version/18.0 Mobile/15E148 Safari/604.1";
 
 const KEY_SCHOOL_SESSION = "pium_school_session";
+const KEY_JSESSIONID     = "pium_jsessionid";
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED,
@@ -62,25 +56,29 @@ function friendlyMessage(code: string, raw: string): string {
   return ERROR_MSG[code] ?? raw ?? "알 수 없는 오류가 발생했습니다.";
 }
 
-// ── 내부 공통 로그인 실행기 ──────────────────────────────────
+// API 서버 base URL (Expo 환경변수)
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}/api` : "";
+}
+
+// ── 로그인 ──────────────────────────────────────────────────
+// API 서버(library.ts)에 로그인 요청 → JSESSIONID 추출 후 반환
 async function performLogin(loginId: string, password: string): Promise<SchoolSession> {
+  const apiBase = getApiBase();
+  if (!apiBase) throw new SchoolAuthError("config.error", "서버 설정이 올바르지 않습니다.");
+
   let response: Response;
   try {
-    response = await fetch(PYXIS_LOGIN_URL, {
+    response = await fetch(`${apiBase}/library/login`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json, text/plain, */*",
-        "User-Agent": MOBILE_UA,
-        "Origin": "https://lib.pusan.ac.kr",
-        "Referer": "https://lib.pusan.ac.kr/",
-      },
-      body: JSON.stringify({ loginId, password, homepageId: 1 }),
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ loginId, password }),
     });
   } catch (e: any) {
     throw new SchoolAuthError(
       "network.error",
-      `학교 서버에 연결할 수 없습니다. 네트워크를 확인해 주세요. (${e?.message ?? "unknown"})`
+      `서버에 연결할 수 없습니다. 네트워크를 확인해 주세요. (${e?.message ?? "unknown"})`
     );
   }
 
@@ -88,7 +86,7 @@ async function performLogin(loginId: string, password: string): Promise<SchoolSe
   try {
     body = await response.json();
   } catch {
-    throw new SchoolAuthError("parse.error", "학교 서버 응답을 처리할 수 없습니다.");
+    throw new SchoolAuthError("parse.error", "서버 응답을 처리할 수 없습니다.");
   }
 
   if (!body.success) {
@@ -96,11 +94,14 @@ async function performLogin(loginId: string, password: string): Promise<SchoolSe
     throw new SchoolAuthError(code, friendlyMessage(code, body.message ?? ""));
   }
 
-  // JSESSIONID 쿠키는 네이티브 HTTP 스택이 자동 저장합니다.
-  // userId/userName만 추출하여 UI 상태 복원에 사용합니다.
+  // JSESSIONID를 SecureStore에 별도 저장 (Pyxis API 요청 시 Cookie 헤더에 직접 포함)
+  if (body.data?.jsessionid) {
+    await SecureStore.setItemAsync(KEY_JSESSIONID, body.data.jsessionid, STORE_OPTIONS);
+  }
+
   const session: SchoolSession = {
-    userId:   body.data?.userId ?? body.data?.loginId ?? loginId,
-    userName: body.data?.name   ?? body.data?.userName ?? null,
+    userId:   body.data?.userId   ?? loginId,
+    userName: body.data?.userName ?? null,
     savedAt:  Date.now(),
   };
 
@@ -110,10 +111,6 @@ async function performLogin(loginId: string, password: string): Promise<SchoolSe
 
 // ─────────────────────────────────────────────────────────────
 // loginWithCredentials  ← UI에서 직접 호출
-//
-// 학번·비밀번호를 받아 학교 서버에 로그인합니다.
-// ⚠️  ID·비밀번호는 저장하지 않습니다.
-//      JSESSIONID는 네이티브 쿠키 저장소에 자동 저장됩니다.
 // ─────────────────────────────────────────────────────────────
 export async function loginWithCredentials(id: string, password: string): Promise<SchoolSession> {
   if (Platform.OS === "web") {
@@ -139,22 +136,35 @@ export async function getSchoolSession(): Promise<SchoolSession | null> {
   }
 }
 
+/** 저장된 JSESSIONID 조회 */
+export async function getJsessionid(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  return await SecureStore.getItemAsync(KEY_JSESSIONID, STORE_OPTIONS);
+}
+
 export async function clearSchoolSession(): Promise<void> {
   if (Platform.OS === "web") return;
   await SecureStore.deleteItemAsync(KEY_SCHOOL_SESSION, STORE_OPTIONS);
+  await SecureStore.deleteItemAsync(KEY_JSESSIONID, STORE_OPTIONS);
 }
 
 /**
  * buildAuthHeaders
  *
- * JSESSIONID 쿠키는 네이티브 HTTP 스택이 자동으로 포함시킵니다.
- * 여기서는 User-Agent 등 공통 헤더만 반환합니다.
+ * JSESSIONID를 Cookie 헤더에 명시적으로 포함합니다.
+ * Expo Go는 cross-origin 쿠키를 자동 전송하지 않으므로
+ * SecureStore에서 꺼내 직접 설정합니다.
  */
 export async function buildAuthHeaders(): Promise<HeadersInit> {
+  const jsessionid = Platform.OS !== "web"
+    ? await SecureStore.getItemAsync(KEY_JSESSIONID, STORE_OPTIONS)
+    : null;
+
   return {
     "User-Agent": MOBILE_UA,
     "Origin": "https://lib.pusan.ac.kr",
     "Referer": "https://lib.pusan.ac.kr/",
     "Accept": "application/json",
+    ...(jsessionid ? { "Cookie": `JSESSIONID=${jsessionid}` } : {}),
   };
 }
