@@ -661,7 +661,7 @@ export default function ReadingRoomsScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const { show: showToast, Toast } = useToast();
 
-  const [mainTab, setMainTab] = useState<MainTab>('my-seat');
+  const [mainTab, setMainTab] = useState<MainTab>(isWeb ? 'rooms' : 'my-seat');
   const [activeRoomTab, setActiveRoomTab] = useState<RoomTabKey>('saebbyukbul');
   const [tabRooms, setTabRooms] = useState<Record<RoomTabKey, SeatRoom[]>>({
     saebbyukbul: [], mirinai: [], nano: [], medical: [],
@@ -838,23 +838,25 @@ export default function ReadingRoomsScreen() {
         )}
       </View>
 
-      {/* ── Main Tab Segment (notices.tsx 동일 스타일) ── */}
-      <View style={styles.mainTabWrap}>
-        <View style={styles.tabSegment}>
-          {(['my-seat', 'rooms'] as MainTab[]).map(t => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.tabSegItem, mainTab === t && styles.tabSegItemActive]}
-              onPress={() => setMainTab(t)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabSegText, mainTab === t && styles.tabSegTextActive]}>
-                {t === 'my-seat' ? '내 좌석 관리' : '열람실 현황'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* ── Main Tab Segment (모바일 전용, 웹 미표시) ── */}
+      {!isWeb && (
+        <View style={styles.mainTabWrap}>
+          <View style={styles.tabSegment}>
+            {(['my-seat', 'rooms'] as MainTab[]).map(t => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.tabSegItem, mainTab === t && styles.tabSegItemActive]}
+                onPress={() => setMainTab(t)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabSegText, mainTab === t && styles.tabSegTextActive]}>
+                  {t === 'my-seat' ? '내 좌석 관리' : '열람실 현황'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* ── Content ── */}
       <View style={{ flex: 1 }}>
