@@ -33,6 +33,15 @@ function pyxisHeaders(cookieStr: string): Record<string, string> {
   return { ...PYXIS_HEADERS, "Cookie": cookieStr };
 }
 
+// /1/api/ 경로는 Cookie 외에 Authorization: Bearer 헤더도 필요 (Angular SPA 방식)
+function pyxisHeaders1Api(cookieStr: string): Record<string, string> {
+  const tokenMatch = cookieStr.match(/PUSAN_PYXIS3=([^;]+)/);
+  const accessToken = tokenMatch?.[1]?.trim();
+  const headers: Record<string, string> = { ...PYXIS_HEADERS, "Cookie": cookieStr };
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+  return headers;
+}
+
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
@@ -153,7 +162,7 @@ router.get("/library/seat-room-seats", async (req: Request, res: Response): Prom
   try {
     const upstream = await fetch(
       `${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
-      { headers: pyxisHeaders(cookieStr) },
+      { headers: pyxisHeaders1Api(cookieStr) },
     );
     const json = await upstream.json() as any;
     console.log("[DEBUG seat-room-seats] code:", json?.code, "success:", json?.success, "seats:", Array.isArray(json?.data?.list) ? json.data.list.length : json?.data?.list);
