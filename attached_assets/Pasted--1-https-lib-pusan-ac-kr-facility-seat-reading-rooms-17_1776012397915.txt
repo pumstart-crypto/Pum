@@ -1,0 +1,26 @@
+| # | 열람실 | 링크 |
+|---|---|---|
+| 1 | 새벽누리-미디어존 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/2 |
+| 2 | 새벽누리-열람존 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/3 |
+| 3 | 1열람실 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/69 |
+| 4 | 새벽별당[24h]-A | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/7 |
+| 5 | 새벽별당[24h]-B | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/8 |
+| 6 | 2열람실-A | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/9 |
+| 7 | 2열람실-B | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/10 |
+| 8 | 2열람실-C | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/11 |
+| 9 | 2열람실-D | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/12 |
+| 10 | 나무열람실 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/21 |
+| 11 | 숲열람실 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/20 |
+| 12 | 3열람실-A | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/15 |
+| 13 | 3열람실-B | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/16 |
+| 14 | 3열람실-C | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/17 |
+| 15 | 3열람실-D | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/18 |
+| 16 | 노트북열람실-A | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/13 |
+| 17 | 노트북열람실-B | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/14 |
+| 18 | 대학원캐럴실 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/19 |
+| 19 | 아카데미아-열람실 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/22 |
+| 20 | 아카데미아-캐럴실-A | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/23 |
+| 21 | 아카데미아-캐럴실-B | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/24 |
+| 22 | 행림별당 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/25 |
+| 23 | 미르마루 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/26 |
+| 24 | 집중열람실 | https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation/27 |

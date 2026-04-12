@@ -73,11 +73,12 @@ function isUnconfirmedSeat(mySeat: MySeatData): boolean {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────
+// excludeNames: 열람실 name 또는 roomType.name에 해당 문자열이 포함되면 목록에서 제외
 const ROOM_TABS = [
-  { key: 'saebbyukbul', label: '새벽벌', branchGroupId: 1, typeFilter: '새벽벌', short: '새벽벌도서관' },
-  { key: 'mirinai',     label: '미리내', branchGroupId: 1, typeFilter: '미리내', short: '미리내열람실' },
-  { key: 'nano',        label: '나노생명', branchGroupId: 2, typeFilter: null,   short: '나노생명과학도서관' },
-  { key: 'medical',     label: '의생명', branchGroupId: 4, typeFilter: null,    short: '의생명과학도서관' },
+  { key: 'saebbyukbul', label: '새벽벌',  branchGroupId: 1, typeFilter: '새벽벌', short: '새벽벌도서관',      excludeNames: ['PC', '노트북', '캐럴'] },
+  { key: 'mirinai',     label: '미리내',  branchGroupId: 1, typeFilter: '미리내', short: '미리내열람실',      excludeNames: [] },
+  { key: 'nano',        label: '나노생명', branchGroupId: 2, typeFilter: null,    short: '나노생명과학도서관', excludeNames: [] },
+  { key: 'medical',     label: '의생명',  branchGroupId: 4, typeFilter: null,    short: '의생명과학도서관',   excludeNames: ['PC'] },
 ] as const;
 type RoomTabKey = typeof ROOM_TABS[number]['key'];
 
@@ -549,10 +550,11 @@ function RoomCard({ room, onSelect, sessionActive }: {
 // TabContent (열람실별 좌석 현황)
 // ══════════════════════════════════════════════════════════════
 function TabContent({
-  branchGroupId, typeFilter, isActive,
+  branchGroupId, typeFilter, excludeNames, isActive,
   onRoomsReady, onSelectRoom, sessionActive,
 }: {
   branchGroupId: number; typeFilter: string | null;
+  excludeNames: readonly string[];
   isActive: boolean;
   onRoomsReady: (rooms: SeatRoom[]) => void;
   onSelectRoom: (room: SeatRoom) => void;
@@ -581,11 +583,16 @@ function TabContent({
       if (json.success && json.data?.list) {
         let list: SeatRoom[] = json.data.list;
         if (typeFilter) list = list.filter(r => r.roomType?.name?.includes(typeFilter));
+        if (excludeNames.length > 0) {
+          list = list.filter(r =>
+            !excludeNames.some(ex => r.name?.includes(ex) || r.roomType?.name?.includes(ex))
+          );
+        }
         setRooms(list); onRoomsReady(list); setLastUpdated(new Date());
       } else { setError('데이터를 불러올 수 없습니다.'); }
     } catch { setError('네트워크 오류가 발생했습니다.'); }
     finally { setIsLoading(false); setIsRefreshing(false); }
-  }, [branchGroupId, typeFilter, onRoomsReady]);
+  }, [branchGroupId, typeFilter, excludeNames, onRoomsReady]);
 
   useEffect(() => {
     if (!hasFetched.current) { hasFetched.current = true; fetchRooms(); }
@@ -933,6 +940,7 @@ export default function ReadingRoomsScreen() {
                   <TabContent
                     branchGroupId={tab.branchGroupId}
                     typeFilter={tab.typeFilter}
+                    excludeNames={tab.excludeNames}
                     isActive={mainTab === 'rooms' && activeRoomTab === tab.key}
                     onRoomsReady={handleRoomsReady(tab.key)}
                     onSelectRoom={handleSelectRoom}
