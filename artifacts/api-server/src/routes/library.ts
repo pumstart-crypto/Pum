@@ -83,7 +83,7 @@ async function proxyGet(url: string, jsessionid: string, res: Response): Promise
     const json = await upstream.json() as any;
     res.json(json);
   } catch {
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
   }
 }
 
@@ -97,7 +97,7 @@ async function proxyPost(url: string, jsessionid: string, body: object, res: Res
     const json = await upstream.json() as any;
     res.json(json);
   } catch {
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
   }
 }
 
@@ -107,7 +107,7 @@ async function proxyDelete(url: string, jsessionid: string, res: Response): Prom
     const json = await upstream.json() as any;
     res.json(json);
   } catch {
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
   }
 }
 
@@ -147,7 +147,7 @@ router.get("/library/seat-rooms", async (req: Request, res: Response): Promise<v
     const json = await upstream.json();
     res.json(json);
   } catch {
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
   }
 });
 
@@ -189,7 +189,7 @@ router.get("/library/seat-room-seats", async (req: Request, res: Response): Prom
     res.json(json);
   } catch (e: any) {
     console.error(`[seat-room-seats] Korea proxy error:`, e?.message);
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다. (한국 프록시 오류)" });
+    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다. (한국 프록시 오류)" });
   }
 });
 
@@ -256,7 +256,7 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
       // ── 2단계: 리다이렉트 수동 추적 ───────────────────────────────
       const location = loginRes.headers.get("location");
       if (!location) {
-        res.status(502).json({ success: false, message: "로그인 리다이렉트 주소를 찾을 수 없습니다." });
+        res.status(503).json({ success: false, message: "로그인 리다이렉트 주소를 찾을 수 없습니다." });
         return;
       }
       const redirectUrl = location.startsWith("http") ? location : `https://lib.pusan.ac.kr${location}`;
@@ -268,9 +268,26 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
       console.log("[login] GET redirect", redirectUrl, "status=", followRes.status);
       collectCookies(followRes, cookieMap);
       try { json = await followRes.json(); } catch { json = {}; }
+    } else if (loginRes.status === 403) {
+      // 부산대 도서관이 외부 서버 접근을 차단 중
+      res.status(503).json({
+        success: false,
+        code: "error.library.blocked",
+        message: "현재 부산대 도서관 서버가 외부 접근을 차단하고 있습니다.\n교내 Wi-Fi에 연결하거나 잠시 후 다시 시도해 주세요.",
+      });
+      return;
     } else {
       // 200 직접 응답
-      json = await loginRes.json();
+      try {
+        json = await loginRes.json();
+      } catch {
+        res.status(503).json({
+          success: false,
+          code: "error.library.blocked",
+          message: "도서관 서버 응답을 파싱할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+        });
+        return;
+      }
     }
 
     if (!json.success) {
@@ -281,7 +298,7 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
     const jsessionid = cookieMap["JSESSIONID"] ?? null;
     console.log("[login] JSESSIONID=", jsessionid ? "OK" : "MISSING", "cookieKeys=", Object.keys(cookieMap));
     if (!jsessionid) {
-      res.status(502).json({ success: false, message: "도서관 서버에서 세션을 발급받지 못했습니다. (JSESSIONID 없음)" });
+      res.status(503).json({ success: false, message: "도서관 서버에서 세션을 발급받지 못했습니다. (JSESSIONID 없음)" });
       return;
     }
 
@@ -317,7 +334,7 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (err: any) {
-    res.status(502).json({ success: false, message: `도서관 서버 연결에 실패했습니다. (${err?.message ?? "unknown"})` });
+    res.status(503).json({ success: false, message: `도서관 서버 연결에 실패했습니다. (${err?.message ?? "unknown"})` });
   }
 });
 
