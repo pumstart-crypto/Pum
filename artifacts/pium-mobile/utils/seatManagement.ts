@@ -353,6 +353,8 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
       throw e;
     }
 
+    console.log(`[getSeatRoomSeats] roomId=${seatRoomId} success=${raw.success} code=${raw.code ?? ""} msg=${raw.message ?? ""}`);
+
     if (!raw.success) {
       const expired = checkSessionExpired(raw);
       if (expired) return expired as SeatActionResult<IndividualSeat[]>;
