@@ -339,10 +339,6 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
       ? raw.data
       : [];
 
-    if (rawList.length > 0) {
-      console.log("[SeatMap] 좌석 필드 샘플:", JSON.stringify(rawList[0]).slice(0, 400));
-    }
-
     const list: IndividualSeat[] = rawList.map((s: any) => ({
       id: s.id,
       name: s.name ?? "",

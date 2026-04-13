@@ -10,9 +10,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
 import SchoolLoginModal from '@/components/SchoolLoginModal';
 import {
-  getMySeat,
+  getMySeat, extendSeat, returnSeat, cancelSeat,
   MySeatData, extractSeatName, extractRoomName, extractBranchName,
 } from '@/utils/seatManagement';
+import SeatPickerModal from '@/components/SeatPickerModal';
 import {
   getSchoolSession, logoutFromLibrary, getLibApiToken, SchoolSession,
 } from '@/utils/schoolAuth';
@@ -677,6 +678,7 @@ export default function ReadingRoomsScreen() {
 
   // ── Modals ─────────────────────────────────────────────────
   const [showLogin, setShowLogin] = useState(false);
+  const [seatPickerRoom, setSeatPickerRoom] = useState<{ id: number; name: string; branch?: string } | null>(null);
 
   // ── Load session ───────────────────────────────────────────
   const loadMySeat = useCallback(async (forceLogoutOnExpiry = false) => {
@@ -710,24 +712,48 @@ export default function ReadingRoomsScreen() {
   }, [loadMySeat]);
 
   // ── Room select ────────────────────────────────────────────
-  const handleSelectRoom = useCallback((_room: SeatRoom) => {
-    showToast('기능 준비중입니다.', 'success');
+  const handleSelectRoom = useCallback((room: SeatRoom) => {
+    if (!session) { setShowLogin(true); return; }
+    setSeatPickerRoom({ id: room.id, name: room.name, branch: room.branch?.name });
+  }, [session]);
+
+  // ── Seat picker callbacks ───────────────────────────────────
+  const handleSeatReserved = useCallback((message: string) => {
+    showToast(message || '예약이 완료되었습니다.', 'success');
+    loadMySeat();
+  }, [showToast, loadMySeat]);
+
+  const handleSeatPickerSessionExpired = useCallback(() => {
+    setSeatPickerRoom(null);
+    setSession(null);
+    setMySeat(null);
+    showToast('세션이 만료되었습니다. 다시 로그인해 주세요.', 'error');
+    setShowLogin(true);
   }, [showToast]);
 
   // ── Extend ─────────────────────────────────────────────────
-  const handleExtend = useCallback(() => {
-    showToast('기능 준비중입니다.', 'success');
-  }, [showToast]);
+  const handleExtend = useCallback(async () => {
+    const result = await extendSeat();
+    if (result.needsLogin) { setSession(null); setMySeat(null); setShowLogin(true); return; }
+    showToast(result.message, result.success ? 'success' : 'error');
+    if (result.success) loadMySeat();
+  }, [showToast, loadMySeat]);
 
   // ── Return ─────────────────────────────────────────────────
-  const handleReturn = useCallback(() => {
-    showToast('기능 준비중입니다.', 'success');
-  }, [showToast]);
+  const handleReturn = useCallback(async () => {
+    const result = await returnSeat();
+    if (result.needsLogin) { setSession(null); setMySeat(null); setShowLogin(true); return; }
+    showToast(result.message, result.success ? 'success' : 'error');
+    if (result.success) { setMySeat(null); loadMySeat(); }
+  }, [showToast, loadMySeat]);
 
   // ── Cancel ─────────────────────────────────────────────────
-  const handleCancel = useCallback(() => {
-    showToast('기능 준비중입니다.', 'success');
-  }, [showToast]);
+  const handleCancel = useCallback(async () => {
+    const result = await cancelSeat();
+    if (result.needsLogin) { setSession(null); setMySeat(null); setShowLogin(true); return; }
+    showToast(result.message, result.success ? 'success' : 'error');
+    if (result.success) { setMySeat(null); loadMySeat(); }
+  }, [showToast, loadMySeat]);
 
   // ── Logout ─────────────────────────────────────────────────
   const handleLogout = useCallback(async () => {
@@ -738,8 +764,10 @@ export default function ReadingRoomsScreen() {
 
   // ── Save favorite seat ─────────────────────────────────────
   const handleSaveFavorite = useCallback(() => {
-    showToast('기능 준비중입니다.', 'success');
-  }, [showToast]);
+    if (mySeat) {
+      showToast('즐겨찾기 기능은 준비중입니다.', 'success');
+    }
+  }, [showToast, mySeat]);
 
   // ── Navigate to reserve ────────────────────────────────────
   const handleGoReserve = useCallback(() => {
@@ -865,6 +893,14 @@ export default function ReadingRoomsScreen() {
         visible={showLogin}
         onSuccess={handleLoginSuccess}
         onDismiss={() => setShowLogin(false)}
+      />
+
+      <SeatPickerModal
+        visible={seatPickerRoom !== null}
+        room={seatPickerRoom}
+        onDismiss={() => setSeatPickerRoom(null)}
+        onReserved={handleSeatReserved}
+        onSessionExpired={handleSeatPickerSessionExpired}
       />
     </View>
   );
