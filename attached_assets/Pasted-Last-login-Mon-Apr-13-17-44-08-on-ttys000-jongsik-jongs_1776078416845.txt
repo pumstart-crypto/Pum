@@ -1,0 +1,59 @@
+Last login: Mon Apr 13 17:44:08 on ttys000
+jongsik@jongsig-ui-MacBookAir ~ % ssh -i pum-seat-key.pem root@223.130.142.144
+Warning: Identity file pum-seat-key.pem not accessible: No such file or directory.
+root@223.130.142.144's password: 
+Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-84-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Mon Apr 13 08:06:27 PM KST 2026
+
+  System load:  0.13              Processes:             114
+  Usage of /:   8.5% of 49.10GB   Users logged in:       1
+  Memory usage: 47%               IPv4 address for eth0: 10.0.1.6
+  Swap usage:   0%
+
+ * Strictly confined Kubernetes makes edge and IoT secure. Learn how MicroK8s
+   just raised the bar for easy, resilient and secure K8s cluster deployment.
+
+   https://ubuntu.com/engage/secure-kubernetes-at-the-edge
+
+Expanded Security Maintenance for Applications is not enabled.
+
+302 updates can be applied immediately.
+139 of these updates are standard security updates.
+To see these additional updates run: apt list --upgradable
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+------------------------------------------------------------------------------------------------------------
+
+███╗   ██╗ ██████╗██╗      ██████╗ ██╗   ██╗██████╗
+████╗  ██║██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗
+██╔██╗ ██║██║     ██║     ██║   ██║██║   ██║██║  ██║
+██║╚██╗██║██║     ██║     ██║   ██║██║   ██║██║  ██║
+██║ ╚████║╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝
+╚═╝  ╚═══╝ ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝
+
+Welcome to Naver Cloud Platform Server!
+Authorized access only!
+If you are not authorized to access this system, disconnect now!
+------------------------------------------------------------------------------------------------------------
+Last login: Mon Apr 13 17:45:09 2026 from 61.42.109.13
+root@pum-seat-proxy:~# # 실제 학번/비밀번호로 로그인 (쿠키 저장)
+curl -s -X POST "https://lib.pusan.ac.kr/pyxis-api/api/login" \
+  -H "Content-Type: application/json" \
+  -H "Origin: https://lib.pusan.ac.kr" \
+  -c /tmp/test.jar \
+  -d '{"loginId":"실제학번","password":"실제비밀번호","homepageId":1}' | python3 -c "import sys,json; d=json.load(sys.stdin); print('success=',d.get('success'))"
+success= False
+root@pum-seat-proxy:~# # 로그인 후 멤버십 카드 페이지에서 UUID 찾기
+curl -sL "https://lib.pusan.ac.kr/mobile/membership-card/" \
+  -H "Origin: https://lib.pusan.ac.kr" \
+  -H "Referer: https://lib.pusan.ac.kr/" \
+  -b /tmp/test.jar | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+root@pum-seat-proxy:~# 
