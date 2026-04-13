@@ -73,7 +73,7 @@ function isUnconfirmedSeat(mySeat: MySeatData): boolean {
 // ── Tabs ──────────────────────────────────────────────────────
 // excludeNames: 열람실 name 또는 roomType.name에 해당 문자열이 포함되면 목록에서 제외
 const ROOM_TABS = [
-  { key: 'saebbyukbul', label: '새벽벌',  branchGroupId: 1, typeFilter: '새벽벌', short: '새벽벌도서관',      excludeNames: ['PC', '노트북', '캐럴'] },
+  { key: 'saebbyukbul', label: '새벽벌',  branchGroupId: 1, typeFilter: '새벽벌', short: '새벽벌도서관',      excludeNames: ['PC'] },
   { key: 'mirinai',     label: '미리내',  branchGroupId: 1, typeFilter: '미리내', short: '미리내열람실',      excludeNames: [] },
   { key: 'nano',        label: '나노생명', branchGroupId: 2, typeFilter: null,    short: '나노생명과학도서관', excludeNames: [] },
   { key: 'medical',     label: '의생명',  branchGroupId: 4, typeFilter: null,    short: '의생명과학도서관',   excludeNames: ['PC'] },
@@ -831,13 +831,6 @@ export default function ReadingRoomsScreen() {
                   <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
                     {tab.label}
                   </Text>
-                  {tabRooms[tab.key].length > 0 && (
-                    <View style={[styles.roomTabBadge, activeRoomTab === tab.key && styles.roomTabBadgeActive]}>
-                      <Text style={[styles.roomTabBadgeText, activeRoomTab === tab.key && styles.roomTabBadgeTextActive]}>
-                        {tabRooms[tab.key].reduce((s, r) => s + r.seats.available, 0)}
-                      </Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               ))}
             </View>
