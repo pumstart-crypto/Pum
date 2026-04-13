@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,7 +58,7 @@ export default function TabLayout() {
         },
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: 'transparent',
+          backgroundColor: '#ffffff',
           borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
           elevation: 0,
@@ -76,16 +75,9 @@ export default function TabLayout() {
           paddingBottom: 4,
           minHeight: 58,
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={80}
-              tint="light"
-              style={StyleSheet.absoluteFill}
-            />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} />
-          ),
+        tabBarBackground: () => (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#ffffff' }]} />
+        ),
       }}
     >
       {TAB_ITEMS.map(tab => (
