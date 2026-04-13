@@ -1,0 +1,132 @@
+이건 꽤 구체적인 기술 문제네요. 핵심부터 답하겠습니다.
+
+## 답변: React Native (Expo Go)에서의 쿠키 처리
+
+### 1. `Set-Cookie` 헤더를 JS에서 읽을 수 있나?
+
+**기본적으로 안 됩니다.** React Native의 `fetch`는 내부적으로 iOS의 `NSURLSession`을 사용하는데, `Set-Cookie`는 "forbidden response header"로 취급되어 JS 레이어의 `response.headers`에 노출되지 않습니다. `NSURLSession`이 쿠키를 받아서 OS 레벨의 쿠키 저장소(`NSHTTPCookieStorage`)에 자동 저장은 하지만, JS에서 그 값을 직접 꺼내 읽기가 어렵습니다.
+
+### 2. 요청에 `Cookie` 헤더를 직접 설정할 수 있나?
+
+**React Native의 fetch에서는 보통 무시됩니다.** 브라우저와 마찬가지로 `Cookie`는 forbidden request header로 처리되어, `fetch`에 직접 넣어도 실제 전송되지 않거나 OS 쿠키 저장소의 값으로 덮어씌워지는 경우가 많습니다. 이건 iOS에서 특히 그렇습니다.
+
+### 3. `NSURLSession` 자동 쿠키 처리가 RN fetch에 적용되나?
+
+**되긴 하는데 불완전합니다.** 같은 도메인으로 요청하면 `NSHTTPCookieStorage`에 저장된 쿠키가 자동으로 붙지만, 문제는 Pyxis 서버가 `Set-Cookie`에 `SameSite`, `Secure`, `Domain`, `Path` 등의 속성을 어떻게 설정했느냐에 따라 자동 전송이 안 될 수 있다는 점입니다. 특히 Expo Go 앱의 도메인과 Pyxis 서버 도메인이 다르면 third-party cookie로 취급되어 차단됩니다.
+
+---
+
+## 해결 방법
+
+현재 구조의 근본 문제는 **Expo Go의 네트워킹 레이어가 쿠키를 개발자에게 충분히 노출하지 않는다**는 점입니다. 현실적인 해결책 순서대로:
+
+### 방법 1: 프록시 서버에서 전부 처리 (가장 확실)
+
+Replit의 API 서버가 Pyxis와의 모든 통신을 대리하는 구조로 바꾸면 됩니다.
+
+```
+기기 → Replit 서버 → Pyxis
+        (여기서 JSESSIONID + accessToken 모두 관리)
+```
+
+서버(Node.js)에서는 쿠키를 자유롭게 읽고 쓸 수 있으므로, 로그인 시 `Set-Cookie`에서 `JSESSIONID`를 파싱하고, 이후 좌석 조회 요청에 `Cookie: JSESSIONID=...` + `Authorization: Bearer ...`를 붙여서 Pyxis에 전달하면 됩니다. 기기는 Replit 서버와만 통신하고, Pyxis와 직접 통신할 필요가 없어요.
+
+```javascript
+// Replit 서버 (Node.js) 예시
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  const pyxisRes = await fetch('https://pyxis.pusan.ac.kr/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+    redirect: 'manual',  // Set-Cookie를 직접 처리하기 위해
+  });
+
+  // Set-Cookie 헤더에서 JSESSIONID 추출
+  const setCookie = pyxisRes.headers.get('set-cookie');
+  const jsessionid = setCookie?.match(/JSESSIONID=([^;]+)/)?.[1];
+  
+  const body = await pyxisRes.json();
+  const accessToken = body.accessToken;
+
+  // 서버 메모리/DB에 세션 저장
+  sessions[req.userId] = { jsessionid, accessToken };
+
+  res.json({ success: true });
+});
+
+app.get('/api/seats/:roomId', async (req, res) => {
+  const { jsessionid, accessToken } = sessions[req.userId];
+
+  const pyxisRes = await fetch(
+    `https://pyxis.pusan.ac.kr/1/api/rooms/${req.params.roomId}/seats`,
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Cookie': `JSESSIONID=${jsessionid}`,
+      },
+    }
+  );
+
+  const data = await pyxisRes.json();
+  res.json(data);
+});
+```
+
+이렇게 하면 Expo Go의 쿠키 제한이 완전히 우회됩니다.
+
+### 방법 2: Expo에서 네이티브 쿠키 접근 (`@react-native-cookies/cookies`)
+
+Expo Go가 아닌 **dev client 빌드**로 전환하면 네이티브 모듈을 쓸 수 있습니다.
+
+```javascript
+import CookieManager from '@react-native-cookies/cookies';
+
+// 로그인 후 쿠키 직접 읽기
+const cookies = await CookieManager.get('https://pyxis.pusan.ac.kr');
+const jsessionid = cookies.JSESSIONID?.value;
+
+// 이후 요청 시 직접 설정
+await CookieManager.set('https://pyxis.pusan.ac.kr', {
+  name: 'JSESSIONID',
+  value: jsessionid,
+  domain: 'pyxis.pusan.ac.kr',
+  path: '/',
+});
+```
+
+다만 이건 Expo Go를 버리고 커스텀 dev client를 빌드해야 해서 개발 편의성이 떨어집니다.
+
+### 방법 3: `credentials: 'include'` + 도메인 일치 확인
+
+가장 간단하지만 성공 확률이 낮은 방법입니다. 혹시 아직 안 해봤다면:
+
+```javascript
+const loginRes = await fetch('https://pyxis.pusan.ac.kr/login', {
+  method: 'POST',
+  credentials: 'include',  // 핵심
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, password }),
+});
+
+// 이후 요청도 반드시 credentials: 'include'
+const seatsRes = await fetch('https://pyxis.pusan.ac.kr/1/api/rooms/8/seats', {
+  credentials: 'include',  // NSURLSession이 자동으로 JSESSIONID 붙여줌
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+  },
+});
+```
+
+모든 요청에 `credentials: 'include'`가 일관되게 들어가야 `NSURLSession`의 자동 쿠키 관리가 작동합니다. 하나라도 빠지면 쿠키가 전송 안 됩니다.
+
+---
+
+## 권장 방향
+
+**방법 1 (프록시 서버)이 압도적으로 좋습니다.** 이유는 세 가지예요:
+
+첫째, 플랫폼 의존성이 없어서 iOS/Android 차이를 신경 쓸 필요가 없습니다. 둘째, Pyxis 서버의 쿠키 정책이 바뀌어도 서버 코드만 수정하면 됩니다. 셋째, 이미 Replit 서버가 있으니 거기에 프록시 로직만 추가하면 되고요.
+
+현재 "기기에서 Pyxis에 직접 로그인"하는 2번 단계를 없애고, 모든 Pyxis 통신을 Replit 서버 경유로 통일하면 `needLogin` 문제가 해결될 겁니다.
