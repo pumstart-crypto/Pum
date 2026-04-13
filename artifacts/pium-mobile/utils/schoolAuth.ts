@@ -66,15 +66,13 @@ function friendlyMessage(code: string, raw: string): string {
 // ─────────────────────────────────────────────────────────────
 // loginWithCredentials  ← UI에서 직접 호출
 //
-// [아키텍처 v2] 기기에서 Pyxis에 직접 로그인 (한국 IP 보장)
-//
-// 1. 기기 → Pyxis /api/login 직접 POST (Korean IP)
-//    → iOS NSURLSession이 JSESSIONID 쿠키를 HTTPCookieStorage에 자동 저장
-//    → 이후 lib.pusan.ac.kr 요청에 JSESSIONID 자동 첨부
-//    → accessToken (Bearer) 응답 바디에서 추출 → SecureStore 저장
-// 2. 이후 모든 Pyxis API: 기기에서 직접 호출
-//    → iOS 자동 쿠키(JSESSIONID) + Authorization: Bearer 헤더
-//    → Cookie를 수동으로 설정할 필요 없음
+// [아키텍처 v3]
+// 1. API 서버 경유 Pyxis 로그인 (신뢰할 수 있는 경로, 오류 처리 완비)
+//    → apiToken + pyxisToken 발급 → SecureStore 저장
+// 2. 기기에서 Pyxis로 직접 로그인 (한국 IP, iOS 쿠키 자동 저장용)
+//    → iOS NSURLSession이 JSESSIONID를 HTTPCookieStorage에 자동 저장
+//    → 이후 기기 직접 Pyxis 호출 시 쿠키 자동 첨부
+//    → 실패해도 조용히 무시 (선택적)
 // ─────────────────────────────────────────────────────────────
 export async function loginWithCredentials(id: string, password: string): Promise<SchoolSession> {
   if (Platform.OS === "web") {
@@ -84,18 +82,13 @@ export async function loginWithCredentials(id: string, password: string): Promis
     throw new SchoolAuthError("input.empty", friendlyMessage("input.empty", ""));
   }
 
+  // ── Step 1: API 서버 경유 로그인 (메인) ──────────────────────
   let res: Response;
   try {
-    // 기기에서 직접 Pyxis 로그인 — iOS가 JSESSIONID 쿠키를 자동 처리
-    res = await fetch("https://lib.pusan.ac.kr/pyxis-api/api/login", {
+    res = await fetch(`${API_BASE}/library/login`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Origin": "https://lib.pusan.ac.kr",
-        "Referer": "https://lib.pusan.ac.kr/facility/seat",
-      },
-      body: JSON.stringify({ loginId: id.trim(), password, homepageId: 1 }),
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ loginId: id.trim(), password }),
     });
   } catch (e: any) {
     throw new SchoolAuthError(
@@ -116,21 +109,46 @@ export async function loginWithCredentials(id: string, password: string): Promis
     throw new SchoolAuthError(code, friendlyMessage(code, json.message ?? ""));
   }
 
-  const data = json.data ?? {};
-  const accessToken = data.accessToken ?? null;
-  const uid = data.userId ?? data.loginId ?? id.trim();
-  const uname = data.name ?? data.userName ?? null;
+  const { token, pyxisToken, userId, userName } = json.data ?? {};
 
-  if (accessToken) {
-    await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, accessToken, STORE_OPTIONS);
+  if (token) {
+    await SecureStore.setItemAsync(KEY_LIB_TOKEN, token, STORE_OPTIONS);
+  }
+  if (pyxisToken) {
+    await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, pyxisToken, STORE_OPTIONS);
   }
 
   const session: SchoolSession = {
-    userId: uid,
-    userName: uname,
+    userId: userId ?? id.trim(),
+    userName: userName ?? null,
     savedAt: Date.now(),
   };
   await SecureStore.setItemAsync(KEY_SCHOOL_SESSION, JSON.stringify(session), STORE_OPTIONS);
+
+  // ── Step 2: 기기에서 직접 Pyxis 로그인 (iOS 쿠키 설정용, 선택적) ─
+  // iOS NSURLSession이 Set-Cookie(JSESSIONID)를 HTTPCookieStorage에 자동 저장.
+  // 이후 lib.pusan.ac.kr 도메인 요청 시 JSESSIONID가 자동 첨부됨.
+  // 실패해도 Step 1 결과에 영향 없음.
+  try {
+    const sessionUuid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    await fetch("https://lib.pusan.ac.kr/pyxis-api/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) " +
+          "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+        "Accept-Language": "ko-KR,ko;q=0.9",
+        "Origin": "https://lib.pusan.ac.kr",
+        "Referer": "https://lib.pusan.ac.kr/facility/seat",
+        "X-Pyxis-Session": sessionUuid,
+      },
+      body: JSON.stringify({ loginId: id.trim(), password, homepageId: 1 }),
+    });
+  } catch {
+    // 무시 — 기기 쿠키 설정 실패여도 API 서버 토큰으로 동작 가능
+  }
 
   return session;
 }
