@@ -9,18 +9,16 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
 import SchoolLoginModal from '@/components/SchoolLoginModal';
-import SeatPickerModal from '@/components/SeatPickerModal';
 import {
-  getMySeat, extendSeat, returnSeat, cancelSeat,
+  getMySeat,
   MySeatData, extractSeatName, extractRoomName, extractBranchName,
 } from '@/utils/seatManagement';
 import {
   getSchoolSession, logoutFromLibrary, getLibApiToken, SchoolSession,
 } from '@/utils/schoolAuth';
-import { saveFavoriteSeat } from '@/utils/favoriteSeat';
 import {
-  recordStudySession, getWeeklyBarData, formatMinutes,
-  getTodayMinutes, getWeekMinutes, parseTimeToday,
+  getWeeklyBarData, formatMinutes,
+  getTodayMinutes, getWeekMinutes,
 } from '@/utils/studySessions';
 
 const isWeb = Platform.OS === 'web';
@@ -221,9 +219,6 @@ interface MySeatManagementProps {
   session: SchoolSession | null;
   mySeat: MySeatData | null;
   mySeatLoading: boolean;
-  extending: boolean;
-  returning: boolean;
-  cancelling: boolean;
   onLogin: () => void;
   onLogout: () => void;
   onExtend: () => void;
@@ -234,7 +229,6 @@ interface MySeatManagementProps {
 }
 function MySeatManagement({
   session, mySeat, mySeatLoading,
-  extending, returning, cancelling,
   onLogin, onLogout, onExtend, onReturn, onCancel, onReserve, onSaveFavorite,
 }: MySeatManagementProps) {
 
@@ -334,15 +328,12 @@ function MySeatManagement({
           {/* Action buttons */}
           <View style={styles.ticketActions}>
             <TouchableOpacity
-              style={[styles.ticketActionBtn, styles.cancelBtn, cancelling && { opacity: 0.6 }]}
+              style={[styles.ticketActionBtn, styles.cancelBtn]}
               onPress={onCancel}
-              disabled={cancelling || returning}
               activeOpacity={0.8}
             >
-              {cancelling
-                ? <ActivityIndicator size="small" color="#DC2626" />
-                : <><Feather name="x-circle" size={14} color="#DC2626" /><Text style={styles.cancelBtnText}>예약 취소</Text></>
-              }
+              <Feather name="x-circle" size={14} color="#DC2626" />
+              <Text style={styles.cancelBtnText}>예약 취소</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.ticketActionBtn, styles.favSeatBtn]}
@@ -412,26 +403,20 @@ function MySeatManagement({
         {/* Action buttons */}
         <View style={styles.ticketActions}>
           <TouchableOpacity
-            style={[styles.ticketActionBtn, styles.extendBtn, extending && { opacity: 0.6 }]}
+            style={[styles.ticketActionBtn, styles.extendBtn]}
             onPress={onExtend}
-            disabled={extending || returning}
             activeOpacity={0.8}
           >
-            {extending
-              ? <ActivityIndicator size="small" color={C.primary} />
-              : <><Feather name="refresh-cw" size={14} color={C.primary} /><Text style={styles.extendBtnText}>연장</Text></>
-            }
+            <Feather name="refresh-cw" size={14} color={C.primary} />
+            <Text style={styles.extendBtnText}>연장</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.ticketActionBtn, styles.returnBtn, returning && { opacity: 0.6 }]}
+            style={[styles.ticketActionBtn, styles.returnBtn]}
             onPress={onReturn}
-            disabled={extending || returning}
             activeOpacity={0.8}
           >
-            {returning
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <><Feather name="log-out" size={14} color="#fff" /><Text style={styles.returnBtnText}>반납</Text></>
-            }
+            <Feather name="log-out" size={14} color="#fff" />
+            <Text style={styles.returnBtnText}>반납</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.ticketActionBtn, styles.favSeatBtn]}
@@ -678,15 +663,9 @@ export default function ReadingRoomsScreen() {
   const [session, setSession] = useState<SchoolSession | null>(null);
   const [mySeat, setMySeat] = useState<MySeatData | null>(null);
   const [mySeatLoading, setMySeatLoading] = useState(false);
-  const [extending, setExtending] = useState(false);
-  const [returning, setReturning] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
 
   // ── Modals ─────────────────────────────────────────────────
   const [showLogin, setShowLogin] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
-  const [pickerRoom, setPickerRoom] = useState<{ id: number; name: string; branch?: string } | null>(null);
-  const pendingRoom = useRef<{ id: number; name: string; branch?: string } | null>(null);
 
   // ── Load session ───────────────────────────────────────────
   const loadMySeat = useCallback(async (forceLogoutOnExpiry = false) => {
@@ -713,93 +692,31 @@ export default function ReadingRoomsScreen() {
     })();
   }, [loadMySeat]);
 
-  const handleSessionExpired = useCallback(async () => {
-    // lib 토큰이 없는 경우에만 완전 로그아웃 처리
-    const token = await getLibApiToken();
-    if (!token) {
-      setSession(null); setMySeat(null);
-      await logoutFromLibrary();
-    }
-    setShowLogin(true);
-  }, []);
-
-  // SeatPickerModal에 안정된 참조로 전달 — 인라인 함수 사용 시 useEffect 무한 루프 발생
-  const handleSeatSessionExpired = useCallback(() => {
-    setShowPicker(false);
-    handleSessionExpired();
-  }, [handleSessionExpired]);
-
   const handleLoginSuccess = useCallback((s: SchoolSession) => {
     setSession(s);
     setShowLogin(false);
     loadMySeat();
-    if (pendingRoom.current) {
-      setPickerRoom(pendingRoom.current);
-      pendingRoom.current = null;
-      setShowPicker(true);
-    }
   }, [loadMySeat]);
 
   // ── Room select ────────────────────────────────────────────
-  const handleSelectRoom = useCallback((room: SeatRoom) => {
-    const r = { id: room.id, name: room.name, branch: room.branch?.name };
-    if (!session) {
-      pendingRoom.current = r;
-      setShowLogin(true);
-    } else {
-      setPickerRoom(r);
-      setShowPicker(true);
-    }
-  }, [session]);
+  const handleSelectRoom = useCallback((_room: SeatRoom) => {
+    showToast('기능 준비중입니다.', 'success');
+  }, [showToast]);
 
   // ── Extend ─────────────────────────────────────────────────
-  const handleExtend = useCallback(async () => {
-    setExtending(true);
-    const result = await extendSeat();
-    setExtending(false);
-    if (result.needsLogin) { handleSessionExpired(); return; }
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) loadMySeat();
-  }, [handleSessionExpired, showToast, loadMySeat]);
+  const handleExtend = useCallback(() => {
+    showToast('기능 준비중입니다.', 'success');
+  }, [showToast]);
 
   // ── Return ─────────────────────────────────────────────────
-  const handleReturn = useCallback(async () => {
-    setReturning(true);
-    const result = await returnSeat();
-    setReturning(false);
-    if (result.needsLogin) { handleSessionExpired(); return; }
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) {
-      // 학습 기록 저장
-      if (mySeat?.startTime) {
-        const roomN = extractRoomName(mySeat) ?? '열람실';
-        const start = parseTimeToday(mySeat.startTime);
-        const now = new Date();
-        const durationMin = start ? Math.round((now.getTime() - start.getTime()) / 60000) : 0;
-        if (durationMin > 0) {
-          const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-          await recordStudySession({
-            date: todayDate,
-            startTime: mySeat.startTime,
-            endTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-            durationMinutes: durationMin,
-            roomName: roomN,
-          });
-        }
-      }
-      setMySeat(null);
-    }
-  }, [handleSessionExpired, showToast, mySeat]);
+  const handleReturn = useCallback(() => {
+    showToast('기능 준비중입니다.', 'success');
+  }, [showToast]);
 
-  // ── Cancel (배정확정 전 취소) ───────────────────────────────
-  const handleCancel = useCallback(async () => {
-    setCancelling(true);
-    const result = await cancelSeat();
-    setCancelling(false);
-    if (result.needsLogin) { handleSessionExpired(); return; }
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) setMySeat(null);
-  }, [handleSessionExpired, showToast]);
+  // ── Cancel ─────────────────────────────────────────────────
+  const handleCancel = useCallback(() => {
+    showToast('기능 준비중입니다.', 'success');
+  }, [showToast]);
 
   // ── Logout ─────────────────────────────────────────────────
   const handleLogout = useCallback(async () => {
@@ -809,23 +726,9 @@ export default function ReadingRoomsScreen() {
   }, [showToast]);
 
   // ── Save favorite seat ─────────────────────────────────────
-  const handleSaveFavorite = useCallback(async () => {
-    if (!mySeat) return;
-    const seatId = mySeat.seat?.id ?? mySeat.seatId;
-    const seatName = extractSeatName(mySeat);
-    const roomId = mySeat.seat?.seatRoom?.id ?? mySeat.seatRoom?.id;
-    const roomName = extractRoomName(mySeat);
-    const branchName = extractBranchName(mySeat);
-    if (!seatId || !seatName || !roomId || !roomName) {
-      showToast('좌석 정보를 저장할 수 없습니다.', 'error');
-      return;
-    }
-    await saveFavoriteSeat({
-      seatId, seatName, roomId, roomName,
-      branchName: branchName ?? '',
-    });
-    showToast(`${roomName} ${seatName}번을 선호좌석으로 등록했습니다.`, 'success');
-  }, [mySeat, showToast]);
+  const handleSaveFavorite = useCallback(() => {
+    showToast('기능 준비중입니다.', 'success');
+  }, [showToast]);
 
   // ── Navigate to reserve ────────────────────────────────────
   const handleGoReserve = useCallback(() => {
@@ -892,9 +795,6 @@ export default function ReadingRoomsScreen() {
             session={session}
             mySeat={mySeat}
             mySeatLoading={mySeatLoading}
-            extending={extending}
-            returning={returning}
-            cancelling={cancelling}
             onLogin={() => setShowLogin(true)}
             onLogout={handleLogout}
             onExtend={handleExtend}
@@ -960,14 +860,7 @@ export default function ReadingRoomsScreen() {
       <SchoolLoginModal
         visible={showLogin}
         onSuccess={handleLoginSuccess}
-        onDismiss={() => { setShowLogin(false); pendingRoom.current = null; }}
-      />
-      <SeatPickerModal
-        visible={showPicker}
-        room={pickerRoom}
-        onDismiss={() => setShowPicker(false)}
-        onReserved={(msg) => { showToast(msg, 'success'); loadMySeat(); }}
-        onSessionExpired={handleSeatSessionExpired}
+        onDismiss={() => setShowLogin(false)}
       />
     </View>
   );
