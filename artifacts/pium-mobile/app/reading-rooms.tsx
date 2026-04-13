@@ -480,7 +480,7 @@ function RoomCard({ room, onSelect, sessionActive }: {
   const { total, occupied, available } = room.seats;
   const pct = total > 0 ? Math.round((occupied / total) * 100) : 0;
   const isDisabled = status === 'disabled';
-  const canSelect = !isDisabled && available > 0;
+  const canSelect = !isDisabled;
 
   const cardContent = (
     <>
@@ -493,7 +493,7 @@ function RoomCard({ room, onSelect, sessionActive }: {
               <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
             </View>
             {canSelect && (
-              <Feather name="chevron-right" size={15} color={C.primary} style={{ opacity: 0.7 }} />
+              <Feather name="chevron-right" size={15} color="#9CA3AF" style={{ opacity: 0.7 }} />
             )}
           </View>
         </View>
