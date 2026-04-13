@@ -16,6 +16,8 @@ import { getLibToken, getLibPyxisToken, getLibJsessionId } from "./schoolAuth";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const PYXIS_DIRECT = "https://lib.pusan.ac.kr/pyxis-api";
+// 한국 NCP 프록시 — Pyxis /1/api/ IP 제한 우회 (한국 IP에서 호출)
+const KOREA_PROXY = "http://223.130.142.144:3000";
 
 const SESSION_EXPIRED_CODES = new Set([
   "error.authentication.needLogin",
@@ -326,36 +328,11 @@ export async function cancelSeat(): Promise<SeatActionResult> {
   }
 }
 
-/**
- * 기기 직접 XHR: /1/api/seat-room-seats
- * - iOS NSURLSession은 브라우저와 달리 수동 Cookie 헤더를 허용함
- * - 기기(한국 IP)에서 JSESSIONID를 가져와 Cookie 헤더로 직접 전송
- */
-function xhrSeatRoomSeats(seatRoomId: number, jsessionid: string, pyxisToken: string): Promise<PyxisBody> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", `${PYXIS_DIRECT}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`);
-    xhr.setRequestHeader("Accept", "application/json");
-    xhr.setRequestHeader("Authorization", `Bearer ${pyxisToken}`);
-    xhr.setRequestHeader("Cookie", `JSESSIONID=${jsessionid}; PUSAN_PYXIS3=${pyxisToken}`);
-    xhr.setRequestHeader("Origin", "https://lib.pusan.ac.kr");
-    xhr.setRequestHeader("Referer", "https://lib.pusan.ac.kr/facility/seat");
-    xhr.timeout = 15000;
-    xhr.onload = () => {
-      try { resolve(JSON.parse(xhr.responseText)); }
-      catch { reject(new Error("JSON parse error")); }
-    };
-    xhr.onerror = () => reject(new Error("XHR error"));
-    xhr.ontimeout = () => reject(new Error("timeout"));
-    xhr.send();
-  });
-}
-
 // ─────────────────────────────────────────────────────────────
 // getSeatRoomSeats — 열람실 내 개별 좌석 목록
 //
-// 1차 시도: 기기 직접 XHR (Korean IP + Cookie 헤더 수동 설정)
-// 2차 시도: API 서버 프록시 (fallback)
+// 한국 NCP 프록시를 직접 호출 (한국 IP에서 Pyxis /1/api/ 접근)
+// 모바일 XHR 로그인으로 얻은 JSESSIONID + Bearer를 전달
 // ─────────────────────────────────────────────────────────────
 export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionResult<IndividualSeat[]>> {
   if (Platform.OS === "web") return webUnsupported();
@@ -363,29 +340,38 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
     const token = await getLibToken();
     if (!token) return noSession();
 
-    let raw: PyxisBody | null = null;
-
-    // 1차 시도: 기기 직접 XHR (한국 IP + JSESSIONID + Bearer)
     const jsessionid = await getLibJsessionId();
     const pyxisToken = await getLibPyxisToken();
-    if (jsessionid && pyxisToken) {
-      try {
-        const xhrResult = await xhrSeatRoomSeats(seatRoomId, jsessionid, pyxisToken);
-        console.log(`[getSeatRoomSeats] XHR direct: success=${xhrResult.success} code=${xhrResult.code ?? ""}`);
-        if (xhrResult.success || !SESSION_EXPIRED_CODES.has(xhrResult.code ?? "")) {
-          raw = xhrResult;
-        }
-        // needLogin이면 fallback to API server
-      } catch (e: any) {
-        console.log(`[getSeatRoomSeats] XHR direct failed: ${e?.message}`);
-      }
+
+    if (!jsessionid || !pyxisToken) {
+      return { success: false, message: "세션이 만료되었습니다. 다시 로그인해 주세요.", needsLogin: true };
     }
 
-    // 2차 시도: API 서버 프록시 (fallback)
+    let raw: PyxisBody | null = null;
+
+    // 한국 NCP 프록시 직접 호출 (한국 IP → Pyxis /1/api/ IP 제한 우회)
+    try {
+      const resp = await fetch(
+        `${KOREA_PROXY}/seat-room-seats?seatRoomId=${seatRoomId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${pyxisToken}`,
+            "X-Jsessionid": jsessionid,
+          },
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      raw = await resp.json() as PyxisBody;
+      console.log(`[getSeatRoomSeats] Korea proxy direct: success=${raw.success} code=${raw.code ?? ""}`);
+    } catch (e: any) {
+      console.log(`[getSeatRoomSeats] Korea proxy failed: ${e?.message}`);
+    }
+
+    // fallback: Replit API 서버 (한국 프록시 장애 시)
     if (!raw) {
       try {
         raw = await apiGet(`/library/seat-room-seats?seatRoomId=${seatRoomId}`, token);
-        console.log(`[getSeatRoomSeats] API proxy: success=${raw.success} code=${raw.code ?? ""}`);
+        console.log(`[getSeatRoomSeats] Replit API fallback: success=${raw.success} code=${raw.code ?? ""}`);
       } catch (e: any) {
         if (e?.message === "timeout") {
           return { success: false, message: "도서관 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." };

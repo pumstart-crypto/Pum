@@ -20,7 +20,15 @@
           "pnusc",
           "smartcampus",
           "pnu"
-        ]
+        ],
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "223.130.142.144": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        }
       },
       "bundleIdentifier": "com.pum.app"
     },
