@@ -413,7 +413,7 @@ export default function ScheduleScreen() {
       if (r.ok) setGrades(await r.json());
     } catch {}
     finally { setGradesLoading(false); setGradesFetched(true); }
-  }, [authHeader]);
+  }, [token]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -706,7 +706,7 @@ export default function ScheduleScreen() {
       }
 
       // 현재 성적 목록 조회 (최신)
-      const gRes = await fetch(`${API}/grades`);
+      const gRes = await fetch(`${API}/grades`, { headers: { ...authHeader } });
       const currentGrades: Grade[] = gRes.ok ? await gRes.json() : grades;
 
       const gradeKeyMap = new Map<string, number>(
@@ -720,7 +720,7 @@ export default function ScheduleScreen() {
           .filter(s => !gradeKeyMap.has(`${s.year}-${s.semester}-${s.subject}`))
           .map(s => fetch(`${API}/grades`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeader },
             body: JSON.stringify({ subjectName: s.subject, grade: 'A+', credits: s.credits, semester: s.semester, year: s.year, category: s.category }),
           }))
       );
@@ -738,7 +738,7 @@ export default function ScheduleScreen() {
             const id = gradeKeyMap.get(`${s.year}-${s.semester}-${s.subject}`)!;
             return fetch(`${API}/grades/${id}`, {
               method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...authHeader },
               body: JSON.stringify({ credits: s.credits }),
             });
           })
@@ -748,7 +748,7 @@ export default function ScheduleScreen() {
       await Promise.all(
         currentGrades
           .filter(g => !scheduleKeySet.has(`${g.year}-${g.semester}-${g.subjectName}`))
-          .map(g => fetch(`${API}/grades/${g.id}`, { method: 'DELETE' }))
+          .map(g => fetch(`${API}/grades/${g.id}`, { method: 'DELETE', headers: { ...authHeader } }))
       );
 
       await fetchGrades();
