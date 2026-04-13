@@ -1,0 +1,67 @@
+jongsik@jongsig-ui-MacBookAir ~ % curl -s -X POST "https://lib.pusan.ac.kr/pyxis-api/api/login" \
+  -H "Content-Type: application/json" \
+  -H "Origin: https://lib.pusan.ac.kr" \
+  -c /tmp/pyxis.jar \
+  -d '{"loginId":"202427548","password":"y6308548y+-","homepageId":1}' | python3 -m json.tool
+{
+    "success": true,
+    "code": "success.loggedIn",
+    "message": "\ub85c\uadf8\uc778\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+    "data": {
+        "availableHomepages": [
+            1,
+            2
+        ],
+        "isPrivacyPolicyAgree": true,
+        "privacyPolicyAgreePeriod": 0,
+        "dept": {
+            "id": 1845,
+            "code": "340000_345300",
+            "name": "\uacf5\uacfc\ub300\ud559/\uc0b0\uc5c5\uacf5\ud559\uacfc"
+        },
+        "mobileSiteMobilePatronNo": "",
+        "accessToken": "c2b0fomfpsm54cs4tapbh6hr1c70g5ds",
+        "parentDept": {
+            "id": 30,
+            "code": "340000",
+            "name": "\uacf5\uacfc\ub300\ud559"
+        },
+        "branch": {
+            "id": 1,
+            "name": "\uc911\uc559\ub3c4\uc11c\uad00",
+            "alias": "\uc911\uc559",
+            "libraryCode": "221016",
+            "sortOrder": 1
+        },
+        "showMobileMain": false,
+        "memberNo": "202427548",
+        "alternativeId": "00165dc8-1973-40f1-8359-efcc4bd7144f",
+        "lastUpdated": "2026-04-11 06:01:08",
+        "branchGroup": {
+            "id": 1,
+            "name": "\ubd80\uc0b0\ucea0\ud37c\uc2a4"
+        },
+        "isPortalLogin": true,
+        "patronType": {
+            "id": 46,
+            "name": "\ud559\ubd80\uc0dd"
+        },
+        "disableServices": [
+            "PDL",
+            "LECTURE",
+            "PLAGIARISM_MGR",
+            "JES"
+        ],
+        "hasFamily": false,
+        "name": "\ud669\uc885\uc2dd",
+        "printMemberNo": "202427548",
+        "patronState": {
+            "id": 5,
+            "name": "\uc7ac\ud559"
+        },
+        "id": 370728,
+        "multiTypePatrons": [],
+        "isExpired": false,
+        "isFamilyLogin": false
+    }
+}
