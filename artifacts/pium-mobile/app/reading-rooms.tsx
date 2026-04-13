@@ -482,14 +482,19 @@ function RoomCard({ room, onSelect, sessionActive }: {
   const isDisabled = status === 'disabled';
   const canSelect = !isDisabled && available > 0;
 
-  return (
-    <View style={[styles.roomCard, isDisabled && styles.roomCardDisabled]}>
+  const cardContent = (
+    <>
       <View style={styles.roomCardTop}>
         <View style={styles.roomNameRow}>
           <Text style={[styles.roomName, isDisabled && styles.disabledText]} numberOfLines={1}>{room.name}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
-            <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
-            <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
+              <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
+              <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
+            </View>
+            {canSelect && (
+              <Feather name="chevron-right" size={15} color={C.primary} style={{ opacity: 0.7 }} />
+            )}
           </View>
         </View>
         {isDisabled ? (
@@ -515,18 +520,24 @@ function RoomCard({ room, onSelect, sessionActive }: {
           <View style={[styles.barFill, { width: `${pct}%` as any, backgroundColor: cfg.bar }]} />
         </View>
       )}
-      {canSelect && (
-        <TouchableOpacity
-          style={styles.selectBtn}
-          onPress={() => onSelect(room)}
-          activeOpacity={0.8}
-        >
-          <Feather name={sessionActive ? 'map-pin' : 'log-in'} size={13} color={C.primary} />
-          <Text style={styles.selectBtnText}>
-            {sessionActive ? '자리 선택' : '로그인하여 예약'}
-          </Text>
-        </TouchableOpacity>
-      )}
+    </>
+  );
+
+  if (canSelect) {
+    return (
+      <TouchableOpacity
+        style={[styles.roomCard, styles.roomCardTappable]}
+        onPress={() => onSelect(room)}
+        activeOpacity={0.75}
+      >
+        {cardContent}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={[styles.roomCard, isDisabled && styles.roomCardDisabled]}>
+      {cardContent}
     </View>
   );
 }
@@ -1096,6 +1107,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
+  roomCardTappable: {
+    borderWidth: 1, borderColor: `${C.primary}22`,
+  },
   roomCardDisabled: { backgroundColor: '#F9FAFB', opacity: 0.7 },
   roomCardTop: { marginBottom: 10 },
   roomNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
@@ -1112,13 +1126,6 @@ const styles = StyleSheet.create({
   unableMsg: { fontSize: 12, color: '#9CA3AF', marginTop: 2, fontFamily: 'Inter_400Regular', lineHeight: 16 },
   barTrack: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
   barFill: { height: 6, borderRadius: 3 },
-  selectBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, paddingVertical: 8,
-    borderTopWidth: 1, borderTopColor: '#F3F4F6', marginTop: 2,
-  },
-  selectBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-
   reserveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14,
