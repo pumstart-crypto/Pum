@@ -13,7 +13,6 @@ import {
   getMySeat, extendSeat, returnSeat, cancelSeat,
   MySeatData, extractSeatName, extractRoomName, extractBranchName,
 } from '@/utils/seatManagement';
-import SeatPickerModal from '@/components/SeatPickerModal';
 import {
   getSchoolSession, logoutFromLibrary, getLibApiToken, SchoolSession,
 } from '@/utils/schoolAuth';
@@ -678,7 +677,6 @@ export default function ReadingRoomsScreen() {
 
   // ── Modals ─────────────────────────────────────────────────
   const [showLogin, setShowLogin] = useState(false);
-  const [seatPickerRoom, setSeatPickerRoom] = useState<{ id: number; name: string; branch?: string } | null>(null);
 
   // ── Load session ───────────────────────────────────────────
   const loadMySeat = useCallback(async (forceLogoutOnExpiry = false) => {
@@ -713,23 +711,14 @@ export default function ReadingRoomsScreen() {
 
   // ── Room select ────────────────────────────────────────────
   const handleSelectRoom = useCallback((room: SeatRoom) => {
-    if (!session) { setShowLogin(true); return; }
-    setSeatPickerRoom({ id: room.id, name: room.name, branch: room.branch?.name });
-  }, [session]);
-
-  // ── Seat picker callbacks ───────────────────────────────────
-  const handleSeatReserved = useCallback((message: string) => {
-    showToast(message || '예약이 완료되었습니다.', 'success');
-    loadMySeat();
-  }, [showToast, loadMySeat]);
-
-  const handleSeatPickerSessionExpired = useCallback(() => {
-    setSeatPickerRoom(null);
-    setSession(null);
-    setMySeat(null);
-    showToast('세션이 만료되었습니다. 다시 로그인해 주세요.', 'error');
-    setShowLogin(true);
-  }, [showToast]);
+    router.push({
+      pathname: '/seat-picker',
+      params: {
+        roomName: room.name,
+        branchName: room.branch?.name ?? '',
+      },
+    });
+  }, []);
 
   // ── Extend ─────────────────────────────────────────────────
   const handleExtend = useCallback(async () => {
@@ -895,13 +884,6 @@ export default function ReadingRoomsScreen() {
         onDismiss={() => setShowLogin(false)}
       />
 
-      <SeatPickerModal
-        visible={seatPickerRoom !== null}
-        room={seatPickerRoom}
-        onDismiss={() => setSeatPickerRoom(null)}
-        onReserved={handleSeatReserved}
-        onSessionExpired={handleSeatPickerSessionExpired}
-      />
     </View>
   );
 }
