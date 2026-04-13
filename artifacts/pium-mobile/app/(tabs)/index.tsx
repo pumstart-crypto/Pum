@@ -105,7 +105,8 @@ function buildColorMap(subjects: string[]): Record<string, string> {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
   const { colors } = useTheme();
   const { data: schedules = [], refetch: refetchSchedules } = useGetSchedules();
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -134,11 +135,11 @@ export default function HomeScreen() {
 
   const fetchTodos = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/todos`);
+      const r = await fetch(`${API}/todos`, { headers: { ...authHeader } });
       if (r.ok) setTodos(await r.json());
     } catch {}
     finally { setTodosLoading(false); }
-  }, []);
+  }, [token]);
 
   useEffect(() => { fetchTodos(); }, [fetchTodos]);
 
@@ -151,7 +152,7 @@ export default function HomeScreen() {
   const toggleTodo = async (id: number, completed: boolean) => {
     setTodos(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
     await fetch(`${API}/todos/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeader },
       body: JSON.stringify({ completed }),
     });
   };
@@ -175,7 +176,7 @@ export default function HomeScreen() {
     try {
       const dueDateStr = newDueDate ? newDueDate.toISOString() : undefined;
       const r = await fetch(`${API}/todos`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ title: newTitle.trim(), category: newCategory, dueDate: dueDateStr }),
       });
       if (r.ok) {
@@ -189,7 +190,7 @@ export default function HomeScreen() {
 
   const deleteTodo = async (id: number) => {
     setTodos(prev => prev.filter(t => t.id !== id));
-    await fetch(`${API}/todos/${id}`, { method: 'DELETE' });
+    await fetch(`${API}/todos/${id}`, { method: 'DELETE', headers: { ...authHeader } });
   };
 
   return (

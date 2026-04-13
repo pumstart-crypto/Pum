@@ -409,11 +409,11 @@ export default function ScheduleScreen() {
   const fetchGrades = useCallback(async () => {
     setGradesLoading(true);
     try {
-      const r = await fetch(`${API}/grades`);
+      const r = await fetch(`${API}/grades`, { headers: { ...authHeader } });
       if (r.ok) setGrades(await r.json());
     } catch {}
     finally { setGradesLoading(false); setGradesFetched(true); }
-  }, []);
+  }, [authHeader]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -627,7 +627,7 @@ export default function ScheduleScreen() {
     setGSubmitting(true);
     try {
       const r = await fetch(`${API}/grades`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ subjectName: gSubject.trim(), grade: gGrade, credits: Number(gCredits), semester: gSemester, year: Number(gYear) }),
       });
       if (r.ok) {
@@ -644,7 +644,7 @@ export default function ScheduleScreen() {
     Alert.alert('삭제', '삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => {
-        await fetch(`${API}/grades/${id}`, { method: 'DELETE' });
+        await fetch(`${API}/grades/${id}`, { method: 'DELETE', headers: { ...authHeader } });
         setGrades(prev => prev.filter(g => g.id !== id));
       }},
     ]);
@@ -654,7 +654,7 @@ export default function ScheduleScreen() {
     try {
       const res = await fetch(`${API}/grades/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ grade: newGrade }),
       });
       if (!res.ok) throw new Error();
@@ -669,7 +669,7 @@ export default function ScheduleScreen() {
     try {
       const res = await fetch(`${API}/grades/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ isRetake: newVal }),
       });
       if (!res.ok) throw new Error();

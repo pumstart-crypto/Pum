@@ -1,16 +1,27 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db, financesTable, insertFinanceSchema } from "@workspace/db";
 import { eq, and, like, sql } from "drizzle-orm";
+import { verifyToken } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.get("/finance/summary", async (req, res) => {
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "인증이 필요합니다." }); return; }
+  const payload = verifyToken(auth.slice(7));
+  if (!payload) { res.status(401).json({ message: "유효하지 않은 토큰입니다." }); return; }
+  (req as any).userId = payload.userId;
+  next();
+}
+
+router.get("/finance/summary", requireAuth, async (req, res) => {
   try {
+    const userId = (req as any).userId as number;
     const month = req.query.month as string | undefined;
 
-    let query = db.select().from(financesTable);
+    let query = db.select().from(financesTable).where(eq(financesTable.userId, userId));
     if (month) {
-      query = query.where(like(financesTable.date, `${month}%`)) as typeof query;
+      query = db.select().from(financesTable).where(and(eq(financesTable.userId, userId), like(financesTable.date, `${month}%`))) as typeof query;
     }
 
     const records = await query;
@@ -29,13 +40,18 @@ router.get("/finance/summary", async (req, res) => {
   }
 });
 
-router.get("/finance", async (req, res) => {
+router.get("/finance", requireAuth, async (req, res) => {
   try {
+    const userId = (req as any).userId as number;
     const month = req.query.month as string | undefined;
 
-    let query = db.select().from(financesTable).orderBy(sql`${financesTable.date} desc`);
+    let query = db.select().from(financesTable)
+      .where(eq(financesTable.userId, userId))
+      .orderBy(sql`${financesTable.date} desc`);
     if (month) {
-      query = db.select().from(financesTable).where(like(financesTable.date, `${month}%`)).orderBy(sql`${financesTable.date} desc`);
+      query = db.select().from(financesTable)
+        .where(and(eq(financesTable.userId, userId), like(financesTable.date, `${month}%`)))
+        .orderBy(sql`${financesTable.date} desc`) as typeof query;
     }
 
     const records = await query;
@@ -46,10 +62,11 @@ router.get("/finance", async (req, res) => {
   }
 });
 
-router.post("/finance", async (req, res) => {
+router.post("/finance", requireAuth, async (req, res) => {
   try {
+    const userId = (req as any).userId as number;
     const data = insertFinanceSchema.parse(req.body);
-    const [record] = await db.insert(financesTable).values(data).returning();
+    const [record] = await db.insert(financesTable).values({ ...data, userId }).returning();
     res.status(201).json(record);
   } catch (err) {
     req.log.error({ err }, "Failed to create finance record");
@@ -57,10 +74,11 @@ router.post("/finance", async (req, res) => {
   }
 });
 
-router.delete("/finance/:id", async (req, res) => {
+router.delete("/finance/:id", requireAuth, async (req, res) => {
   try {
+    const userId = (req as any).userId as number;
     const id = parseInt(req.params.id);
-    await db.delete(financesTable).where(eq(financesTable.id, id));
+    await db.delete(financesTable).where(and(eq(financesTable.id, id), eq(financesTable.userId, userId)));
     res.json({ message: "Deleted" });
   } catch (err) {
     req.log.error({ err }, "Failed to delete finance record");

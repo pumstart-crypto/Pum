@@ -1,9 +1,11 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./auth";
 
 export const todosTable = pgTable("todos", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   category: text("category").notNull().default("기타"),
   dueDate: text("due_date"),
@@ -11,6 +13,6 @@ export const todosTable = pgTable("todos", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertTodoSchema = createInsertSchema(todosTable).omit({ id: true, createdAt: true });
+export const insertTodoSchema = createInsertSchema(todosTable).omit({ id: true, createdAt: true, userId: true });
 export type InsertTodo = z.infer<typeof insertTodoSchema>;
 export type Todo = typeof todosTable.$inferSelect;

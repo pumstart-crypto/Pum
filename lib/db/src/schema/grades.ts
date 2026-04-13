@@ -1,9 +1,11 @@
 import { pgTable, serial, text, integer, real, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./auth";
 
 export const gradesTable = pgTable("grades", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   year: integer("year").notNull(),
   semester: text("semester").notNull(),
   subjectName: text("subject_name").notNull(),
@@ -14,6 +16,6 @@ export const gradesTable = pgTable("grades", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertGradeSchema = createInsertSchema(gradesTable).omit({ id: true, createdAt: true });
+export const insertGradeSchema = createInsertSchema(gradesTable).omit({ id: true, createdAt: true, userId: true });
 export type InsertGrade = z.infer<typeof insertGradeSchema>;
 export type Grade = typeof gradesTable.$inferSelect;
