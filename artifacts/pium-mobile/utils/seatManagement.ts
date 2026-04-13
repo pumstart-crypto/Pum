@@ -306,25 +306,47 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
   if (Platform.OS === "web") return webUnsupported();
   try {
     const pyxisToken = await getLibPyxisToken();
-    if (!pyxisToken) {
-      const apiToken = await getLibApiToken();
-      if (!apiToken) return noSession();
-      return { success: false, message: "세션이 만료되었습니다. 다시 로그인해 주세요.", needsLogin: true };
-    }
+    const apiToken = await getLibApiToken();
 
-    // 기기에서 Pyxis에 직접 GET (한국 IP 보장, Bearer 헤더만 사용)
-    const resp = await fetch(
-      `${PYXIS_DIRECT}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
-      {
-        headers: {
-          "Accept": "application/json",
-          "Authorization": `Bearer ${pyxisToken}`,
-          "Referer": "https://lib.pusan.ac.kr/facility/seat",
-          "Origin": "https://lib.pusan.ac.kr",
-        },
+    if (!pyxisToken && !apiToken) return noSession();
+
+    let raw: PyxisBody;
+
+    if (pyxisToken) {
+      // 기기에서 Pyxis에 직접 GET (한국 IP 보장, Bearer 헤더만 사용)
+      // 10초 타임아웃
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const resp = await fetch(
+          `${PYXIS_DIRECT}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
+          {
+            signal: controller.signal,
+            headers: {
+              "Accept": "application/json",
+              "Authorization": `Bearer ${pyxisToken}`,
+              "Referer": "https://lib.pusan.ac.kr/facility/seat",
+              "Origin": "https://lib.pusan.ac.kr",
+            },
+          }
+        );
+        raw = await resp.json();
+      } catch (fetchErr: any) {
+        if (fetchErr?.name === "AbortError") {
+          return { success: false, message: "도서관 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." };
+        }
+        throw fetchErr;
+      } finally {
+        clearTimeout(timeout);
       }
-    );
-    const raw: PyxisBody = await resp.json();
+    } else {
+      // pyxisToken 없음 → API 서버 경유 fallback (미국 IP라 needsLogin 가능성 있음)
+      const resp = await fetch(
+        `${API_BASE}/library/seat-room-seats?seatRoomId=${seatRoomId}`,
+        { headers: { "Accept": "application/json", "Authorization": `Bearer ${apiToken}` } }
+      );
+      raw = await resp.json();
+    }
 
     if (!raw.success) {
       const expired = checkSessionExpired(raw);

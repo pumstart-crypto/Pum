@@ -67,14 +67,16 @@ export default function SeatPickerModal({ visible, room, onDismiss, onReserved, 
     setFetchError('');
     const result = await getSeatRoomSeats(room.id);
     setLoading(false);
-    if (result.needsLogin) { onSessionExpired(); return; }
-    if (!result.success) { setFetchError(result.message); return; }
+    if (!result.success) {
+      setFetchError(result.message);
+      return;
+    }
     const data = result.data ?? [];
     setSeats(data);
     // 좌표 데이터가 있으면 지도 뷰, 없으면 목록 뷰로 기본 설정
     const withPos = data.filter(s => s.x !== undefined && s.y !== undefined);
     setViewMode(withPos.length > 0 ? 'map' : 'list');
-  }, [room, onSessionExpired]);
+  }, [room]);
 
   useEffect(() => {
     if (visible && room) { setSeats([]); setReserving(null); fetchSeats(); }
