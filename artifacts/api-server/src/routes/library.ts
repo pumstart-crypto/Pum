@@ -160,11 +160,16 @@ router.get("/library/seat-room-seats", async (req: Request, res: Response): Prom
   const cookieStr = await getCookieString(token);
   if (!cookieStr) { noAuth(res); return; }
   try {
+    const headers = pyxisHeaders1Api(cookieStr);
+    const hasJsessionid = cookieStr.includes("JSESSIONID=");
+    const hasPyxis3 = cookieStr.includes("PUSAN_PYXIS3=");
+    console.log(`[seat-room-seats] seatRoomId=${seatRoomId} JSESSIONID=${hasJsessionid} PUSAN_PYXIS3=${hasPyxis3} Bearer=${!!headers["Authorization"]}`);
     const upstream = await fetch(
       `${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
-      { headers: pyxisHeaders1Api(cookieStr) },
+      { headers },
     );
     const json = await upstream.json() as any;
+    console.log(`[seat-room-seats] Pyxis response: success=${json.success} code=${json.code ?? ""}`);
     res.json(json);
   } catch (e: any) {
     res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
@@ -186,7 +191,32 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
     // 브라우저처럼 사전에 PUSAN_PYXIS3_SS UUID 세팅 (Pyxis Angular 앱 초기화 동작 모방)
     const sessionUuid = crypto.randomUUID();
 
-    const upstream = await fetch(`${PYXIS_BASE}/api/login`, {
+    // ── Set-Cookie 수집 헬퍼 ──────────────────────────────────────
+    function collectCookies(response: Response, map: Record<string, string>): void {
+      // Node.js 18+: getSetCookie() returns string[]
+      const setCookies: string[] = (response.headers as any).getSetCookie?.() ?? [];
+      // fallback: 일부 환경에서는 get('set-cookie')가 쉼표 구분 문자열로 반환
+      if (!setCookies.length) {
+        const raw = response.headers.get("set-cookie");
+        if (raw) setCookies.push(...raw.split(/,(?=[^ ])/));
+      }
+      for (const cookie of setCookies) {
+        const match = cookie.match(/^([^=]+)=([^;]*)/);
+        if (match) {
+          const name = match[1].trim();
+          const value = match[2].trim();
+          if (value) map[name] = value;
+        }
+      }
+      console.log("[login] Set-Cookie from", response.url || "?", "→", Object.keys(map));
+    }
+
+    const cookieMap: Record<string, string> = {
+      "PUSAN_PYXIS3_SS": sessionUuid,
+    };
+
+    // ── 1단계: POST /api/login — redirect: manual 로 302를 직접 수신 ──
+    const loginRes = await fetch(`${PYXIS_BASE}/api/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -197,39 +227,48 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
         "Cookie": `PUSAN_PYXIS3_SS=${sessionUuid}`,
       },
       body: JSON.stringify({ loginId, password, homepageId: 1 }),
-      redirect: "follow",
+      redirect: "manual", // 302 중간 응답의 Set-Cookie를 직접 캡처
     });
 
-    const json = await upstream.json() as any;
+    console.log("[login] POST /api/login status=", loginRes.status);
+    collectCookies(loginRes, cookieMap);
+
+    let json: any;
+
+    if (loginRes.status === 302 || loginRes.status === 301) {
+      // ── 2단계: 리다이렉트 수동 추적 ───────────────────────────────
+      const location = loginRes.headers.get("location");
+      if (!location) {
+        res.status(502).json({ success: false, message: "로그인 리다이렉트 주소를 찾을 수 없습니다." });
+        return;
+      }
+      const redirectUrl = location.startsWith("http") ? location : `https://lib.pusan.ac.kr${location}`;
+      const cookieHeader = Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join("; ");
+      const followRes = await fetch(redirectUrl, {
+        headers: { ...PYXIS_HEADERS, "Cookie": cookieHeader },
+        redirect: "manual",
+      });
+      console.log("[login] GET redirect", redirectUrl, "status=", followRes.status);
+      collectCookies(followRes, cookieMap);
+      try { json = await followRes.json(); } catch { json = {}; }
+    } else {
+      // 200 직접 응답
+      json = await loginRes.json();
+    }
 
     if (!json.success) {
       res.json({ success: false, code: json.code, message: json.message });
       return;
     }
 
-    // 응답에서 모든 Set-Cookie 헤더를 파싱하여 완전한 쿠키 문자열 구성
-    const allSetCookies = (upstream.headers as any).getSetCookie?.() as string[] ?? [];
-    const cookieMap: Record<string, string> = {
-      "PUSAN_PYXIS3_SS": sessionUuid, // 로그인 전 세팅한 세션 UUID 포함
-    };
-
-    for (const cookie of allSetCookies) {
-      const match = cookie.match(/^([^=]+)=([^;]*)/);
-      if (match) {
-        const name = match[1].trim();
-        const value = match[2].trim();
-        if (value) cookieMap[name] = value;
-      }
-    }
-
     const jsessionid = cookieMap["JSESSIONID"] ?? null;
+    console.log("[login] JSESSIONID=", jsessionid ? "OK" : "MISSING", "cookieKeys=", Object.keys(cookieMap));
     if (!jsessionid) {
-      res.status(502).json({ success: false, message: "도서관 서버에서 세션을 발급받지 못했습니다." });
+      res.status(502).json({ success: false, message: "도서관 서버에서 세션을 발급받지 못했습니다. (JSESSIONID 없음)" });
       return;
     }
 
     // Angular 앱처럼 accessToken을 PUSAN_PYXIS3 쿠키로 설정
-    // (Angular 앱은 login 성공 후 document.cookie로 PUSAN_PYXIS3=accessToken 세팅)
     const accessToken = json.data?.accessToken;
     if (accessToken) {
       cookieMap["PUSAN_PYXIS3"] = accessToken;
