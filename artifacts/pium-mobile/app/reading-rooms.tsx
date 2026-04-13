@@ -854,17 +854,13 @@ export default function ReadingRoomsScreen() {
             {mainTab === 'my-seat' ? '내 좌석 관리' : `${activeRoomTabDef.short} · 실시간`}
           </Text>
         </View>
-        {session ? (
-          <View style={styles.sessionIndicator}>
-            <View style={styles.sessionDot} />
-            <Text style={styles.sessionText}>{session.userName ?? '로그인됨'}</Text>
-          </View>
-        ) : (
+        {!session && (
           <TouchableOpacity style={styles.headerLoginBtn} onPress={() => setShowLogin(true)} hitSlop={8}>
             <Feather name="log-in" size={14} color={C.primary} />
             <Text style={styles.headerLoginText}>로그인</Text>
           </TouchableOpacity>
         )}
+        {session && <View style={{ width: 60 }} />}
       </View>
 
       {/* ── Main Tab Segment (모바일 전용, 웹 미표시) ── */}
