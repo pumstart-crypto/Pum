@@ -1,0 +1,58 @@
+Last login: Mon Apr 13 15:06:50 on ttys001
+jongsik@jongsig-ui-MacBookAir ~ % chmod 400 ~/Downloads/pum-seat-key.pem
+jongsik@jongsig-ui-MacBookAir ~ % ssh -i ~/Downloads/pum-seat-key.pem root@223.130.142.144
+root@223.130.142.144's password: 
+Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-84-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Mon Apr 13 03:15:07 PM KST 2026
+
+  System load:  0.09              Processes:             112
+  Usage of /:   8.5% of 49.10GB   Users logged in:       0
+  Memory usage: 44%               IPv4 address for eth0: 10.0.1.6
+  Swap usage:   0%
+
+ * Strictly confined Kubernetes makes edge and IoT secure. Learn how MicroK8s
+   just raised the bar for easy, resilient and secure K8s cluster deployment.
+
+   https://ubuntu.com/engage/secure-kubernetes-at-the-edge
+
+Expanded Security Maintenance for Applications is not enabled.
+
+302 updates can be applied immediately.
+139 of these updates are standard security updates.
+To see these additional updates run: apt list --upgradable
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+------------------------------------------------------------------------------------------------------------
+
+███╗   ██╗ ██████╗██╗      ██████╗ ██╗   ██╗██████╗
+████╗  ██║██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗
+██╔██╗ ██║██║     ██║     ██║   ██║██║   ██║██║  ██║
+██║╚██╗██║██║     ██║     ██║   ██║██║   ██║██║  ██║
+██║ ╚████║╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝
+╚═╝  ╚═══╝ ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝
+
+Welcome to Naver Cloud Platform Server!
+Authorized access only!
+If you are not authorized to access this system, disconnect now!
+------------------------------------------------------------------------------------------------------------
+Last login: Mon Apr 13 15:00:59 2026 from 61.42.109.13
+root@pum-seat-proxy:~# ssh -i ~/Downloads/pum-seat-key.pem ubuntu@223.130.142.144
+Warning: Identity file /root/Downloads/pum-seat-key.pem not accessible: No such file or directory.
+The authenticity of host '223.130.142.144 (223.130.142.144)' can't be established.
+ED25519 key fingerprint is SHA256:Zm5aAv5DJ/EnKiObKSadOxA5nKuXgToCGhNiyhVhAjY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '223.130.142.144' (ED25519) to the list of known hosts.
+ubuntu@223.130.142.144's password: 
+Permission denied, please try again.
+ubuntu@223.130.142.144's password: 
+Permission denied, please try again.
+ubuntu@223.130.142.144's password: 
