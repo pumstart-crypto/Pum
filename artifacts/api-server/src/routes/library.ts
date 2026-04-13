@@ -152,6 +152,9 @@ router.get("/library/seat-rooms", async (req: Request, res: Response): Promise<v
 });
 
 // ── 개별 좌석 목록 (인증 필요) ────────────────────────────────
+// 한국 NCP 프록시 서버를 경유하여 Pyxis /1/api/ IP 제한을 우회합니다.
+const KOREA_PROXY = process.env.KOREA_PROXY_URL ?? "http://223.130.142.144:3000";
+
 router.get("/library/seat-room-seats", async (req: Request, res: Response): Promise<void> => {
   const { seatRoomId } = req.query;
   if (!seatRoomId) { res.status(400).json({ success: false, message: "seatRoomId가 필요합니다." }); return; }
@@ -159,20 +162,34 @@ router.get("/library/seat-room-seats", async (req: Request, res: Response): Prom
   if (!token) { noAuth(res); return; }
   const cookieStr = await getCookieString(token);
   if (!cookieStr) { noAuth(res); return; }
+
+  const jsessionid = cookieStr.match(/JSESSIONID=([^;]+)/)?.[1]?.trim();
+  const pyxisToken = cookieStr.match(/PUSAN_PYXIS3=([^;]+)/)?.[1]?.trim();
+
+  console.log(`[seat-room-seats] seatRoomId=${seatRoomId} JSESSIONID=${!!jsessionid} Bearer=${!!pyxisToken}`);
+
+  if (!jsessionid || !pyxisToken) {
+    res.status(401).json({ success: false, code: "error.authentication.needLogin", message: "세션이 만료되었습니다. 다시 로그인해 주세요." });
+    return;
+  }
+
   try {
-    const headers = pyxisHeaders1Api(cookieStr);
-    const hasJsessionid = cookieStr.includes("JSESSIONID=");
-    const hasPyxis3 = cookieStr.includes("PUSAN_PYXIS3=");
-    console.log(`[seat-room-seats] seatRoomId=${seatRoomId} JSESSIONID=${hasJsessionid} PUSAN_PYXIS3=${hasPyxis3} Bearer=${!!headers["Authorization"]}`);
     const upstream = await fetch(
-      `${PYXIS_BASE}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`,
-      { headers },
+      `${KOREA_PROXY}/seat-room-seats?seatRoomId=${seatRoomId}`,
+      {
+        headers: {
+          "Authorization": `Bearer ${pyxisToken}`,
+          "X-Jsessionid": jsessionid,
+        },
+        signal: AbortSignal.timeout(10_000),
+      },
     );
     const json = await upstream.json() as any;
-    console.log(`[seat-room-seats] Pyxis response: success=${json.success} code=${json.code ?? ""}`);
+    console.log(`[seat-room-seats] Korea proxy: success=${json.success} code=${json.code ?? ""}`);
     res.json(json);
   } catch (e: any) {
-    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+    console.error(`[seat-room-seats] Korea proxy error:`, e?.message);
+    res.status(502).json({ success: false, message: "도서관 서버 연결에 실패했습니다. (한국 프록시 오류)" });
   }
 });
 
