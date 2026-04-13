@@ -192,26 +192,47 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // 한국 프록시가 jsessionid 존재 여부만으로 success를 판단하므로
+    // Pyxis 실제 응답(loginBody)을 직접 검증
+    const pyxisBody = json.loginBody;
+    if (pyxisBody && pyxisBody.success === false) {
+      res.status(401).json({
+        success: false,
+        code: pyxisBody.code ?? "error.authentication.failed",
+        message: pyxisBody.message ?? "학번 또는 비밀번호가 올바르지 않습니다.",
+      });
+      return;
+    }
+
+    const userId = json.userId
+      ?? pyxisBody?.data?.userId
+      ?? pyxisBody?.data?.loginId
+      ?? loginId;
+    const userName = json.userName
+      ?? pyxisBody?.data?.name
+      ?? pyxisBody?.data?.userName
+      ?? null;
+
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
     await db.insert(librarySessionsTable).values({
       token,
       jsessionid: json.proxyToken,
-      userId: json.userId ?? loginId,
-      userName: json.userName ?? null,
+      userId,
+      userName,
       expiresAt,
     });
 
-    console.log("[library/login] OK userId=", json.userId ?? loginId);
+    console.log("[library/login] OK userId=", userId, "userName=", userName);
 
     res.json({
       success: true,
       data: {
         token,
         pyxisToken: json.proxyToken,
-        userId: json.userId ?? loginId,
-        userName: json.userName ?? null,
+        userId,
+        userName,
       },
     });
   } catch (err: any) {
