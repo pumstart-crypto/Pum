@@ -860,7 +860,7 @@ export default function ReadingRoomsScreen() {
             <Text style={styles.headerLoginText}>로그인</Text>
           </TouchableOpacity>
         )}
-        {session && <View style={{ width: 60 }} />}
+        {session && <View style={{ width: 30 }} />}
       </View>
 
       {/* ── Main Tab Segment (모바일 전용, 웹 미표시) ── */}
