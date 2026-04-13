@@ -213,6 +213,75 @@ function StudyStatsDashboard() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// SessionInfoCard
+// ══════════════════════════════════════════════════════════════
+const SESSION_HOURS = 8;
+const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
+
+function formatRemaining(savedAt: number): { text: string; pct: number; urgent: boolean } {
+  const elapsed = Date.now() - savedAt;
+  const remaining = SESSION_MS - elapsed;
+  if (remaining <= 0) return { text: '세션 만료됨', pct: 0, urgent: true };
+  const totalMin = Math.floor(remaining / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  const text = h > 0 ? `${h}시간 ${m}분 남음` : `${m}분 남음`;
+  const pct = Math.max(0, Math.min(100, (remaining / SESSION_MS) * 100));
+  return { text, pct, urgent: remaining < 30 * 60 * 1000 };
+}
+
+function SessionInfoCard({ session, onLogout }: { session: SchoolSession; onLogout: () => void }) {
+  const [tick, setTick] = React.useState(0);
+
+  React.useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const { text, pct, urgent } = formatRemaining(session.savedAt);
+  const barColor = urgent ? '#EF4444' : pct > 50 ? '#10B981' : '#F59E0B';
+
+  return (
+    <View style={styles.sessionCard}>
+      {/* 상단 헤더 */}
+      <View style={styles.sessionCardHeader}>
+        <View style={styles.sessionCardIconBox}>
+          <Ionicons name="person-circle-outline" size={22} color={C.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sessionCardName}>{session.userName ?? '이용자'}</Text>
+          <Text style={styles.sessionCardId}>{session.userId}</Text>
+        </View>
+        <View style={[styles.sessionStatusBadge, { backgroundColor: urgent ? '#FEE2E2' : '#ECFDF5' }]}>
+          <View style={[styles.sessionStatusDot, { backgroundColor: urgent ? '#EF4444' : '#10B981' }]} />
+          <Text style={[styles.sessionStatusText, { color: urgent ? '#DC2626' : '#065F46' }]}>
+            {urgent ? '곧 만료' : '로그인됨'}
+          </Text>
+        </View>
+      </View>
+
+      {/* 세션 시간 */}
+      <View style={styles.sessionTimeRow}>
+        <Feather name="clock" size={13} color={barColor} />
+        <Text style={[styles.sessionTimeText, { color: barColor }]}>{text}</Text>
+      </View>
+
+      {/* 프로그레스 바 */}
+      <View style={styles.sessionBarTrack}>
+        <View style={[styles.sessionBarFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+      </View>
+      <Text style={styles.sessionBarHint}>세션은 로그인 후 {SESSION_HOURS}시간 유지됩니다</Text>
+
+      {/* 로그아웃 */}
+      <TouchableOpacity onPress={onLogout} style={styles.sessionLogoutBtn} activeOpacity={0.7}>
+        <Feather name="log-out" size={13} color="#9CA3AF" />
+        <Text style={styles.sessionLogoutText}>로그아웃</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // MySeatManagement (내 좌석 관리 탭 콘텐츠)
 // ══════════════════════════════════════════════════════════════
 interface MySeatManagementProps {
@@ -271,21 +340,24 @@ function MySeatManagement({
   if (!mySeat || !seatName) {
     return (
       <ScrollView contentContainerStyle={styles.myScrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="map-pin" size={32} color={`${C.primary}50`} />
+        {/* 세션 정보 대시보드 */}
+        <SessionInfoCard session={session} onLogout={onLogout} />
+
+        {/* 예약 없음 안내 */}
+        <View style={styles.noSeatCard}>
+          <View style={styles.noSeatLeft}>
+            <Feather name="map-pin" size={18} color="#9CA3AF" />
+            <View>
+              <Text style={styles.noSeatTitle}>예약된 좌석 없음</Text>
+              <Text style={styles.noSeatSub}>열람실 현황에서 좌석을 선택하세요</Text>
+            </View>
           </View>
-          <Text style={styles.emptyTitle}>현재 예약된 좌석이 없습니다</Text>
-          <Text style={styles.emptySub}>열람실 현황 탭에서 원하는 좌석을 선택하거나{'\n'}아래 버튼으로 바로 이동하세요.</Text>
-          <TouchableOpacity style={styles.reservePromptBtn} onPress={onReserve} activeOpacity={0.85}>
-            <Feather name="book-open" size={16} color="#fff" />
-            <Text style={styles.reservePromptBtnText}>좌석 예약하기</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onLogout} style={styles.logoutLink}>
-            <Feather name="log-out" size={12} color="#D1D5DB" />
-            <Text style={styles.logoutLinkText}>로그아웃</Text>
+          <TouchableOpacity style={styles.noSeatBtn} onPress={onReserve} activeOpacity={0.85}>
+            <Text style={styles.noSeatBtnText}>예약하기</Text>
+            <Feather name="chevron-right" size={14} color={C.primary} />
           </TouchableOpacity>
         </View>
+
         <StudyStatsDashboard />
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -1060,6 +1132,55 @@ const styles = StyleSheet.create({
   // Logout link
   logoutLink: { flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center', paddingVertical: 8 },
   logoutLinkText: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+
+  // SessionInfoCard
+  sessionCard: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+  },
+  sessionCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  sessionCardIconBox: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: `${C.primary}12`, alignItems: 'center', justifyContent: 'center',
+  },
+  sessionCardName: { fontSize: 15, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold' },
+  sessionCardId: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 1 },
+  sessionStatusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  sessionStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  sessionStatusText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  sessionTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  sessionTimeText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  sessionBarTrack: {
+    height: 6, backgroundColor: '#F3F4F6', borderRadius: 3,
+    overflow: 'hidden', marginBottom: 6,
+  },
+  sessionBarFill: { height: 6, borderRadius: 3 },
+  sessionBarHint: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 14 },
+  sessionLogoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    justifyContent: 'center', paddingVertical: 6,
+    borderTopWidth: 1, borderTopColor: '#F3F4F6',
+  },
+  sessionLogoutText: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+
+  // NoSeatCard
+  noSeatCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  noSeatLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  noSeatTitle: { fontSize: 14, fontWeight: '600', color: '#374151', fontFamily: 'Inter_600SemiBold' },
+  noSeatSub: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
+  noSeatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: `${C.primary}10`, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  noSeatBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
 
   // StudyStatsDashboard
   statsDash: {
