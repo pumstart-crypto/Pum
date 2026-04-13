@@ -125,13 +125,17 @@ export async function loginWithCredentials(id: string, password: string): Promis
   };
   await SecureStore.setItemAsync(KEY_SCHOOL_SESSION, JSON.stringify(session), STORE_OPTIONS);
 
-  // ── Step 2: 기기에서 직접 Pyxis 로그인 (iOS 쿠키 설정용, 선택적) ─
-  // iOS NSURLSession이 Set-Cookie(JSESSIONID)를 HTTPCookieStorage에 자동 저장.
-  // 이후 lib.pusan.ac.kr 도메인 요청 시 JSESSIONID가 자동 첨부됨.
+  // ── Step 2: 기기에서 직접 Pyxis 로그인 (iOS 쿠키 + 한국 IP 토큰 확보) ─
+  //
+  // iOS NSURLSession이 응답 Set-Cookie(JSESSIONID)를 HTTPCookieStorage에 자동 저장.
+  // 이 JSESSIONID는 한국 IP로 생성된 세션이므로 이후 /1/api/ 호출에서 유효.
+  //
+  // ★ 핵심: Bearer 토큰(accessToken)도 반드시 같은 세션(기기 직접)에서 가져와야 함.
+  //   → 성공하면 pyxisToken을 이 토큰으로 교체 (Step 1 토큰은 미국 IP 세션이라 불일치)
+  //
   // 실패해도 Step 1 결과에 영향 없음.
   try {
-    const sessionUuid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    await fetch("https://lib.pusan.ac.kr/pyxis-api/api/login", {
+    const directRes = await fetch("https://lib.pusan.ac.kr/pyxis-api/api/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -142,12 +146,18 @@ export async function loginWithCredentials(id: string, password: string): Promis
         "Accept-Language": "ko-KR,ko;q=0.9",
         "Origin": "https://lib.pusan.ac.kr",
         "Referer": "https://lib.pusan.ac.kr/facility/seat",
-        "X-Pyxis-Session": sessionUuid,
       },
       body: JSON.stringify({ loginId: id.trim(), password, homepageId: 1 }),
     });
-  } catch {
-    // 무시 — 기기 쿠키 설정 실패여도 API 서버 토큰으로 동작 가능
+    const directJson = await directRes.json();
+    console.log("[Pyxis Direct Login]", directJson.success, directJson.code ?? "", directJson.data?.accessToken ? "token OK" : "no token");
+    if (directJson.success && directJson.data?.accessToken) {
+      // 한국 IP 세션 Bearer 토큰으로 교체 — JSESSIONID와 쌍이 맞아야 /1/api/ 작동
+      await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, directJson.data.accessToken, STORE_OPTIONS);
+    }
+  } catch (e: any) {
+    console.log("[Pyxis Direct Login] failed:", e?.message);
+    // 무시 — 기기 직접 로그인 실패 시 API 서버 토큰 유지
   }
 
   return session;
