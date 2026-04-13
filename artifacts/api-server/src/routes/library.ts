@@ -5,14 +5,14 @@ import crypto from "crypto";
 
 const router = Router();
 
-// 라이브러리 API는 캐시 없이 항상 새 응답을 반환 (ETag/304 방지)
 router.use((_req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate");
   next();
 });
 
-const PYXIS_BASE = "https://lib.pusan.ac.kr/pyxis-api";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const KOREA_PROXY = process.env.KOREA_PROXY_URL ?? "http://223.130.142.144:3000";
+const PYXIS_BASE = "https://lib.pusan.ac.kr/pyxis-api";
 
 const MOBILE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) " +
@@ -28,20 +28,6 @@ const PYXIS_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
 };
 
-// cookieStr은 "JSESSIONID=...; PUSAN_PYXIS3_SS=..." 형식의 완전한 쿠키 문자열
-function pyxisHeaders(cookieStr: string): Record<string, string> {
-  return { ...PYXIS_HEADERS, "Cookie": cookieStr };
-}
-
-// /1/api/ 경로는 Cookie 외에 Authorization: Bearer 헤더도 필요 (Angular SPA 방식)
-function pyxisHeaders1Api(cookieStr: string): Record<string, string> {
-  const tokenMatch = cookieStr.match(/PUSAN_PYXIS3=([^;]+)/);
-  const accessToken = tokenMatch?.[1]?.trim();
-  const headers: Record<string, string> = { ...PYXIS_HEADERS, "Cookie": cookieStr };
-  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-  return headers;
-}
-
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
@@ -56,8 +42,8 @@ async function cleanupExpiredSessions(): Promise<void> {
   } catch {}
 }
 
-// DB의 jsessionid 컬럼은 로그인 시 수신한 모든 쿠키의 완전한 문자열을 저장
-async function getCookieString(token: string): Promise<string | null> {
+// jsessionid 컬럼에 한국 프록시 proxyToken을 저장
+async function getProxyToken(token: string): Promise<string | null> {
   const rows = await db
     .select()
     .from(librarySessionsTable)
@@ -77,45 +63,52 @@ function extractToken(req: Request): string | null {
   return (req.query.token as string) ?? null;
 }
 
-async function proxyGet(url: string, jsessionid: string, res: Response): Promise<void> {
+// ── 한국 프록시 경유 helper ─────────────────────────────────────
+async function proxyGet(path: string, proxyToken: string, res: Response): Promise<void> {
   try {
-    const upstream = await fetch(url, { headers: pyxisHeaders(jsessionid) });
-    const json = await upstream.json() as any;
-    res.json(json);
-  } catch {
-    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
-  }
-}
-
-async function proxyPost(url: string, jsessionid: string, body: object, res: Response): Promise<void> {
-  try {
-    const upstream = await fetch(url, {
-      method: "POST",
-      headers: pyxisHeaders(jsessionid),
-      body: JSON.stringify(body),
+    const upstream = await fetch(`${KOREA_PROXY}${path}`, {
+      headers: { "X-Proxy-Token": proxyToken },
+      signal: AbortSignal.timeout(10_000),
     });
     const json = await upstream.json() as any;
     res.json(json);
-  } catch {
-    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+  } catch (e: any) {
+    res.status(503).json({ success: false, message: `도서관 서버 연결에 실패했습니다. (${e?.message ?? "unknown"})` });
   }
 }
 
-async function proxyDelete(url: string, jsessionid: string, res: Response): Promise<void> {
+async function proxyPost(path: string, proxyToken: string, body: object, res: Response): Promise<void> {
   try {
-    const upstream = await fetch(url, { method: "DELETE", headers: pyxisHeaders(jsessionid) });
+    const upstream = await fetch(`${KOREA_PROXY}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Proxy-Token": proxyToken },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+    });
     const json = await upstream.json() as any;
     res.json(json);
-  } catch {
-    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다." });
+  } catch (e: any) {
+    res.status(503).json({ success: false, message: `도서관 서버 연결에 실패했습니다. (${e?.message ?? "unknown"})` });
+  }
+}
+
+async function proxyDelete(path: string, proxyToken: string, res: Response): Promise<void> {
+  try {
+    const upstream = await fetch(`${KOREA_PROXY}${path}`, {
+      method: "DELETE",
+      headers: { "X-Proxy-Token": proxyToken },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const json = await upstream.json() as any;
+    res.json(json);
+  } catch (e: any) {
+    res.status(503).json({ success: false, message: `도서관 서버 연결에 실패했습니다. (${e?.message ?? "unknown"})` });
   }
 }
 
 setInterval(cleanupExpiredSessions, 30 * 60 * 1000);
 
-// ── 기기 로그인 후 Pyxis 세션 등록 ────────────────────────────
-// 앱이 한국 IP(디바이스)에서 Pyxis에 직접 로그인한 뒤
-// 획득한 쿠키 문자열을 서버 DB에 등록하고 앱 토큰을 발급합니다.
+// ── 기기 로그인 후 Pyxis 세션 등록 (레거시 호환) ──────────────
 router.post("/library/register-session", async (req: Request, res: Response): Promise<void> => {
   const { cookieString, userId, userName } = req.body ?? {};
   if (!cookieString) {
@@ -138,7 +131,7 @@ router.post("/library/register-session", async (req: Request, res: Response): Pr
   }
 });
 
-// ── 열람실 목록 (공개) ─────────────────────────────────────────
+// ── 열람실 목록 (공개, Pyxis 직접 — IP 제한 없음) ──────────────
 router.get("/library/seat-rooms", async (req: Request, res: Response): Promise<void> => {
   const branchGroupId = req.query.branchGroupId ?? "1";
   try {
@@ -151,52 +144,18 @@ router.get("/library/seat-rooms", async (req: Request, res: Response): Promise<v
   }
 });
 
-// ── 개별 좌석 목록 (인증 필요) ────────────────────────────────
-// 한국 NCP 프록시 서버를 경유하여 Pyxis /1/api/ IP 제한을 우회합니다.
-const KOREA_PROXY = process.env.KOREA_PROXY_URL ?? "http://223.130.142.144:3000";
-
+// ── 개별 좌석 목록 (한국 프록시 경유) ─────────────────────────
 router.get("/library/seat-room-seats", async (req: Request, res: Response): Promise<void> => {
   const { seatRoomId } = req.query;
   if (!seatRoomId) { res.status(400).json({ success: false, message: "seatRoomId가 필요합니다." }); return; }
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-
-  const jsessionid = cookieStr.match(/JSESSIONID=([^;]+)/)?.[1]?.trim();
-  const pyxisToken = cookieStr.match(/PUSAN_PYXIS3=([^;]+)/)?.[1]?.trim();
-
-  console.log(`[seat-room-seats] seatRoomId=${seatRoomId} JSESSIONID=${!!jsessionid} Bearer=${!!pyxisToken}`);
-
-  if (!jsessionid || !pyxisToken) {
-    res.status(401).json({ success: false, code: "error.authentication.needLogin", message: "세션이 만료되었습니다. 다시 로그인해 주세요." });
-    return;
-  }
-
-  try {
-    const upstream = await fetch(
-      `${KOREA_PROXY}/seat-room-seats?seatRoomId=${seatRoomId}`,
-      {
-        headers: {
-          "Authorization": `Bearer ${pyxisToken}`,
-          "X-Jsessionid": jsessionid,
-        },
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
-    const json = await upstream.json() as any;
-    console.log(`[seat-room-seats] Korea proxy: success=${json.success} code=${json.code ?? ""}`);
-    res.json(json);
-  } catch (e: any) {
-    console.error(`[seat-room-seats] Korea proxy error:`, e?.message);
-    res.status(503).json({ success: false, message: "도서관 서버 연결에 실패했습니다. (한국 프록시 오류)" });
-  }
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyGet(`/seat-room-seats?seatRoomId=${seatRoomId}`, proxyToken, res);
 });
 
-// ── 로그인 ─────────────────────────────────────────────────────
-// Pyxis 세션(JSESSIONID)은 접속 IP에 바인딩됩니다.
-// 로그인 요청을 API 서버에서 대행(Proxy)하여 이후 모든 요청과 동일 IP를 보장합니다.
-// JSESSIONID는 서버 DB에만 보관하고, 앱에는 세션 토큰만 반환합니다.
+// ── 로그인 (한국 프록시 경유) ──────────────────────────────────
 router.post("/library/login", async (req: Request, res: Response): Promise<void> => {
   const { loginId, password } = req.body ?? {};
   if (!loginId || !password) {
@@ -205,132 +164,54 @@ router.post("/library/login", async (req: Request, res: Response): Promise<void>
   }
 
   try {
-    // 브라우저처럼 사전에 PUSAN_PYXIS3_SS UUID 세팅 (Pyxis Angular 앱 초기화 동작 모방)
-    const sessionUuid = crypto.randomUUID();
-
-    // ── Set-Cookie 수집 헬퍼 ──────────────────────────────────────
-    function collectCookies(response: Response, map: Record<string, string>): void {
-      // Node.js 18+: getSetCookie() returns string[]
-      const setCookies: string[] = (response.headers as any).getSetCookie?.() ?? [];
-      // fallback: 일부 환경에서는 get('set-cookie')가 쉼표 구분 문자열로 반환
-      if (!setCookies.length) {
-        const raw = response.headers.get("set-cookie");
-        if (raw) setCookies.push(...raw.split(/,(?=[^ ])/));
-      }
-      for (const cookie of setCookies) {
-        const match = cookie.match(/^([^=]+)=([^;]*)/);
-        if (match) {
-          const name = match[1].trim();
-          const value = match[2].trim();
-          if (value) map[name] = value;
-        }
-      }
-      console.log("[login] Set-Cookie from", response.url || "?", "→", Object.keys(map));
-    }
-
-    const cookieMap: Record<string, string> = {
-      "PUSAN_PYXIS3_SS": sessionUuid,
-    };
-
-    // ── 1단계: POST /api/login — redirect: manual 로 302를 직접 수신 ──
-    const loginRes = await fetch(`${PYXIS_BASE}/api/login`, {
+    const loginRes = await fetch(`${KOREA_PROXY}/proxy-login`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": MOBILE_UA,
-        "Origin": "https://lib.pusan.ac.kr",
-        "Referer": "https://lib.pusan.ac.kr/facility/seat",
-        "Cookie": `PUSAN_PYXIS3_SS=${sessionUuid}`,
-      },
-      body: JSON.stringify({ loginId, password, homepageId: 1 }),
-      redirect: "manual", // 302 중간 응답의 Set-Cookie를 직접 캡처
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ loginId, password }),
+      signal: AbortSignal.timeout(20_000),
     });
 
-    console.log("[login] POST /api/login status=", loginRes.status);
-    collectCookies(loginRes, cookieMap);
-
     let json: any;
-
-    if (loginRes.status === 302 || loginRes.status === 301) {
-      // ── 2단계: 리다이렉트 수동 추적 ───────────────────────────────
-      const location = loginRes.headers.get("location");
-      if (!location) {
-        res.status(503).json({ success: false, message: "로그인 리다이렉트 주소를 찾을 수 없습니다." });
-        return;
-      }
-      const redirectUrl = location.startsWith("http") ? location : `https://lib.pusan.ac.kr${location}`;
-      const cookieHeader = Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join("; ");
-      const followRes = await fetch(redirectUrl, {
-        headers: { ...PYXIS_HEADERS, "Cookie": cookieHeader },
-        redirect: "manual",
-      });
-      console.log("[login] GET redirect", redirectUrl, "status=", followRes.status);
-      collectCookies(followRes, cookieMap);
-      try { json = await followRes.json(); } catch { json = {}; }
-    } else if (loginRes.status === 403) {
-      // 부산대 도서관이 외부 서버 접근을 차단 중
+    try {
+      json = await loginRes.json();
+    } catch {
       res.status(503).json({
         success: false,
         code: "error.library.blocked",
-        message: "현재 부산대 도서관 서버가 외부 접근을 차단하고 있습니다.\n교내 Wi-Fi에 연결하거나 잠시 후 다시 시도해 주세요.",
+        message: "도서관 서버 응답을 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       });
       return;
-    } else {
-      // 200 직접 응답
-      try {
-        json = await loginRes.json();
-      } catch {
-        res.status(503).json({
-          success: false,
-          code: "error.library.blocked",
-          message: "도서관 서버 응답을 파싱할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-        });
-        return;
-      }
     }
 
-    if (!json.success) {
-      res.json({ success: false, code: json.code, message: json.message });
+    if (!json.success || !json.proxyToken) {
+      res.status(loginRes.status >= 500 ? 503 : 401).json({
+        success: false,
+        code: json.code ?? "error.authentication.failed",
+        message: json.message ?? "도서관 로그인에 실패했습니다.",
+      });
       return;
     }
-
-    const jsessionid = cookieMap["JSESSIONID"] ?? null;
-    console.log("[login] JSESSIONID=", jsessionid ? "OK" : "MISSING", "cookieKeys=", Object.keys(cookieMap));
-    if (!jsessionid) {
-      res.status(503).json({ success: false, message: "도서관 서버에서 세션을 발급받지 못했습니다. (JSESSIONID 없음)" });
-      return;
-    }
-
-    // Angular 앱처럼 accessToken을 PUSAN_PYXIS3 쿠키로 설정
-    const accessToken = json.data?.accessToken;
-    if (accessToken) {
-      cookieMap["PUSAN_PYXIS3"] = accessToken;
-    }
-
-    // 모든 쿠키를 하나의 문자열로 저장 (이후 요청에서 그대로 Cookie 헤더로 사용)
-    const fullCookieString = Object.entries(cookieMap)
-      .map(([k, v]) => `${k}=${v}`)
-      .join("; ");
 
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
     await db.insert(librarySessionsTable).values({
       token,
-      jsessionid: fullCookieString, // 전체 쿠키 문자열 저장
-      userId: json.data?.userId ?? json.data?.loginId ?? loginId,
-      userName: json.data?.name ?? json.data?.userName ?? null,
+      jsessionid: json.proxyToken,
+      userId: json.userId ?? loginId,
+      userName: json.userName ?? null,
       expiresAt,
     });
+
+    console.log("[library/login] OK userId=", json.userId ?? loginId);
 
     res.json({
       success: true,
       data: {
         token,
-        pyxisToken: accessToken ?? null,
-        userId: json.data?.userId ?? json.data?.loginId ?? loginId,
-        userName: json.data?.name ?? json.data?.userName ?? null,
+        pyxisToken: json.proxyToken,
+        userId: json.userId ?? loginId,
+        userName: json.userName ?? null,
       },
     });
   } catch (err: any) {
@@ -353,92 +234,92 @@ router.post("/library/logout", async (req: Request, res: Response): Promise<void
 router.get("/library/my-seat", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyGet(`${PYXIS_BASE}/api/my-seat`, cookieStr, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyGet("/my-seat", proxyToken, res);
 });
 
 // ── 좌석 예약 ─────────────────────────────────────────────────
 router.post("/library/my-seat", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
   const { seatId } = req.body ?? {};
   if (!seatId) { res.status(400).json({ success: false, message: "seatId가 필요합니다." }); return; }
-  await proxyPost(`${PYXIS_BASE}/api/my-seat`, cookieStr, { seatId, homepageId: 1 }, res);
+  await proxyPost("/my-seat", proxyToken, { seatId, homepageId: 1 }, res);
 });
 
 // ── 좌석 연장 ─────────────────────────────────────────────────
 router.post("/library/my-seat/extend", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyPost(`${PYXIS_BASE}/api/my-seat/extend`, cookieStr, { homepageId: 1 }, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyPost("/my-seat/extend", proxyToken, { homepageId: 1 }, res);
 });
 
 // ── 좌석 반납 ─────────────────────────────────────────────────
 router.post("/library/my-seat/return", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyPost(`${PYXIS_BASE}/api/my-seat/return`, cookieStr, { homepageId: 1 }, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyPost("/my-seat/return", proxyToken, { homepageId: 1 }, res);
 });
 
-// ── 예약 취소 (배정확정 전) ────────────────────────────────────
+// ── 예약 취소 ─────────────────────────────────────────────────
 router.delete("/library/my-seat", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyDelete(`${PYXIS_BASE}/api/my-seat`, cookieStr, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyDelete("/my-seat", proxyToken, res);
 });
 
 // ── 이석 처리 ─────────────────────────────────────────────────
 router.post("/library/my-seat/away", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyPost(`${PYXIS_BASE}/api/my-seat/away`, cookieStr, { homepageId: 1 }, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyPost("/my-seat/away", proxyToken, { homepageId: 1 }, res);
 });
 
 // ── 이석 복귀 ─────────────────────────────────────────────────
 router.delete("/library/my-seat/away", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyDelete(`${PYXIS_BASE}/api/my-seat/away`, cookieStr, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyDelete("/my-seat/away", proxyToken, res);
 });
 
 // ── 이용 내역 ─────────────────────────────────────────────────
 router.get("/library/my-seat/histories", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyGet(`${PYXIS_BASE}/api/my-seat/histories`, cookieStr, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyGet("/my-seat/histories", proxyToken, res);
 });
 
 // ── 이용 제한 현황 ─────────────────────────────────────────────
 router.get("/library/my-seat/violations", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyGet(`${PYXIS_BASE}/api/my-seat/violations`, cookieStr, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyGet("/my-seat/violations", proxyToken, res);
 });
 
 // ── 내 정보 ───────────────────────────────────────────────────
 router.get("/library/user-info", async (req: Request, res: Response): Promise<void> => {
   const token = extractToken(req);
   if (!token) { noAuth(res); return; }
-  const cookieStr = await getCookieString(token);
-  if (!cookieStr) { noAuth(res); return; }
-  await proxyGet(`${PYXIS_BASE}/api/user-info`, cookieStr, res);
+  const proxyToken = await getProxyToken(token);
+  if (!proxyToken) { noAuth(res); return; }
+  await proxyGet("/user-info", proxyToken, res);
 });
 
 export default router;
