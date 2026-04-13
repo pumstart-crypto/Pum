@@ -12,7 +12,7 @@
  */
 
 import { Platform } from "react-native";
-import { getLibToken, getLibPyxisToken, getLibJsessionId } from "./schoolAuth";
+import { getLibToken, getLibPyxisToken, getLibJsessionId, getLibProxyToken } from "./schoolAuth";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const PYXIS_DIRECT = "https://lib.pusan.ac.kr/pyxis-api";
@@ -340,31 +340,32 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
     const token = await getLibToken();
     if (!token) return noSession();
 
-    const jsessionid = await getLibJsessionId();
-    const pyxisToken = await getLibPyxisToken();
-
-    if (!jsessionid || !pyxisToken) {
-      return { success: false, message: "세션이 만료되었습니다. 다시 로그인해 주세요.", needsLogin: true };
-    }
+    const proxyToken = await getLibProxyToken();
 
     let raw: PyxisBody | null = null;
 
-    // 한국 NCP 프록시 직접 호출 (한국 IP → Pyxis /1/api/ IP 제한 우회)
-    try {
-      const resp = await fetch(
-        `${KOREA_PROXY}/seat-room-seats?seatRoomId=${seatRoomId}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${pyxisToken}`,
-            "X-Jsessionid": jsessionid,
+    // 1차 시도: 한국 NCP 프록시 직접 호출 (한국 IP에서 자체 로그인 세션 사용)
+    if (proxyToken) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        const resp = await fetch(
+          `${KOREA_PROXY}/seat-room-seats?seatRoomId=${seatRoomId}`,
+          {
+            headers: { "Authorization": `Bearer ${proxyToken}` },
+            signal: controller.signal,
           },
-          signal: AbortSignal.timeout(15000),
-        },
-      );
-      raw = await resp.json() as PyxisBody;
-      console.log(`[getSeatRoomSeats] Korea proxy direct: success=${raw.success} code=${raw.code ?? ""}`);
-    } catch (e: any) {
-      console.log(`[getSeatRoomSeats] Korea proxy failed: ${e?.message}`);
+        );
+        clearTimeout(timer);
+        raw = await resp.json() as PyxisBody;
+        console.log(`[getSeatRoomSeats] Korea proxy: success=${raw.success} code=${raw.code ?? ""}`);
+        // 프록시 세션 만료 시 fallback
+        if (!raw.success && raw.code === "error.proxy.sessionExpired") {
+          raw = null;
+        }
+      } catch (e: any) {
+        console.log(`[getSeatRoomSeats] Korea proxy failed: ${e?.message}`);
+      }
     }
 
     // fallback: Replit API 서버 (한국 프록시 장애 시)

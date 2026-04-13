@@ -27,6 +27,10 @@ const KEY_SCHOOL_SESSION   = "pium_school_session";
 const KEY_LIB_TOKEN        = "pium_lib_token";        // API 서버 세션 토큰
 const KEY_LIB_PYXIS_TOKEN  = "pium_lib_pyxis_token";  // Pyxis Bearer 토큰 (기기 직접 호출용)
 const KEY_LIB_JSESSIONID   = "pium_lib_jsessionid";   // Pyxis JSESSIONID 쿠키 (기기 직접 로그인)
+const KEY_LIB_PROXY_TOKEN  = "pium_lib_proxy_token";  // 한국 NCP 프록시 세션 토큰
+
+// 한국 NCP 프록시 서버 (Pyxis /1/api/ IP 제한 우회)
+const KOREA_PROXY = "http://223.130.142.144:3000";
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED,
@@ -180,6 +184,26 @@ export async function loginWithCredentials(id: string, password: string): Promis
     }
   });
 
+  // ── Step 3: 한국 NCP 프록시 로그인 (한국 IP에서 Pyxis 로그인, 세션 캐시) ─
+  // 프록시가 자체 JSESSIONID를 발급받아 이후 /1/api/ 요청에 사용
+  // 실패해도 Step 1 결과에 영향 없음.
+  try {
+    const proxyRes = await fetch(`${KOREA_PROXY}/proxy-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ loginId: id.trim(), password }),
+    });
+    const proxyJson = await proxyRes.json() as { proxyToken?: string; error?: string };
+    if (proxyJson.proxyToken) {
+      await SecureStore.setItemAsync(KEY_LIB_PROXY_TOKEN, proxyJson.proxyToken, STORE_OPTIONS);
+      console.log("[Korea Proxy Login] OK proxyToken=OK");
+    } else {
+      console.log("[Korea Proxy Login] failed:", proxyJson.error);
+    }
+  } catch (e: any) {
+    console.log("[Korea Proxy Login] error:", e?.message);
+  }
+
   return session;
 }
 
@@ -215,6 +239,12 @@ export async function getLibJsessionId(): Promise<string | null> {
   return SecureStore.getItemAsync(KEY_LIB_JSESSIONID, STORE_OPTIONS);
 }
 
+/** 한국 NCP 프록시 세션 토큰 조회 */
+export async function getLibProxyToken(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  return SecureStore.getItemAsync(KEY_LIB_PROXY_TOKEN, STORE_OPTIONS);
+}
+
 /** 세션 전체 삭제 (로그아웃 시 호출) */
 export async function clearSchoolSession(): Promise<void> {
   if (Platform.OS === "web") return;
@@ -223,6 +253,7 @@ export async function clearSchoolSession(): Promise<void> {
     SecureStore.deleteItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS),
     SecureStore.deleteItemAsync(KEY_LIB_PYXIS_TOKEN, STORE_OPTIONS),
     SecureStore.deleteItemAsync(KEY_LIB_JSESSIONID, STORE_OPTIONS).catch(() => {}),
+    SecureStore.deleteItemAsync(KEY_LIB_PROXY_TOKEN, STORE_OPTIONS).catch(() => {}),
     // 구버전 호환: 이전에 기기에 저장했던 Pyxis 쿠키 키들도 삭제
     SecureStore.deleteItemAsync("pium_pyxis_jsid", STORE_OPTIONS).catch(() => {}),
     SecureStore.deleteItemAsync("pium_pyxis_at", STORE_OPTIONS).catch(() => {}),
