@@ -23,9 +23,10 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const KEY_SCHOOL_SESSION  = "pium_school_session";
-const KEY_LIB_TOKEN       = "pium_lib_token";       // API 서버 세션 토큰
-const KEY_LIB_PYXIS_TOKEN = "pium_lib_pyxis_token"; // Pyxis Bearer 토큰 (기기 직접 호출용)
+const KEY_SCHOOL_SESSION   = "pium_school_session";
+const KEY_LIB_TOKEN        = "pium_lib_token";        // API 서버 세션 토큰
+const KEY_LIB_PYXIS_TOKEN  = "pium_lib_pyxis_token";  // Pyxis Bearer 토큰 (기기 직접 호출용)
+const KEY_LIB_JSESSIONID   = "pium_lib_jsessionid";   // Pyxis JSESSIONID 쿠키 (기기 직접 로그인)
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED,
@@ -125,40 +126,59 @@ export async function loginWithCredentials(id: string, password: string): Promis
   };
   await SecureStore.setItemAsync(KEY_SCHOOL_SESSION, JSON.stringify(session), STORE_OPTIONS);
 
-  // ── Step 2: 기기에서 직접 Pyxis 로그인 (iOS 쿠키 + 한국 IP 토큰 확보) ─
+  // ── Step 2: 기기에서 직접 Pyxis 로그인 (JSESSIONID + 한국 IP 토큰 추출) ─
   //
-  // iOS NSURLSession이 응답 Set-Cookie(JSESSIONID)를 HTTPCookieStorage에 자동 저장.
-  // 이 JSESSIONID는 한국 IP로 생성된 세션이므로 이후 /1/api/ 호출에서 유효.
-  //
-  // ★ 핵심: Bearer 토큰(accessToken)도 반드시 같은 세션(기기 직접)에서 가져와야 함.
-  //   → 성공하면 pyxisToken을 이 토큰으로 교체 (Step 1 토큰은 미국 IP 세션이라 불일치)
+  // ★ fetch 대신 XMLHttpRequest 사용:
+  //   - XHR은 브라우저 보안 제약이 없어 Set-Cookie 헤더를 직접 읽을 수 있음
+  //   - JSESSIONID를 SecureStore에 저장 → 이후 요청에 Cookie 헤더로 수동 첨부
+  //   - Bearer 토큰도 이 세션(한국 IP)에서 발급된 것으로 교체
   //
   // 실패해도 Step 1 결과에 영향 없음.
-  try {
-    const directRes = await fetch("https://lib.pusan.ac.kr/pyxis-api/api/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent":
-          "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) " +
-          "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-        "Accept-Language": "ko-KR,ko;q=0.9",
-        "Origin": "https://lib.pusan.ac.kr",
-        "Referer": "https://lib.pusan.ac.kr/facility/seat",
-      },
-      body: JSON.stringify({ loginId: id.trim(), password, homepageId: 1 }),
-    });
-    const directJson = await directRes.json();
-    console.log("[Pyxis Direct Login]", directJson.success, directJson.code ?? "", directJson.data?.accessToken ? "token OK" : "no token");
-    if (directJson.success && directJson.data?.accessToken) {
-      // 한국 IP 세션 Bearer 토큰으로 교체 — JSESSIONID와 쌍이 맞아야 /1/api/ 작동
-      await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, directJson.data.accessToken, STORE_OPTIONS);
+  await new Promise<void>((resolve) => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "https://lib.pusan.ac.kr/pyxis-api/api/login");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.setRequestHeader(
+        "User-Agent",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) " +
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+      );
+      xhr.setRequestHeader("Accept-Language", "ko-KR,ko;q=0.9");
+      xhr.setRequestHeader("Origin", "https://lib.pusan.ac.kr");
+      xhr.setRequestHeader("Referer", "https://lib.pusan.ac.kr/facility/seat");
+      xhr.timeout = 10000;
+      xhr.onload = async () => {
+        try {
+          // Set-Cookie 헤더 읽기 (React Native XHR은 브라우저와 달리 이 헤더에 접근 가능)
+          const rawSetCookie = xhr.getResponseHeader("set-cookie") ?? "";
+          const jsessionid = rawSetCookie.match(/JSESSIONID=([^;,\s]+)/i)?.[1] ?? null;
+          const body = JSON.parse(xhr.responseText);
+          const accessToken = body?.data?.accessToken ?? null;
+          console.log(
+            "[Pyxis Direct Login] success=" + body?.success +
+            " code=" + (body?.code ?? "") +
+            " token=" + (accessToken ? "OK" : "none") +
+            " jsessionid=" + (jsessionid ? "OK" : "none")
+          );
+          if (body?.success && accessToken) {
+            await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, accessToken, STORE_OPTIONS);
+          }
+          if (jsessionid) {
+            await SecureStore.setItemAsync(KEY_LIB_JSESSIONID, jsessionid, STORE_OPTIONS);
+          }
+        } catch {}
+        resolve();
+      };
+      xhr.onerror = () => { console.log("[Pyxis Direct Login] xhr error"); resolve(); };
+      xhr.ontimeout = () => { console.log("[Pyxis Direct Login] xhr timeout"); resolve(); };
+      xhr.send(JSON.stringify({ loginId: id.trim(), password, homepageId: 1 }));
+    } catch (e: any) {
+      console.log("[Pyxis Direct Login] setup error:", e?.message);
+      resolve();
     }
-  } catch (e: any) {
-    console.log("[Pyxis Direct Login] failed:", e?.message);
-    // 무시 — 기기 직접 로그인 실패 시 API 서버 토큰 유지
-  }
+  });
 
   return session;
 }
@@ -189,6 +209,12 @@ export async function getLibPyxisToken(): Promise<string | null> {
   return SecureStore.getItemAsync(KEY_LIB_PYXIS_TOKEN, STORE_OPTIONS);
 }
 
+/** Pyxis JSESSIONID 쿠키 조회 (기기 직접 로그인에서 XHR로 추출) */
+export async function getLibJsessionId(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  return SecureStore.getItemAsync(KEY_LIB_JSESSIONID, STORE_OPTIONS);
+}
+
 /** 세션 전체 삭제 (로그아웃 시 호출) */
 export async function clearSchoolSession(): Promise<void> {
   if (Platform.OS === "web") return;
@@ -196,6 +222,7 @@ export async function clearSchoolSession(): Promise<void> {
     SecureStore.deleteItemAsync(KEY_SCHOOL_SESSION, STORE_OPTIONS),
     SecureStore.deleteItemAsync(KEY_LIB_TOKEN, STORE_OPTIONS),
     SecureStore.deleteItemAsync(KEY_LIB_PYXIS_TOKEN, STORE_OPTIONS),
+    SecureStore.deleteItemAsync(KEY_LIB_JSESSIONID, STORE_OPTIONS).catch(() => {}),
     // 구버전 호환: 이전에 기기에 저장했던 Pyxis 쿠키 키들도 삭제
     SecureStore.deleteItemAsync("pium_pyxis_jsid", STORE_OPTIONS).catch(() => {}),
     SecureStore.deleteItemAsync("pium_pyxis_at", STORE_OPTIONS).catch(() => {}),

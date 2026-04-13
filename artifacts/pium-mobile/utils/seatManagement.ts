@@ -12,7 +12,7 @@
  */
 
 import { Platform } from "react-native";
-import { getLibPyxisToken } from "./schoolAuth";
+import { getLibPyxisToken, getLibJsessionId } from "./schoolAuth";
 
 // 기기에서 Pyxis 직접 호출
 // - iOS NSURLSession이 JSESSIONID 쿠키 자동 처리 (로그인 시 저장됨)
@@ -165,14 +165,21 @@ function noSession(): SeatActionResult<any> {
 }
 
 /** Pyxis 직접 호출 공통 헤더
- * iOS NSURLSession이 JSESSIONID 쿠키를 자동 첨부해 줌 */
-function pyxisHeaders(token: string): HeadersInit {
-  return {
+ * - Authorization: Bearer (명시적)
+ * - Cookie: JSESSIONID + PUSAN_PYXIS3 (XHR로 추출해 SecureStore에 저장된 값)
+ * - React Native XHR/fetch는 브라우저와 달리 Cookie 헤더를 직접 설정 가능 */
+async function pyxisHeaders(token: string): Promise<HeadersInit> {
+  const jsessionid = await getLibJsessionId();
+  const headers: Record<string, string> = {
     "Accept": "application/json",
     "Authorization": `Bearer ${token}`,
     "Origin": "https://lib.pusan.ac.kr",
     "Referer": "https://lib.pusan.ac.kr/facility/seat",
   };
+  if (jsessionid) {
+    headers["Cookie"] = `JSESSIONID=${jsessionid}; PUSAN_PYXIS3=${token}`;
+  }
+  return headers;
 }
 
 /** Pyxis GET (기기 직접) — 타임아웃 15초 */
@@ -182,7 +189,7 @@ async function pyxisGet(path: string, token: string): Promise<PyxisBody> {
   try {
     const res = await fetch(`${PYXIS_DIRECT}${path}`, {
       signal: controller.signal,
-      headers: pyxisHeaders(token),
+      headers: await pyxisHeaders(token),
     });
     return res.json();
   } catch (e: any) {
@@ -198,10 +205,11 @@ async function pyxisPost(path: string, token: string, body?: object): Promise<Py
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), 15000);
   try {
+    const h = await pyxisHeaders(token);
     const res = await fetch(`${PYXIS_DIRECT}${path}`, {
       method: "POST",
       signal: controller.signal,
-      headers: { ...pyxisHeaders(token), "Content-Type": "application/json" },
+      headers: { ...h as Record<string, string>, "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
     });
     return res.json();
@@ -221,7 +229,7 @@ async function pyxisDelete(path: string, token: string): Promise<PyxisBody> {
     const res = await fetch(`${PYXIS_DIRECT}${path}`, {
       method: "DELETE",
       signal: controller.signal,
-      headers: pyxisHeaders(token),
+      headers: await pyxisHeaders(token),
     });
     return res.json();
   } catch (e: any) {
