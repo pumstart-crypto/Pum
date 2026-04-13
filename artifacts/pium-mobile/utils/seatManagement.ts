@@ -12,9 +12,10 @@
  */
 
 import { Platform } from "react-native";
-import { getLibToken } from "./schoolAuth";
+import { getLibToken, getLibPyxisToken, getLibJsessionId } from "./schoolAuth";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+const PYXIS_DIRECT = "https://lib.pusan.ac.kr/pyxis-api";
 
 const SESSION_EXPIRED_CODES = new Set([
   "error.authentication.needLogin",
@@ -325,11 +326,36 @@ export async function cancelSeat(): Promise<SeatActionResult> {
   }
 }
 
+/**
+ * 기기 직접 XHR: /1/api/seat-room-seats
+ * - iOS NSURLSession은 브라우저와 달리 수동 Cookie 헤더를 허용함
+ * - 기기(한국 IP)에서 JSESSIONID를 가져와 Cookie 헤더로 직접 전송
+ */
+function xhrSeatRoomSeats(seatRoomId: number, jsessionid: string, pyxisToken: string): Promise<PyxisBody> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", `${PYXIS_DIRECT}/1/api/seat-room-seats?seatRoomId=${seatRoomId}&homepageId=1`);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("Authorization", `Bearer ${pyxisToken}`);
+    xhr.setRequestHeader("Cookie", `JSESSIONID=${jsessionid}; PUSAN_PYXIS3=${pyxisToken}`);
+    xhr.setRequestHeader("Origin", "https://lib.pusan.ac.kr");
+    xhr.setRequestHeader("Referer", "https://lib.pusan.ac.kr/facility/seat");
+    xhr.timeout = 15000;
+    xhr.onload = () => {
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch { reject(new Error("JSON parse error")); }
+    };
+    xhr.onerror = () => reject(new Error("XHR error"));
+    xhr.ontimeout = () => reject(new Error("timeout"));
+    xhr.send();
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 // getSeatRoomSeats — 열람실 내 개별 좌석 목록
 //
-// API 서버 → Pyxis /1/api/ 프록시
-// API 서버가 JSESSIONID + Bearer 쿠키를 함께 전송
+// 1차 시도: 기기 직접 XHR (Korean IP + Cookie 헤더 수동 설정)
+// 2차 시도: API 서버 프록시 (fallback)
 // ─────────────────────────────────────────────────────────────
 export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionResult<IndividualSeat[]>> {
   if (Platform.OS === "web") return webUnsupported();
@@ -337,14 +363,35 @@ export async function getSeatRoomSeats(seatRoomId: number): Promise<SeatActionRe
     const token = await getLibToken();
     if (!token) return noSession();
 
-    let raw: PyxisBody;
-    try {
-      raw = await apiGet(`/library/seat-room-seats?seatRoomId=${seatRoomId}`, token);
-    } catch (e: any) {
-      if (e?.message === "timeout") {
-        return { success: false, message: "도서관 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." };
+    let raw: PyxisBody | null = null;
+
+    // 1차 시도: 기기 직접 XHR (한국 IP + JSESSIONID + Bearer)
+    const jsessionid = await getLibJsessionId();
+    const pyxisToken = await getLibPyxisToken();
+    if (jsessionid && pyxisToken) {
+      try {
+        const xhrResult = await xhrSeatRoomSeats(seatRoomId, jsessionid, pyxisToken);
+        console.log(`[getSeatRoomSeats] XHR direct: success=${xhrResult.success} code=${xhrResult.code ?? ""}`);
+        if (xhrResult.success || !SESSION_EXPIRED_CODES.has(xhrResult.code ?? "")) {
+          raw = xhrResult;
+        }
+        // needLogin이면 fallback to API server
+      } catch (e: any) {
+        console.log(`[getSeatRoomSeats] XHR direct failed: ${e?.message}`);
       }
-      throw e;
+    }
+
+    // 2차 시도: API 서버 프록시 (fallback)
+    if (!raw) {
+      try {
+        raw = await apiGet(`/library/seat-room-seats?seatRoomId=${seatRoomId}`, token);
+        console.log(`[getSeatRoomSeats] API proxy: success=${raw.success} code=${raw.code ?? ""}`);
+      } catch (e: any) {
+        if (e?.message === "timeout") {
+          return { success: false, message: "도서관 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." };
+        }
+        throw e;
+      }
     }
 
     console.log(`[getSeatRoomSeats] roomId=${seatRoomId} success=${raw.success} code=${raw.code ?? ""} msg=${raw.message ?? ""}`);
