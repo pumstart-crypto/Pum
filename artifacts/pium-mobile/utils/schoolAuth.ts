@@ -65,9 +65,16 @@ function friendlyMessage(code: string, raw: string): string {
 
 // ─────────────────────────────────────────────────────────────
 // loginWithCredentials  ← UI에서 직접 호출
-// API 서버를 통해 Pyxis에 로그인합니다.
-// 이렇게 하면 JSESSIONID가 API 서버 IP로 발급되어
-// 이후 모든 Pyxis API 프록시 요청과 IP가 일치합니다.
+//
+// [아키텍처 v2] 기기에서 Pyxis에 직접 로그인 (한국 IP 보장)
+//
+// 1. 기기 → Pyxis /api/login 직접 POST (Korean IP)
+//    → iOS NSURLSession이 JSESSIONID 쿠키를 HTTPCookieStorage에 자동 저장
+//    → 이후 lib.pusan.ac.kr 요청에 JSESSIONID 자동 첨부
+//    → accessToken (Bearer) 응답 바디에서 추출 → SecureStore 저장
+// 2. 이후 모든 Pyxis API: 기기에서 직접 호출
+//    → iOS 자동 쿠키(JSESSIONID) + Authorization: Bearer 헤더
+//    → Cookie를 수동으로 설정할 필요 없음
 // ─────────────────────────────────────────────────────────────
 export async function loginWithCredentials(id: string, password: string): Promise<SchoolSession> {
   if (Platform.OS === "web") {
@@ -79,10 +86,16 @@ export async function loginWithCredentials(id: string, password: string): Promis
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/library/login`, {
+    // 기기에서 직접 Pyxis 로그인 — iOS가 JSESSIONID 쿠키를 자동 처리
+    res = await fetch("https://lib.pusan.ac.kr/pyxis-api/api/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ loginId: id.trim(), password }),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Origin": "https://lib.pusan.ac.kr",
+        "Referer": "https://lib.pusan.ac.kr/facility/seat",
+      },
+      body: JSON.stringify({ loginId: id.trim(), password, homepageId: 1 }),
     });
   } catch (e: any) {
     throw new SchoolAuthError(
@@ -103,18 +116,18 @@ export async function loginWithCredentials(id: string, password: string): Promis
     throw new SchoolAuthError(code, friendlyMessage(code, json.message ?? ""));
   }
 
-  const { token, pyxisToken, userId, userName } = json.data ?? {};
+  const data = json.data ?? {};
+  const accessToken = data.accessToken ?? null;
+  const uid = data.userId ?? data.loginId ?? id.trim();
+  const uname = data.name ?? data.userName ?? null;
 
-  if (token) {
-    await SecureStore.setItemAsync(KEY_LIB_TOKEN, token, STORE_OPTIONS);
-  }
-  if (pyxisToken) {
-    await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, pyxisToken, STORE_OPTIONS);
+  if (accessToken) {
+    await SecureStore.setItemAsync(KEY_LIB_PYXIS_TOKEN, accessToken, STORE_OPTIONS);
   }
 
   const session: SchoolSession = {
-    userId: userId ?? id.trim(),
-    userName: userName ?? null,
+    userId: uid,
+    userName: uname,
     savedAt: Date.now(),
   };
   await SecureStore.setItemAsync(KEY_SCHOOL_SESSION, JSON.stringify(session), STORE_OPTIONS);
