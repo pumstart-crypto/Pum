@@ -159,23 +159,24 @@ function calcRemaining(info: MySeatInfo): {
 }
 
 // ── DrumPicker ─────────────────────────────────────────────────
-const DRUM_H = 44;
-function DrumPicker({ values, selectedIndex, onSelect }: {
-  values: string[]; selectedIndex: number; onSelect: (i: number) => void;
+const DRUM_H = 48;
+function DrumPicker({ values, selected, onSelect }: {
+  values: string[]; selected: string; onSelect: (v: string) => void;
 }) {
   const ref = useRef<ScrollView>(null);
-  const [cur, setCur] = useState(selectedIndex);
+  const [cur, setCur] = useState(() => Math.max(0, values.indexOf(selected)));
 
   useEffect(() => {
-    const t = setTimeout(() => ref.current?.scrollTo({ y: selectedIndex * DRUM_H, animated: false }), 80);
+    const idx = Math.max(0, values.indexOf(selected));
+    const t = setTimeout(() => ref.current?.scrollTo({ y: idx * DRUM_H, animated: false }), 80);
     return () => clearTimeout(t);
   }, []);
 
   const snap = useCallback((y: number) => {
     const i = Math.max(0, Math.min(values.length - 1, Math.round(y / DRUM_H)));
-    setCur(i); onSelect(i);
+    setCur(i); onSelect(values[i]);
     ref.current?.scrollTo({ y: i * DRUM_H, animated: true });
-  }, [values.length, onSelect]);
+  }, [values, onSelect]);
 
   return (
     <View style={{ height: DRUM_H * 3, overflow: 'hidden' }}>
@@ -191,12 +192,12 @@ function DrumPicker({ values, selectedIndex, onSelect }: {
       >
         {values.map((v, i) => (
           <TouchableOpacity
-            key={i}
+            key={v}
             style={seatStyles.drumItem}
             onPress={() => snap(i * DRUM_H)}
             activeOpacity={0.7}
           >
-            <Text style={[seatStyles.drumText, i === cur && seatStyles.drumTextSelected]}>{v}</Text>
+            <Text style={[seatStyles.drumText, v === values[cur] && seatStyles.drumTextSelected]}>{v}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -205,7 +206,7 @@ function DrumPicker({ values, selectedIndex, onSelect }: {
 }
 
 const HOURS   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = ['00', '10', '20', '30', '40', '50'];
 
 // ── MySeatCard ─────────────────────────────────────────────────
 function MySeatCard() {
@@ -213,10 +214,12 @@ function MySeatCard() {
   const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const [selectedLib,  setSelectedLib]  = useState<string | null>(null);
+  const [roomSearch,   setRoomSearch]   = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
   const [seatNo, setSeatNo] = useState('');
-  const [startHour, setStartHour] = useState(0);
-  const [startMin,  setStartMin]  = useState(0);
+  const [startHour, setStartHour] = useState('00');
+  const [startMin,  setStartMin]  = useState('00');
   const [timePickerOpen, setTimePickerOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -245,21 +248,32 @@ function MySeatCard() {
 
   const openEdit = () => {
     if (info) {
+      // find which library this room belongs to
+      const lib = ROOM_LIST.find(l => l.rooms.includes(info.roomName));
+      setSelectedLib(lib?.section ?? null);
       setSelectedRoom(info.roomName);
       setSeatNo(info.seatNo);
-      const [h, m] = info.startTime.split(':').map(Number);
-      setStartHour(h); setStartMin(m);
+      const [h, m] = info.startTime.split(':');
+      setStartHour(h);
+      // snap minute to nearest 10-min step
+      const mNum = Number(m);
+      const snapMin = MINUTES.reduce((prev, cur) =>
+        Math.abs(Number(cur) - mNum) < Math.abs(Number(prev) - mNum) ? cur : prev
+      );
+      setStartMin(snapMin);
     } else {
+      setSelectedLib(null);
       setSelectedRoom(''); setSeatNo('');
-      setStartHour(0); setStartMin(0);
+      setStartHour('00'); setStartMin('00');
     }
+    setRoomSearch('');
     setTimePickerOpen(false);
     setModalVisible(true);
   };
 
   const save = async () => {
     if (!selectedRoom || !seatNo.trim()) return;
-    const startTime = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`;
+    const startTime = `${startHour}:${startMin}`;
     const today = new Date().toISOString().slice(0, 10);
     const newInfo: MySeatInfo = { roomName: selectedRoom, seatNo: seatNo.trim(), startTime, savedDate: today };
     const rem = calcRemaining(newInfo);
@@ -348,49 +362,88 @@ function MySeatCard() {
               <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
 
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {/* 열람실 선택 */}
-                <Text style={seatStyles.inputLabel}>열람실</Text>
-                {ROOM_LIST.map(({ section, rooms }) => (
-                  <View key={section}>
-                    <Text style={seatStyles.sectionLabel}>{section}</Text>
-                    <View style={seatStyles.chipGrid}>
-                      {rooms.map(r => (
-                        <TouchableOpacity
-                          key={r}
-                          style={[seatStyles.chip, selectedRoom === r && seatStyles.chipSelected]}
-                          onPress={() => setSelectedRoom(r)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[seatStyles.chipText, selectedRoom === r && seatStyles.chipTextSelected]}>{r}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ))}
 
-                {/* 좌석 번호 */}
-                <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>좌석 번호</Text>
+                {/* ── 도서관 탭 ── */}
+                <Text style={seatStyles.inputLabel}>열람실</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+                  {ROOM_LIST.map(({ section }) => {
+                    const active = selectedLib === section;
+                    return (
+                      <TouchableOpacity
+                        key={section}
+                        style={[seatStyles.libTab, active && seatStyles.libTabActive]}
+                        onPress={() => { setSelectedLib(section); setSelectedRoom(''); setRoomSearch(''); }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[seatStyles.libTabText, active && seatStyles.libTabTextActive]}>{section}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* ── 열람실 검색 + 칩 ── */}
+                {selectedLib ? (() => {
+                  const libRooms = ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? [];
+                  const filtered = roomSearch
+                    ? libRooms.filter(r => r.includes(roomSearch))
+                    : libRooms;
+                  return (
+                    <>
+                      <View style={seatStyles.searchBox}>
+                        <Feather name="search" size={14} color="#9CA3AF" />
+                        <TextInput
+                          style={seatStyles.searchInput}
+                          value={roomSearch}
+                          onChangeText={setRoomSearch}
+                          placeholder="열람실 검색..."
+                          placeholderTextColor="#C4C9D4"
+                        />
+                      </View>
+                      <View style={seatStyles.chipGrid}>
+                        {filtered.map(r => {
+                          const active = selectedRoom === r;
+                          const is24h = r.includes('24h');
+                          return (
+                            <TouchableOpacity
+                              key={r}
+                              style={[seatStyles.chip, active && seatStyles.chipSelected]}
+                              onPress={() => setSelectedRoom(r)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
+                              {is24h && <Text style={seatStyles.chip24h}>24H</Text>}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  );
+                })() : (
+                  <Text style={seatStyles.libHint}>도서관을 먼저 선택해주세요</Text>
+                )}
+
+                {/* ── 좌석 번호 ── */}
+                <Text style={[seatStyles.inputLabel, { marginTop: 20 }]}>좌석 번호</Text>
                 <TextInput
                   style={seatStyles.input}
                   value={seatNo}
                   onChangeText={t => setSeatNo(t.replace(/[^0-9]/g, ''))}
                   placeholder="숫자만 입력 (예: 42)"
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor="#C4C9D4"
                   keyboardType="number-pad"
                   maxLength={4}
                 />
 
-                {/* 시작 시간 드럼 피커 */}
-                <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
+                {/* ── 시작 시간 ── */}
+                <Text style={[seatStyles.inputLabel, { marginTop: 20 }]}>이용 시작 시간</Text>
                 <TouchableOpacity
                   style={seatStyles.timeDisplayBtn}
                   onPress={() => setTimePickerOpen(o => !o)}
                   activeOpacity={0.8}
                 >
                   <Feather name="clock" size={15} color={C.primary} />
-                  <Text style={seatStyles.timeDisplayText}>
-                    {String(startHour).padStart(2, '0')}:{String(startMin).padStart(2, '0')}
-                  </Text>
+                  <Text style={seatStyles.timeDisplayText}>{startHour}:{startMin}</Text>
                   <Feather name={timePickerOpen ? 'chevron-up' : 'chevron-down'} size={15} color="#9CA3AF" />
                 </TouchableOpacity>
 
@@ -398,28 +451,28 @@ function MySeatCard() {
                   <View style={seatStyles.drumRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={seatStyles.drumLabel}>시</Text>
-                      <DrumPicker values={HOURS} selectedIndex={startHour} onSelect={setStartHour} />
+                      <DrumPicker values={HOURS} selected={startHour} onSelect={setStartHour} />
                     </View>
                     <Text style={seatStyles.drumColon}>:</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={seatStyles.drumLabel}>분</Text>
-                      <DrumPicker values={MINUTES} selectedIndex={startMin} onSelect={setStartMin} />
+                      <DrumPicker values={MINUTES} selected={startMin} onSelect={setStartMin} />
                     </View>
                   </View>
                 )}
 
-                {/* 자동 계산 표시 */}
+                {/* ── 자동 계산 표시 ── */}
                 <View style={seatStyles.autoCalcBox}>
                   <View style={seatStyles.autoCalcRow}>
                     <Feather name="clock" size={12} color="#6B7280" />
                     <Text style={seatStyles.autoCalcText}>
-                      종료 시간: {addMins(`${String(startHour).padStart(2,'0')}:${String(startMin).padStart(2,'0')}`, 4 * 60)}
+                      종료: {addMins(`${startHour}:${startMin}`, 4 * 60)}
                     </Text>
                   </View>
                   <View style={seatStyles.autoCalcRow}>
                     <Feather name="refresh-cw" size={12} color="#6B7280" />
                     <Text style={seatStyles.autoCalcText}>
-                      연장 가능: {addMins(`${String(startHour).padStart(2,'0')}:${String(startMin).padStart(2,'0')}`, 2 * 60)}부터
+                      연장 가능: {addMins(`${startHour}:${startMin}`, 2 * 60)}부터
                     </Text>
                   </View>
                 </View>
@@ -437,7 +490,7 @@ function MySeatCard() {
                     <Text style={seatStyles.clearBtnText}>등록 취소</Text>
                   </TouchableOpacity>
                 )}
-                <View style={{ height: 20 }} />
+                <View style={{ height: 24 }} />
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
@@ -947,14 +1000,43 @@ const seatStyles = StyleSheet.create({
   inputLabel: { fontSize: 12, color: '#6B7280', fontFamily: 'Inter_500Medium', fontWeight: '500', marginBottom: 8, marginTop: 4 },
   sectionLabel: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 6, marginTop: 4 },
 
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
-  chip: {
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB',
+  // ── 도서관 탭 ──
+  libTab: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: '#F3F4F8', borderWidth: 0,
   },
-  chipSelected: { backgroundColor: `${C.primary}18`, borderColor: C.primary },
-  chipText: { fontSize: 12, color: '#6B7280', fontFamily: 'Inter_400Regular' },
+  libTabActive: {
+    backgroundColor: C.primary,
+    shadowColor: C.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  libTabText: { fontSize: 12, fontWeight: '500', color: '#666', fontFamily: 'Inter_500Medium' },
+  libTabTextActive: { color: '#fff', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+
+  libHint: { fontSize: 13, color: '#AAAAAA', fontStyle: 'italic', fontFamily: 'Inter_400Regular', marginBottom: 8 },
+
+  // ── 열람실 검색 ──
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F8F9FB', borderRadius: 10,
+    borderWidth: 1, borderColor: '#E8E9F0',
+    paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1, fontSize: 13, color: '#374151', fontFamily: 'Inter_400Regular', padding: 0,
+  },
+
+  // ── 열람실 칩 ──
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 4 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E8E9F0',
+  },
+  chipSelected: { backgroundColor: `${C.primary}0F`, borderColor: C.primary },
+  chipText: { fontSize: 13, color: '#555', fontFamily: 'Inter_400Regular' },
   chipTextSelected: { color: C.primary, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  chip24h: { fontSize: 9, fontWeight: '700', color: '#E67E22', fontFamily: 'Inter_700Bold' },
 
   input: {
     borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
