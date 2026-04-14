@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Pressable,
+  TextInput, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -339,9 +339,10 @@ function MySeatCard() {
 
       {/* ── 입력 바텀시트 ── */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
-        <Pressable style={seatStyles.overlay} onPress={() => setModalVisible(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={seatStyles.overlayInner}>
-            <Pressable style={seatStyles.sheet} onPress={e => e.stopPropagation()}>
+        <View style={seatStyles.overlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setModalVisible(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={seatStyles.sheet}>
               <View style={seatStyles.sheetHandle} />
               <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
 
@@ -431,9 +432,9 @@ function MySeatCard() {
                 )}
                 <View style={{ height: 20 }} />
               </ScrollView>
-            </Pressable>
+            </View>
           </KeyboardAvoidingView>
-        </Pressable>
+        </View>
       </Modal>
     </>
   );
