@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
@@ -318,144 +318,139 @@ function MySeatCard() {
       )}
 
       {/* ── 입력 바텀시트 ── */}
-      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
-        <View style={seatStyles.overlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setModalVisible(false)} />
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[seatStyles.sheet, { paddingBottom: 20 }]}>
-              <View style={seatStyles.sheetHandle} />
-              <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
+      <Modal visible={modalVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setModalVisible(false)}>
+        {/* 배경 딤 */}
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' }}
+          activeOpacity={1}
+          onPress={() => { Keyboard.dismiss(); setModalVisible(false); }}
+        />
+        {/* 시트 — absolute bottom:0 으로 화면 최하단에 완전히 붙임 */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'position' : undefined}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+        >
+          <View style={seatStyles.sheet}>
+            <View style={seatStyles.sheetHandle} />
+            <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
 
-              {/* ── 도서관 탭 ── */}
-              <Text style={seatStyles.inputLabel}>열람실</Text>
-              <View style={seatStyles.libTabRow}>
-                {ROOM_LIST.map(({ section }) => {
-                  const active = selectedLib === section;
-                  return (
-                    <TouchableOpacity
-                      key={section}
-                      style={[seatStyles.libTab, active && seatStyles.libTabActive]}
-                      onPress={() => { setSelectedLib(section); setSelectedRoom(''); setRoomSearch(''); }}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={[seatStyles.libTabText, active && seatStyles.libTabTextActive]}>{section}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* ── 열람실 검색 + 칩 ── */}
-              {selectedLib ? (
-                <>
-                  <View style={seatStyles.searchBox}>
-                    <Feather name="search" size={14} color="#9CA3AF" />
-                    <TextInput
-                      style={seatStyles.searchInput}
-                      value={roomSearch}
-                      onChangeText={setRoomSearch}
-                      placeholder="열람실 검색..."
-                      placeholderTextColor="#C4C9D4"
-                    />
-                  </View>
-                  <ScrollView
-                    style={seatStyles.chipScroll}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    nestedScrollEnabled
+            {/* ── 도서관 탭 ── */}
+            <Text style={seatStyles.inputLabel}>열람실</Text>
+            <View style={seatStyles.libTabRow}>
+              {ROOM_LIST.map(({ section }) => {
+                const active = selectedLib === section;
+                return (
+                  <TouchableOpacity
+                    key={section}
+                    style={[seatStyles.libTab, active && seatStyles.libTabActive]}
+                    onPress={() => { setSelectedLib(section); setSelectedRoom(''); setRoomSearch(''); }}
+                    activeOpacity={0.75}
                   >
-                    <View style={seatStyles.chipGrid}>
-                      {(roomSearch
-                        ? (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? []).filter(r => r.includes(roomSearch))
-                        : (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? [])
-                      ).map(r => {
-                        const active = selectedRoom === r;
-                        return (
-                          <TouchableOpacity
-                            key={r}
-                            style={[seatStyles.chip, active && seatStyles.chipSelected]}
-                            onPress={() => setSelectedRoom(r)}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </ScrollView>
-                </>
-              ) : (
-                <Text style={seatStyles.libHint}>도서관을 먼저 선택해주세요</Text>
-              )}
-
-              {/* ── 좌석 번호 ── */}
-              <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>좌석 번호</Text>
-              <TextInput
-                style={seatStyles.input}
-                value={seatNo}
-                onChangeText={t => setSeatNo(t.replace(/[^0-9]/g, ''))}
-                placeholder="숫자만 입력 (예: 42)"
-                placeholderTextColor="#C4C9D4"
-                keyboardType="number-pad"
-                maxLength={4}
-              />
-
-              {/* ── 시작 시간 ── */}
-              <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
-              <View style={seatStyles.timeInputRow}>
-                <View style={seatStyles.timeInputWrap}>
-                  <Text style={seatStyles.timeInputLabel}>시</Text>
-                  <TextInput
-                    style={seatStyles.timeInput}
-                    value={startHour}
-                    onChangeText={onHourChange}
-                    onBlur={onHourBlur}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholder="00"
-                    placeholderTextColor="#D1D5DB"
-                    textAlign="center"
-                    selectTextOnFocus
-                    returnKeyType="next"
-                    onSubmitEditing={() => minRef.current?.focus()}
-                  />
-                </View>
-                <Text style={seatStyles.timeInputColon}>:</Text>
-                <View style={seatStyles.timeInputWrap}>
-                  <Text style={seatStyles.timeInputLabel}>분</Text>
-                  <TextInput
-                    ref={minRef}
-                    style={seatStyles.timeInput}
-                    value={startMin}
-                    onChangeText={onMinChange}
-                    onBlur={onMinBlur}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholder="00"
-                    placeholderTextColor="#D1D5DB"
-                    textAlign="center"
-                    selectTextOnFocus
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[seatStyles.saveBtn, (!selectedRoom || !seatNo.trim()) && seatStyles.saveBtnDisabled]}
-                onPress={save}
-                activeOpacity={0.85}
-              >
-                <Text style={seatStyles.saveBtnText}>저장</Text>
-              </TouchableOpacity>
-
-              {info && (
-                <TouchableOpacity style={seatStyles.clearBtn} onPress={clear}>
-                  <Text style={seatStyles.clearBtnText}>등록 취소</Text>
-                </TouchableOpacity>
-              )}
+                    <Text style={[seatStyles.libTabText, active && seatStyles.libTabTextActive]}>{section}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          </KeyboardAvoidingView>
-          {/* 홈 인디케이터 영역 흰 배경으로 채움 — 기기 실제 inset 사용 */}
-          <View style={{ height: (initialWindowMetrics?.insets.bottom ?? 0) + 4, backgroundColor: '#fff' }} />
-        </View>
+
+            {/* ── 열람실 검색 + 칩 ── */}
+            {selectedLib ? (
+              <>
+                <View style={seatStyles.searchBox}>
+                  <Feather name="search" size={14} color="#9CA3AF" />
+                  <TextInput
+                    style={seatStyles.searchInput}
+                    value={roomSearch}
+                    onChangeText={setRoomSearch}
+                    placeholder="열람실 검색..."
+                    placeholderTextColor="#C4C9D4"
+                  />
+                </View>
+                <ScrollView style={seatStyles.chipScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                  <View style={seatStyles.chipGrid}>
+                    {(roomSearch
+                      ? (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? []).filter(r => r.includes(roomSearch))
+                      : (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? [])
+                    ).map(r => {
+                      const active = selectedRoom === r;
+                      return (
+                        <TouchableOpacity key={r} style={[seatStyles.chip, active && seatStyles.chipSelected]} onPress={() => setSelectedRoom(r)} activeOpacity={0.7}>
+                          <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </>
+            ) : (
+              <Text style={seatStyles.libHint}>도서관을 먼저 선택해주세요</Text>
+            )}
+
+            {/* ── 좌석 번호 ── */}
+            <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>좌석 번호</Text>
+            <TextInput
+              style={seatStyles.input}
+              value={seatNo}
+              onChangeText={t => setSeatNo(t.replace(/[^0-9]/g, ''))}
+              placeholder="숫자만 입력 (예: 42)"
+              placeholderTextColor="#C4C9D4"
+              keyboardType="number-pad"
+              maxLength={4}
+            />
+
+            {/* ── 시작 시간 ── */}
+            <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
+            <View style={seatStyles.timeInputRow}>
+              <View style={seatStyles.timeInputWrap}>
+                <Text style={seatStyles.timeInputLabel}>시</Text>
+                <TextInput
+                  style={seatStyles.timeInput}
+                  value={startHour}
+                  onChangeText={onHourChange}
+                  onBlur={onHourBlur}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="00"
+                  placeholderTextColor="#D1D5DB"
+                  textAlign="center"
+                  selectTextOnFocus
+                  returnKeyType="next"
+                  onSubmitEditing={() => minRef.current?.focus()}
+                />
+              </View>
+              <Text style={seatStyles.timeInputColon}>:</Text>
+              <View style={seatStyles.timeInputWrap}>
+                <Text style={seatStyles.timeInputLabel}>분</Text>
+                <TextInput
+                  ref={minRef}
+                  style={seatStyles.timeInput}
+                  value={startMin}
+                  onChangeText={onMinChange}
+                  onBlur={onMinBlur}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="00"
+                  placeholderTextColor="#D1D5DB"
+                  textAlign="center"
+                  selectTextOnFocus
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[seatStyles.saveBtn, (!selectedRoom || !seatNo.trim()) && seatStyles.saveBtnDisabled]}
+              onPress={save}
+              activeOpacity={0.85}
+            >
+              <Text style={seatStyles.saveBtnText}>저장</Text>
+            </TouchableOpacity>
+
+            {info && (
+              <TouchableOpacity style={seatStyles.clearBtn} onPress={clear}>
+                <Text style={seatStyles.clearBtnText}>등록 취소</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -949,11 +944,13 @@ const seatStyles = StyleSheet.create({
   emptySubText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
 
   // ── 모달 ──
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  overlayInner: { justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 12, maxHeight: '90%',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 48,
   },
   sheetHandle: { width: 36, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 14 },
   sheetTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 4, textAlign: 'center' },
