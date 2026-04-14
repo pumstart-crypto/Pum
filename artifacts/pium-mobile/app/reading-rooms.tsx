@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard, Alert,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -168,6 +168,13 @@ function MySeatCard() {
   const insets = useSafeAreaInsets();
   const minRef  = useRef<TextInput>(null);
 
+  const [confirmDialog, setConfirmDialog] = useState<{
+    visible: boolean; title: string; message: string; onConfirm: () => void;
+  }>({ visible: false, title: '', message: '', onConfirm: () => {} });
+  const showConfirm = (title: string, message: string, onConfirm: () => void) =>
+    setConfirmDialog({ visible: true, title, message, onConfirm });
+  const hideConfirm = () => setConfirmDialog(d => ({ ...d, visible: false }));
+
   const [selectedLib,  setSelectedLib]  = useState<string | null>(null);
   const [roomSearch,   setRoomSearch]   = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
@@ -253,33 +260,23 @@ function MySeatCard() {
   };
 
   const extend = () => {
-    Alert.alert('연장', '연장하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '확인', onPress: async () => {
-          if (!info) return;
-          const newStart = addMins(info.startTime, 2 * 60);
-          const d = new Date();
-          const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          const newInfo = { ...info, startTime: newStart, savedDate: today };
-          const rem = calcRemaining(newInfo);
-          await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
-          setInfo(newInfo); setRemaining(rem);
-        },
-      },
-    ]);
+    showConfirm('연장', '연장하시겠습니까?', async () => {
+      if (!info) return;
+      const newStart = addMins(info.startTime, 2 * 60);
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const newInfo = { ...info, startTime: newStart, savedDate: today };
+      const rem = calcRemaining(newInfo);
+      await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
+      setInfo(newInfo); setRemaining(rem);
+    });
   };
 
   const returnSeat = () => {
-    Alert.alert('반납', '반납하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '확인', style: 'destructive', onPress: async () => {
-          await AsyncStorage.removeItem(MY_SEAT_KEY);
-          setInfo(null); setRemaining(null);
-        },
-      },
-    ]);
+    showConfirm('반납', '반납하시겠습니까?', async () => {
+      await AsyncStorage.removeItem(MY_SEAT_KEY);
+      setInfo(null); setRemaining(null);
+    });
   };
 
   const barColor = remaining
@@ -478,6 +475,28 @@ function MySeatCard() {
             )}
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── 인앱 확인 다이얼로그 ── */}
+      <Modal visible={confirmDialog.visible} transparent animationType="fade" statusBarTranslucent onRequestClose={hideConfirm}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 }}>
+          <View style={seatStyles.confirmBox}>
+            <Text style={seatStyles.confirmTitle}>{confirmDialog.title}</Text>
+            <Text style={seatStyles.confirmMsg}>{confirmDialog.message}</Text>
+            <View style={seatStyles.confirmBtnRow}>
+              <TouchableOpacity style={seatStyles.confirmCancelBtn} onPress={hideConfirm} activeOpacity={0.8}>
+                <Text style={seatStyles.confirmCancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={seatStyles.confirmOkBtn}
+                onPress={() => { hideConfirm(); confirmDialog.onConfirm(); }}
+                activeOpacity={0.8}
+              >
+                <Text style={seatStyles.confirmOkText}>확인</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -1033,4 +1052,25 @@ const seatStyles = StyleSheet.create({
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   clearBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
   clearBtnText: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+
+  // ── 인앱 확인 다이얼로그 ──
+  confirmBox: {
+    width: '100%', backgroundColor: '#fff', borderRadius: 18,
+    paddingHorizontal: 24, paddingTop: 28, paddingBottom: 20,
+    alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12,
+  },
+  confirmTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  confirmMsg: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  confirmBtnRow: { flexDirection: 'row', gap: 10, width: '100%' },
+  confirmCancelBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: '#F3F4F6', alignItems: 'center',
+  },
+  confirmCancelText: { fontSize: 15, fontWeight: '600', color: '#6B7280', fontFamily: 'Inter_600SemiBold' },
+  confirmOkBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: C.primary, alignItems: 'center',
+  },
+  confirmOkText: { fontSize: 15, fontWeight: '700', color: '#fff', fontFamily: 'Inter_700Bold' },
 });
