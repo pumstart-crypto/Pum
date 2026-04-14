@@ -238,11 +238,11 @@ function MySeatCard() {
 
   const save = async () => {
     if (!selectedRoom || !seatNo.trim()) return;
-    const startTime = `${startHour}:${startMin}`;
-    const today = new Date().toISOString().slice(0, 10);
+    const startTime = `${startHour.padStart(2,'0')}:${startMin.padStart(2,'0')}`;
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const newInfo: MySeatInfo = { roomName: selectedRoom, seatNo: seatNo.trim(), startTime, savedDate: today };
     const rem = calcRemaining(newInfo);
-    if (rem.expired) return;
     await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
     setInfo(newInfo); setRemaining(rem); setModalVisible(false);
   };
