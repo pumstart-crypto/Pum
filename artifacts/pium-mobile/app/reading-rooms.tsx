@@ -664,15 +664,6 @@ function TabContent({
           ))}
         </View>
       ))}
-      <TouchableOpacity
-        style={styles.reserveBtn}
-        onPress={() => WebBrowser.openBrowserAsync(SEAT_URL)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="bookmark-outline" size={17} color="#fff" style={{ marginRight: 7 }} />
-        <Text style={styles.reserveBtnText}>도서관 홈페이지에서 예약하기</Text>
-        <Feather name="external-link" size={13} color="rgba(255,255,255,0.75)" style={{ marginLeft: 6 }} />
-      </TouchableOpacity>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
@@ -840,14 +831,6 @@ const styles = StyleSheet.create({
   unableMsg: { fontSize: 12, color: '#9CA3AF', marginTop: 2, fontFamily: 'Inter_400Regular', lineHeight: 16 },
   barTrack: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
   barFill: { height: 6, borderRadius: 3 },
-
-  reserveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14,
-    marginTop: 8, marginBottom: 8,
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
-  },
-  reserveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
 
