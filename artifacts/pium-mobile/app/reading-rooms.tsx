@@ -761,7 +761,6 @@ export default function ReadingRoomsScreen() {
         ))}
       </View>
 
-      <View style={{ height: insets.bottom }} />
       {Toast}
     </View>
   );
@@ -841,7 +840,7 @@ const styles = StyleSheet.create({
   barTrack: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
   barFill: { height: 6, borderRadius: 3 },
 
-  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 56 },
 
   mySeatWrapper: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, backgroundColor: '#F8F9FB' },
   reservationBtn: {
