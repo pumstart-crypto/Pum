@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
@@ -453,8 +453,8 @@ function MySeatCard() {
               )}
             </View>
           </KeyboardAvoidingView>
-          {/* 홈 인디케이터 영역 흰 배경으로 채움 */}
-          <View style={{ height: insets.bottom, backgroundColor: '#fff' }} />
+          {/* 홈 인디케이터 영역 흰 배경으로 채움 — 기기 실제 inset 사용 */}
+          <View style={{ height: (initialWindowMetrics?.insets.bottom ?? 0) + 4, backgroundColor: '#fff' }} />
         </View>
       </Modal>
     </>
