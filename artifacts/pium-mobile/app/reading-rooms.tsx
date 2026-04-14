@@ -490,34 +490,6 @@ function useToast() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// SummaryBar
-// ══════════════════════════════════════════════════════════════
-function SummaryBar({ rooms }: { rooms: SeatRoom[] }) {
-  const active = rooms.filter(r => !r.unableMessage);
-  const totalSeats = active.reduce((s, r) => s + r.seats.total, 0);
-  const availSeats = active.reduce((s, r) => s + r.seats.available, 0);
-  const fullRooms  = active.filter(r => r.seats.available === 0).length;
-  return (
-    <View style={styles.summaryBar}>
-      <View style={styles.summaryItem}>
-        <Text style={styles.summaryNum}>{availSeats}</Text>
-        <Text style={styles.summaryLabel}>잔여석</Text>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <Text style={styles.summaryNum}>{totalSeats}</Text>
-        <Text style={styles.summaryLabel}>총 좌석</Text>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <Text style={[styles.summaryNum, fullRooms > 0 && { color: '#EF4444' }]}>{fullRooms}</Text>
-        <Text style={styles.summaryLabel}>만석</Text>
-      </View>
-    </View>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
 // RoomCard
 // ══════════════════════════════════════════════════════════════
 function RoomCard({ room, onSelect }: {
@@ -673,7 +645,6 @@ function TabContent({
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => { setIsRefreshing(true); fetchRooms(true); }} tintColor={C.primary} colors={[C.primary]} />}
       showsVerticalScrollIndicator={false}
     >
-      {rooms.length > 0 && <SummaryBar rooms={rooms} />}
       {timeStr ? (
         <View style={styles.updatedRow}>
           <Feather name="clock" size={11} color="#9CA3AF" />
@@ -836,17 +807,6 @@ const styles = StyleSheet.create({
     backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 10,
   },
   retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-
-  // Summary bar
-  summaryBar: {
-    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 14,
-    paddingVertical: 14, paddingHorizontal: 8, marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-  },
-  summaryItem: { flex: 1, alignItems: 'center', gap: 2 },
-  summaryNum: { fontSize: 20, fontWeight: '800', color: C.primary, fontFamily: 'Inter_700Bold' },
-  summaryLabel: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  summaryDivider: { width: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
 
   updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12, paddingHorizontal: 2 },
   updatedText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
