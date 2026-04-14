@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard, Alert,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -252,6 +252,36 @@ function MySeatCard() {
     setInfo(null); setRemaining(null); setModalVisible(false);
   };
 
+  const extend = () => {
+    Alert.alert('연장', '연장하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '확인', onPress: async () => {
+          if (!info) return;
+          const newStart = addMins(info.startTime, 2 * 60);
+          const d = new Date();
+          const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const newInfo = { ...info, startTime: newStart, savedDate: today };
+          const rem = calcRemaining(newInfo);
+          await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
+          setInfo(newInfo); setRemaining(rem);
+        },
+      },
+    ]);
+  };
+
+  const returnSeat = () => {
+    Alert.alert('반납', '반납하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '확인', style: 'destructive', onPress: async () => {
+          await AsyncStorage.removeItem(MY_SEAT_KEY);
+          setInfo(null); setRemaining(null);
+        },
+      },
+    ]);
+  };
+
   const barColor = remaining
     ? (remaining.totalMin > 60 ? '#10B981' : remaining.totalMin > 20 ? '#F59E0B' : '#EF4444')
     : '#10B981';
@@ -260,19 +290,11 @@ function MySeatCard() {
     <>
       {/* ── 등록된 카드 ── */}
       {info && remaining ? (
-        <TouchableOpacity style={seatStyles.card} onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)} activeOpacity={0.85}>
+        <View style={seatStyles.card}>
           <View style={seatStyles.cardHeader}>
             <View style={seatStyles.cardTitleRow}>
               <Ionicons name="library-outline" size={15} color={C.primary} />
               <Text style={seatStyles.cardTitle}>내 자리</Text>
-            </View>
-            <View style={seatStyles.cardActions}>
-              <TouchableOpacity onPress={openEdit} hitSlop={8} style={seatStyles.editBtn}>
-                <Feather name="edit-2" size={13} color="#9CA3AF" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={clear} hitSlop={8} style={seatStyles.editBtn}>
-                <Feather name="x" size={14} color="#9CA3AF" />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -301,12 +323,17 @@ function MySeatCard() {
                 {remaining.extensionPassed ? '연장 가능' : `연장 ${remaining.extensionTime}부터`}
               </Text>
             </View>
-            <View style={seatStyles.metaItem}>
-              <Feather name="external-link" size={10} color={C.primary} />
-              <Text style={[seatStyles.metaText, { color: C.primary }]}>예약 현황 확인</Text>
-            </View>
           </View>
-        </TouchableOpacity>
+
+          <View style={seatStyles.cardBtnRow}>
+            <TouchableOpacity style={seatStyles.extendBtn} onPress={extend} activeOpacity={0.8}>
+              <Text style={seatStyles.extendBtnText}>연장</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={seatStyles.returnBtn} onPress={returnSeat} activeOpacity={0.8}>
+              <Text style={seatStyles.returnBtnText}>반납</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
         <TouchableOpacity style={seatStyles.emptyCard} onPress={openEdit} activeOpacity={0.8}>
           <Feather name="plus-circle" size={15} color={C.primary} />
@@ -870,8 +897,17 @@ const seatStyles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  editBtn: { padding: 2 },
+  cardBtnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  extendBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 10,
+    borderWidth: 1.5, borderColor: C.primary, alignItems: 'center',
+  },
+  extendBtnText: { fontSize: 13, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold' },
+  returnBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 10,
+    borderWidth: 1.5, borderColor: '#EF4444', alignItems: 'center',
+  },
+  returnBtnText: { fontSize: 13, fontWeight: '700', color: '#EF4444', fontFamily: 'Inter_700Bold' },
 
   seatRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 },
   seatInfo: { flex: 1, marginRight: 12 },
