@@ -360,8 +360,7 @@ function MySeatCard() {
 
                 {/* ── 도서관 탭 ── */}
                 <Text style={seatStyles.inputLabel}>열람실</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+                <View style={seatStyles.libTabRow}>
                   {ROOM_LIST.map(({ section }) => {
                     const active = selectedLib === section;
                     return (
@@ -375,7 +374,7 @@ function MySeatCard() {
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </View>
 
                 {/* ── 열람실 검색 + 칩 ── */}
                 {selectedLib ? (() => {
@@ -994,6 +993,9 @@ const seatStyles = StyleSheet.create({
   sectionLabel: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 6, marginTop: 4 },
 
   // ── 도서관 탭 ──
+  libTabRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12,
+  },
   libTab: {
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
     backgroundColor: '#F3F4F8', borderWidth: 0,
