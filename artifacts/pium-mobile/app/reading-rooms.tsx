@@ -12,7 +12,7 @@ import C from '@/constants/colors';
 const isWeb = Platform.OS === 'web';
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 const SEAT_URL = 'https://lib.pusan.ac.kr/facility/seat';
-const QR_URL   = 'https://lib.pusan.ac.kr/mypage/membership-card';
+const QR_URL   = 'https://lib.pusan.ac.kr/mobile/membership-card';
 
 function pyxisUrl(branchGroupId: number) {
   return isWeb
