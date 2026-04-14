@@ -1,29 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Platform, Linking, RefreshControl,
-  Animated,
+  ActivityIndicator, Platform, RefreshControl, Animated,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import C from '@/constants/colors';
-import SchoolLoginModal from '@/components/SchoolLoginModal';
-import {
-  getMySeat, extendSeat, returnSeat, cancelSeat,
-  MySeatData, extractSeatName, extractRoomName, extractBranchName,
-} from '@/utils/seatManagement';
-import {
-  getSchoolSession, logoutFromLibrary, getLibApiToken, SchoolSession,
-} from '@/utils/schoolAuth';
-import {
-  getWeeklyBarData, formatMinutes,
-  getTodayMinutes, getWeekMinutes,
-} from '@/utils/studySessions';
 
 const isWeb = Platform.OS === 'web';
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
-const RESERVE_URL = 'https://lib.pusan.ac.kr/facility/seat';
+const SEAT_URL = 'https://lib.pusan.ac.kr/facility/seat';
+const QR_URL   = 'https://lib.pusan.ac.kr/mypage/membership-card';
 
 function pyxisUrl(branchGroupId: number) {
   return isWeb
@@ -41,7 +30,6 @@ interface SeatRoom {
   seats: { total: number; occupied: number; available: number; waiting: number; unavailable: number };
 }
 type StatusKey = 'available' | 'crowded' | 'full' | 'disabled';
-type MainTab = 'my-seat' | 'rooms';
 
 // ── Status helpers ─────────────────────────────────────────────
 function getStatus(room: SeatRoom): StatusKey {
@@ -63,15 +51,7 @@ function groupByFloor(rooms: SeatRoom[]): [number, SeatRoom[]][] {
   return Object.entries(map).map(([k, v]) => [Number(k), v] as [number, SeatRoom[]]).sort((a, b) => a[0] - b[0]);
 }
 
-/** 배정확정 여부: temporaryEndTime 있으면 미확정(배정확정 전) */
-function isUnconfirmedSeat(mySeat: MySeatData): boolean {
-  if (mySeat.temporaryEndTime) return true;
-  const code = mySeat.state?.code ?? '';
-  return code.toUpperCase().includes('WAIT') || code.toUpperCase().includes('TEMP');
-}
-
 // ── Tabs ──────────────────────────────────────────────────────
-// excludeNames: 열람실 name 또는 roomType.name에 해당 문자열이 포함되면 목록에서 제외
 const ROOM_TABS = [
   { key: 'saebbyukbul', label: '새벽벌',  branchGroupId: 1, typeFilter: '새벽벌', short: '새벽벌도서관',      excludeNames: ['PC'] },
   { key: 'mirinai',     label: '미리내',  branchGroupId: 1, typeFilter: '미리내', short: '미리내열람실',      excludeNames: [] },
@@ -114,404 +94,6 @@ function useToast() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// StudyStatsDashboard
-// ══════════════════════════════════════════════════════════════
-function StudyStatsDashboard() {
-  const [barData, setBarData] = useState<{ date: string; label: string; dayLabel: string; minutes: number }[]>([]);
-  const [todayMin, setTodayMin] = useState(0);
-  const [weekMin, setWeekMin] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const [bars, today, week] = await Promise.all([
-        getWeeklyBarData(), getTodayMinutes(), getWeekMinutes(),
-      ]);
-      setBarData(bars);
-      setTodayMin(today);
-      setWeekMin(week);
-      setLoading(false);
-    })();
-  }, []);
-
-  const maxMin = Math.max(...barData.map(d => d.minutes), 30);
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  const motivMsg = weekMin === 0
-    ? '도서관 이용 후 기록이 자동으로 쌓입니다 📚'
-    : weekMin < 120
-    ? '꾸준함이 실력입니다. 오늘도 화이팅! 💪'
-    : weekMin < 300
-    ? '이번 주 정말 열심히 하고 있어요! 🔥'
-    : '이번 주 학습량이 대단합니다! 최고에요! 🏆';
-
-  return (
-    <View style={styles.statsDash}>
-      <View style={styles.statsHeader}>
-        <Ionicons name="stats-chart" size={16} color={C.primary} />
-        <Text style={styles.statsTitleText}>학습 통계</Text>
-        <Text style={styles.statsSubText}>도서관 이용 기록 기반</Text>
-      </View>
-
-      {loading ? (
-        <View style={styles.statsLoading}>
-          <ActivityIndicator size="small" color={C.primary} />
-        </View>
-      ) : (
-        <>
-          {/* Summary cards */}
-          <View style={styles.statsSummaryRow}>
-            <View style={[styles.statsSummaryCard, { backgroundColor: `${C.primary}10` }]}>
-              <Text style={[styles.statsSummaryNum, { color: C.primary }]}>{formatMinutes(todayMin)}</Text>
-              <Text style={styles.statsSummaryLabel}>오늘 학습</Text>
-            </View>
-            <View style={[styles.statsSummaryCard, { backgroundColor: '#F0FDF4' }]}>
-              <Text style={[styles.statsSummaryNum, { color: '#059669' }]}>{formatMinutes(weekMin)}</Text>
-              <Text style={styles.statsSummaryLabel}>이번 주</Text>
-            </View>
-          </View>
-
-          {/* Bar chart */}
-          <View style={styles.barChart}>
-            {barData.map(d => {
-              const isToday = d.date === todayStr;
-              const barH = Math.max(4, Math.round((d.minutes / maxMin) * 80));
-              return (
-                <View key={d.date} style={styles.barCol}>
-                  <View style={styles.barOuter}>
-                    {d.minutes > 0 && (
-                      <View
-                        style={[
-                          styles.barInner,
-                          { height: barH, backgroundColor: isToday ? C.primary : `${C.primary}55` },
-                        ]}
-                      />
-                    )}
-                  </View>
-                  {d.minutes > 0 && (
-                    <Text style={[styles.barMin, { color: isToday ? C.primary : '#9CA3AF' }]}>
-                      {d.minutes >= 60 ? `${Math.floor(d.minutes / 60)}h` : `${d.minutes}m`}
-                    </Text>
-                  )}
-                  <Text style={[styles.barDayLabel, isToday && { color: C.primary, fontFamily: 'Inter_700Bold' }]}>
-                    {d.dayLabel}
-                  </Text>
-                  <Text style={styles.barDateLabel}>{d.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-
-          {/* Motivational message */}
-          <View style={styles.motivBox}>
-            <Text style={styles.motivText}>{motivMsg}</Text>
-          </View>
-        </>
-      )}
-    </View>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// SessionInfoCard
-// ══════════════════════════════════════════════════════════════
-const SESSION_HOURS = 8;
-const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
-
-function formatRemaining(savedAt: number): { text: string; pct: number; urgent: boolean } {
-  const elapsed = Date.now() - savedAt;
-  const remaining = SESSION_MS - elapsed;
-  if (remaining <= 0) return { text: '세션 만료됨', pct: 0, urgent: true };
-  const totalMin = Math.floor(remaining / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  const text = h > 0 ? `${h}시간 ${m}분 남음` : `${m}분 남음`;
-  const pct = Math.max(0, Math.min(100, (remaining / SESSION_MS) * 100));
-  return { text, pct, urgent: remaining < 30 * 60 * 1000 };
-}
-
-function SessionInfoCard({ session, onLogout }: { session: SchoolSession; onLogout: () => void }) {
-  const [tick, setTick] = React.useState(0);
-
-  React.useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  const { text, pct, urgent } = formatRemaining(session.savedAt);
-  const barColor = urgent ? '#EF4444' : pct > 50 ? '#10B981' : '#F59E0B';
-
-  return (
-    <View style={styles.sessionCard}>
-      {/* 상단 헤더 */}
-      <View style={styles.sessionCardHeader}>
-        <View style={styles.sessionCardIconBox}>
-          <Ionicons name="person-circle-outline" size={22} color={C.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sessionCardName}>{session.userName ?? '이용자'}</Text>
-          <Text style={styles.sessionCardId}>{session.userId}</Text>
-        </View>
-        <View style={[styles.sessionStatusBadge, { backgroundColor: urgent ? '#FEE2E2' : '#ECFDF5' }]}>
-          <View style={[styles.sessionStatusDot, { backgroundColor: urgent ? '#EF4444' : '#10B981' }]} />
-          <Text style={[styles.sessionStatusText, { color: urgent ? '#DC2626' : '#065F46' }]}>
-            {urgent ? '곧 만료' : '로그인됨'}
-          </Text>
-        </View>
-      </View>
-
-      {/* 세션 시간 */}
-      <View style={styles.sessionTimeRow}>
-        <Feather name="clock" size={13} color={barColor} />
-        <Text style={[styles.sessionTimeText, { color: barColor }]}>{text}</Text>
-      </View>
-
-      {/* 프로그레스 바 */}
-      <View style={styles.sessionBarTrack}>
-        <View style={[styles.sessionBarFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-      </View>
-      <Text style={styles.sessionBarHint}>세션은 로그인 후 {SESSION_HOURS}시간 유지됩니다</Text>
-
-      {/* 로그아웃 */}
-      <TouchableOpacity onPress={onLogout} style={styles.sessionLogoutBtn} activeOpacity={0.7}>
-        <Feather name="log-out" size={13} color="#9CA3AF" />
-        <Text style={styles.sessionLogoutText}>로그아웃</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// MySeatManagement (내 좌석 관리 탭 콘텐츠)
-// ══════════════════════════════════════════════════════════════
-interface MySeatManagementProps {
-  session: SchoolSession | null;
-  mySeat: MySeatData | null;
-  mySeatLoading: boolean;
-  onLogin: () => void;
-  onLogout: () => void;
-  onExtend: () => void;
-  onReturn: () => void;
-  onCancel: () => void;
-  onReserve: () => void;
-  onSaveFavorite: () => void;
-}
-function MySeatManagement({
-  session, mySeat, mySeatLoading,
-  onLogin, onLogout, onExtend, onReturn, onCancel, onReserve, onSaveFavorite,
-}: MySeatManagementProps) {
-
-  // ─ 미로그인 ────────────────────────────────────────────────
-  if (!session) {
-    return (
-      <ScrollView contentContainerStyle={styles.myScrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.loginPrompt}>
-          <View style={styles.loginPromptIcon}>
-            <Ionicons name="library-outline" size={48} color={`${C.primary}60`} />
-          </View>
-          <Text style={styles.loginPromptTitle}>도서관 로그인이 필요합니다</Text>
-          <Text style={styles.loginPromptSub}>학교 포털 계정으로 로그인하면{'\n'}내 좌석을 관리할 수 있습니다.</Text>
-          <TouchableOpacity style={styles.loginPromptBtn} onPress={onLogin} activeOpacity={0.85}>
-            <Feather name="log-in" size={16} color="#fff" />
-            <Text style={styles.loginPromptBtnText}>학교 포털 로그인</Text>
-          </TouchableOpacity>
-        </View>
-        <StudyStatsDashboard />
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    );
-  }
-
-  // ─ 로딩 ───────────────────────────────────────────────────
-  if (mySeatLoading) {
-    return (
-      <View style={styles.centerBox}>
-        <ActivityIndicator size="large" color={C.primary} />
-        <Text style={styles.loadingText}>좌석 정보 확인 중...</Text>
-      </View>
-    );
-  }
-
-  const seatName = extractSeatName(mySeat);
-  const roomName = extractRoomName(mySeat);
-  const branchName = extractBranchName(mySeat);
-
-  // ─ 예약 없음 ──────────────────────────────────────────────
-  if (!mySeat || !seatName) {
-    return (
-      <ScrollView contentContainerStyle={styles.myScrollContent} showsVerticalScrollIndicator={false}>
-        {/* 세션 정보 대시보드 */}
-        <SessionInfoCard session={session} onLogout={onLogout} />
-
-        {/* 예약 없음 안내 */}
-        <View style={styles.noSeatCard}>
-          <View style={styles.noSeatLeft}>
-            <Feather name="map-pin" size={18} color="#9CA3AF" />
-            <View>
-              <Text style={styles.noSeatTitle}>예약된 좌석 없음</Text>
-              <Text style={styles.noSeatSub}>열람실 현황에서 좌석을 선택하세요</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.noSeatBtn} onPress={onReserve} activeOpacity={0.85}>
-            <Text style={styles.noSeatBtnText}>예약하기</Text>
-            <Feather name="chevron-right" size={14} color={C.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <StudyStatsDashboard />
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    );
-  }
-
-  const unconfirmed = isUnconfirmedSeat(mySeat);
-  const deadlineTime = mySeat.temporaryEndTime ?? mySeat.extendableTime;
-
-  // ─ 배정확정 전 ────────────────────────────────────────────
-  if (unconfirmed) {
-    return (
-      <ScrollView contentContainerStyle={styles.myScrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.ticketCard}>
-          {/* 임시배정 경고 배너 */}
-          <View style={styles.ticketWarnBanner}>
-            <Feather name="alert-triangle" size={13} color="#D97706" />
-            <Text style={styles.ticketWarnText}>임시 배정 중 — 마감 전 좌석에서 배정확정 필요</Text>
-          </View>
-
-          <View style={styles.ticketBody}>
-            <View style={styles.ticketLeft}>
-              <View style={styles.ticketIconBox}>
-                <Ionicons name="library" size={22} color={C.primary} />
-              </View>
-              <View style={styles.ticketInfo}>
-                <Text style={styles.ticketSeatNum}>{seatName}번 좌석</Text>
-                {roomName && <Text style={styles.ticketRoomName}>{roomName}</Text>}
-                {branchName && <Text style={styles.ticketBranch}>{branchName}</Text>}
-              </View>
-            </View>
-            {deadlineTime && (
-              <View style={styles.deadlineBox}>
-                <Text style={styles.deadlineLabel}>배정확정 마감</Text>
-                <Text style={styles.deadlineTime}>{deadlineTime}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Action buttons */}
-          <View style={styles.ticketActions}>
-            <TouchableOpacity
-              style={[styles.ticketActionBtn, styles.cancelBtn]}
-              onPress={onCancel}
-              activeOpacity={0.8}
-            >
-              <Feather name="x-circle" size={14} color="#DC2626" />
-              <Text style={styles.cancelBtnText}>예약 취소</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.ticketActionBtn, styles.favSeatBtn]}
-              onPress={onSaveFavorite}
-              activeOpacity={0.8}
-            >
-              <Feather name="heart" size={14} color="#EC4899" />
-              <Text style={styles.favSeatBtnText}>선호좌석 등록</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.confirmGuide}>
-          <Feather name="info" size={13} color="#6B7280" />
-          <Text style={styles.confirmGuideText}>
-            좌석에 직접 가서 키오스크 또는 QR 코드로 배정을 확정하세요. 마감 시간 내 확정하지 않으면 예약이 취소됩니다.
-          </Text>
-        </View>
-
-        <TouchableOpacity onPress={onLogout} style={styles.logoutLink}>
-          <Feather name="log-out" size={12} color="#D1D5DB" />
-          <Text style={styles.logoutLinkText}>로그아웃</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    );
-  }
-
-  // ─ 배정확정 ───────────────────────────────────────────────
-  return (
-    <ScrollView contentContainerStyle={styles.myScrollContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.ticketCard}>
-        {/* Confirmed badge */}
-        <View style={styles.ticketConfirmedBanner}>
-          <View style={styles.confirmedDot} />
-          <Text style={styles.ticketConfirmedText}>배정 확정됨</Text>
-        </View>
-
-        <View style={styles.ticketBody}>
-          <View style={styles.ticketLeft}>
-            <View style={styles.ticketIconBox}>
-              <Ionicons name="library" size={22} color={C.primary} />
-            </View>
-            <View style={styles.ticketInfo}>
-              <Text style={styles.ticketSeatNum}>{seatName}번 좌석</Text>
-              {roomName && <Text style={styles.ticketRoomName}>{roomName}</Text>}
-              {branchName && <Text style={styles.ticketBranch}>{branchName}</Text>}
-            </View>
-          </View>
-          {mySeat.endTime && (
-            <View style={styles.deadlineBox}>
-              <Text style={styles.deadlineLabel}>이용 마감</Text>
-              <Text style={[styles.deadlineTime, { color: C.primary }]}>{mySeat.endTime}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* extendable time hint */}
-        {mySeat.extendableTime && (
-          <View style={styles.extendHint}>
-            <Feather name="clock" size={12} color="#6B7280" />
-            <Text style={styles.extendHintText}>{mySeat.extendableTime} 이후 연장 가능</Text>
-          </View>
-        )}
-
-        {/* Action buttons */}
-        <View style={styles.ticketActions}>
-          <TouchableOpacity
-            style={[styles.ticketActionBtn, styles.extendBtn]}
-            onPress={onExtend}
-            activeOpacity={0.8}
-          >
-            <Feather name="refresh-cw" size={14} color={C.primary} />
-            <Text style={styles.extendBtnText}>연장</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ticketActionBtn, styles.returnBtn]}
-            onPress={onReturn}
-            activeOpacity={0.8}
-          >
-            <Feather name="log-out" size={14} color="#fff" />
-            <Text style={styles.returnBtnText}>반납</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ticketActionBtn, styles.favSeatBtn]}
-            onPress={onSaveFavorite}
-            activeOpacity={0.8}
-          >
-            <Feather name="heart" size={14} color="#EC4899" />
-            <Text style={styles.favSeatBtnText}>선호좌석</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <TouchableOpacity onPress={onLogout} style={styles.logoutLink}>
-        <Feather name="log-out" size={12} color="#D1D5DB" />
-        <Text style={styles.logoutLinkText}>로그아웃</Text>
-      </TouchableOpacity>
-
-      <View style={{ height: 32 }} />
-    </ScrollView>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
 // SummaryBar
 // ══════════════════════════════════════════════════════════════
 function SummaryBar({ rooms }: { rooms: SeatRoom[] }) {
@@ -542,17 +124,15 @@ function SummaryBar({ rooms }: { rooms: SeatRoom[] }) {
 // ══════════════════════════════════════════════════════════════
 // RoomCard
 // ══════════════════════════════════════════════════════════════
-function RoomCard({ room, onSelect, sessionActive }: {
+function RoomCard({ room, onSelect }: {
   room: SeatRoom;
   onSelect: (room: SeatRoom) => void;
-  sessionActive: boolean;
 }) {
   const status = getStatus(room);
   const cfg    = STATUS_CFG[status];
   const { total, occupied, available } = room.seats;
   const pct = total > 0 ? Math.round((occupied / total) * 100) : 0;
   const isDisabled = status === 'disabled';
-  const canSelect = !isDisabled;
 
   const cardContent = (
     <>
@@ -564,7 +144,7 @@ function RoomCard({ room, onSelect, sessionActive }: {
               <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
               <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
             </View>
-            {canSelect && (
+            {!isDisabled && (
               <Feather name="chevron-right" size={15} color="#9CA3AF" style={{ opacity: 0.7 }} />
             )}
           </View>
@@ -595,7 +175,7 @@ function RoomCard({ room, onSelect, sessionActive }: {
     </>
   );
 
-  if (canSelect) {
+  if (!isDisabled) {
     return (
       <TouchableOpacity
         style={[styles.roomCard, styles.roomCardTappable]}
@@ -608,25 +188,24 @@ function RoomCard({ room, onSelect, sessionActive }: {
   }
 
   return (
-    <View style={[styles.roomCard, isDisabled && styles.roomCardDisabled]}>
+    <View style={[styles.roomCard, styles.roomCardDisabled]}>
       {cardContent}
     </View>
   );
 }
 
 // ══════════════════════════════════════════════════════════════
-// TabContent (열람실별 좌석 현황)
+// TabContent
 // ══════════════════════════════════════════════════════════════
 function TabContent({
   branchGroupId, typeFilter, excludeNames, isActive,
-  onRoomsReady, onSelectRoom, sessionActive,
+  onRoomsReady, onSelectRoom,
 }: {
   branchGroupId: number; typeFilter: string | null;
   excludeNames: readonly string[];
   isActive: boolean;
   onRoomsReady: (rooms: SeatRoom[]) => void;
   onSelectRoom: (room: SeatRoom) => void;
-  sessionActive: boolean;
 }) {
   const [rooms, setRooms] = useState<SeatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -714,11 +293,15 @@ function TabContent({
             <Text style={styles.floorCount}>{floorRooms.length}개 열람실</Text>
           </View>
           {floorRooms.map(room => (
-            <RoomCard key={room.id} room={room} onSelect={onSelectRoom} sessionActive={sessionActive} />
+            <RoomCard key={room.id} room={room} onSelect={onSelectRoom} />
           ))}
         </View>
       ))}
-      <TouchableOpacity style={styles.reserveBtn} onPress={() => Linking.openURL(RESERVE_URL)} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={styles.reserveBtn}
+        onPress={() => WebBrowser.openBrowserAsync(SEAT_URL)}
+        activeOpacity={0.85}
+      >
         <Ionicons name="bookmark-outline" size={17} color="#fff" style={{ marginRight: 7 }} />
         <Text style={styles.reserveBtnText}>도서관 홈페이지에서 예약하기</Text>
         <Feather name="external-link" size={13} color="rgba(255,255,255,0.75)" style={{ marginLeft: 6 }} />
@@ -736,110 +319,24 @@ export default function ReadingRoomsScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const { show: showToast, Toast } = useToast();
 
-  const [mainTab, setMainTab] = useState<MainTab>(isWeb ? 'rooms' : 'my-seat');
   const [activeRoomTab, setActiveRoomTab] = useState<RoomTabKey>('saebbyukbul');
   const [tabRooms, setTabRooms] = useState<Record<RoomTabKey, SeatRoom[]>>({
     saebbyukbul: [], mirinai: [], nano: [], medical: [],
   });
 
-  // ── Session & my seat ──────────────────────────────────────
-  const [session, setSession] = useState<SchoolSession | null>(null);
-  const [mySeat, setMySeat] = useState<MySeatData | null>(null);
-  const [mySeatLoading, setMySeatLoading] = useState(false);
-
-  // ── Modals ─────────────────────────────────────────────────
-  const [showLogin, setShowLogin] = useState(false);
-
-  // ── Load session ───────────────────────────────────────────
-  const loadMySeat = useCallback(async (forceLogoutOnExpiry = false) => {
-    setMySeatLoading(true);
-    const result = await getMySeat();
-    setMySeatLoading(false);
-    if (result.needsLogin) {
-      // lib 토큰이 없는 경우에만 완전 로그아웃 처리
-      const token = await getLibApiToken();
-      if (!token || forceLogoutOnExpiry) {
-        setSession(null);
-        await logoutFromLibrary();
-      }
-      setMySeat(null);
-      return;
-    }
-    if (result.success) setMySeat(result.data ?? null);
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      const stored = await getSchoolSession();
-      if (stored) { setSession(stored); loadMySeat(); }
-    })();
-  }, [loadMySeat]);
-
-  const handleLoginSuccess = useCallback((s: SchoolSession) => {
-    setSession(s);
-    setShowLogin(false);
-    loadMySeat();
-  }, [loadMySeat]);
-
-  // ── Room select ────────────────────────────────────────────
-  const handleSelectRoom = useCallback((room: SeatRoom) => {
-    router.push({
-      pathname: '/seat-picker',
-      params: {
-        roomName: room.name,
-        branchName: room.branch?.name ?? '',
-      },
-    });
-  }, []);
-
-  // ── Extend ─────────────────────────────────────────────────
-  const handleExtend = useCallback(async () => {
-    const result = await extendSeat();
-    if (result.needsLogin) { setSession(null); setMySeat(null); setShowLogin(true); return; }
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) loadMySeat();
-  }, [showToast, loadMySeat]);
-
-  // ── Return ─────────────────────────────────────────────────
-  const handleReturn = useCallback(async () => {
-    const result = await returnSeat();
-    if (result.needsLogin) { setSession(null); setMySeat(null); setShowLogin(true); return; }
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) { setMySeat(null); loadMySeat(); }
-  }, [showToast, loadMySeat]);
-
-  // ── Cancel ─────────────────────────────────────────────────
-  const handleCancel = useCallback(async () => {
-    const result = await cancelSeat();
-    if (result.needsLogin) { setSession(null); setMySeat(null); setShowLogin(true); return; }
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) { setMySeat(null); loadMySeat(); }
-  }, [showToast, loadMySeat]);
-
-  // ── Logout ─────────────────────────────────────────────────
-  const handleLogout = useCallback(async () => {
-    await logoutFromLibrary();
-    setSession(null); setMySeat(null);
-    showToast('로그아웃되었습니다.', 'success');
-  }, [showToast]);
-
-  // ── Save favorite seat ─────────────────────────────────────
-  const handleSaveFavorite = useCallback(() => {
-    if (mySeat) {
-      showToast('즐겨찾기 기능은 준비중입니다.', 'success');
-    }
-  }, [showToast, mySeat]);
-
-  // ── Navigate to reserve ────────────────────────────────────
-  const handleGoReserve = useCallback(() => {
-    setMainTab('rooms');
-  }, []);
+  const activeRoomTabDef = ROOM_TABS.find(t => t.key === activeRoomTab)!;
 
   const handleRoomsReady = useCallback((tabKey: RoomTabKey) => (rooms: SeatRoom[]) => {
     setTabRooms(prev => ({ ...prev, [tabKey]: rooms }));
   }, []);
 
-  const activeRoomTabDef = ROOM_TABS.find(t => t.key === activeRoomTab)!;
+  const handleSelectRoom = useCallback((room: SeatRoom) => {
+    WebBrowser.openBrowserAsync(SEAT_URL);
+  }, []);
+
+  const openQR = useCallback(() => {
+    WebBrowser.openBrowserAsync(QR_URL);
+  }, []);
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -850,108 +347,50 @@ export default function ReadingRoomsScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>도서관</Text>
-          <Text style={styles.headerSub}>
-            {mainTab === 'my-seat' ? '내 좌석 관리' : `${activeRoomTabDef.short} · 실시간`}
-          </Text>
+          <Text style={styles.headerSub}>{activeRoomTabDef.short} · 실시간</Text>
         </View>
-        {!session && (
-          <TouchableOpacity style={styles.headerLoginBtn} onPress={() => setShowLogin(true)} hitSlop={8}>
-            <Feather name="log-in" size={14} color={C.primary} />
-            <Text style={styles.headerLoginText}>로그인</Text>
-          </TouchableOpacity>
-        )}
-        {session && <View style={{ width: 30 }} />}
+        <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
+          <Ionicons name="qr-code-outline" size={22} color={C.primary} />
+        </TouchableOpacity>
       </View>
 
-      {/* ── Main Tab Segment (모바일 전용, 웹 미표시) ── */}
-      {!isWeb && (
-        <View style={styles.mainTabWrap}>
-          <View style={styles.tabSegment}>
-            {(['my-seat', 'rooms'] as MainTab[]).map(t => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.tabSegItem, mainTab === t && styles.tabSegItemActive]}
-                onPress={() => setMainTab(t)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.tabSegText, mainTab === t && styles.tabSegTextActive]}>
-                  {t === 'my-seat' ? '내 좌석 관리' : '열람실 현황'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
+      {/* ── Room subtabs ── */}
+      <View style={styles.roomTabBar}>
+        {ROOM_TABS.map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.roomTabItem, activeRoomTab === tab.key && styles.roomTabItemActive]}
+            onPress={() => setActiveRoomTab(tab.key)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      {/* ── Content ── */}
+      {/* ── Tab content ── */}
       <View style={{ flex: 1 }}>
-        {/* 내 좌석 관리 */}
-        {mainTab === 'my-seat' && (
-          <MySeatManagement
-            session={session}
-            mySeat={mySeat}
-            mySeatLoading={mySeatLoading}
-            onLogin={() => setShowLogin(true)}
-            onLogout={handleLogout}
-            onExtend={handleExtend}
-            onReturn={handleReturn}
-            onCancel={handleCancel}
-            onReserve={handleGoReserve}
-            onSaveFavorite={handleSaveFavorite}
-          />
-        )}
-
-        {/* 열람실 현황 */}
-        {mainTab === 'rooms' && (
-          <View style={{ flex: 1 }}>
-            {/* Room subtabs */}
-            <View style={styles.roomTabBar}>
-              {ROOM_TABS.map(tab => (
-                <TouchableOpacity
-                  key={tab.key}
-                  style={[styles.roomTabItem, activeRoomTab === tab.key && styles.roomTabItemActive]}
-                  onPress={() => setActiveRoomTab(tab.key)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {/* Room content — display:none으로 탭 마운트 유지 + zIndex 충돌 없음 */}
-            <View style={{ flex: 1 }}>
-              {ROOM_TABS.map(tab => (
-                <View
-                  key={tab.key}
-                  style={{ flex: 1, display: activeRoomTab === tab.key ? 'flex' : 'none' }}
-                >
-                  <TabContent
-                    branchGroupId={tab.branchGroupId}
-                    typeFilter={tab.typeFilter}
-                    excludeNames={tab.excludeNames}
-                    isActive={mainTab === 'rooms' && activeRoomTab === tab.key}
-                    onRoomsReady={handleRoomsReady(tab.key)}
-                    onSelectRoom={handleSelectRoom}
-                    sessionActive={!!session}
-                  />
-                </View>
-              ))}
-            </View>
+        {ROOM_TABS.map(tab => (
+          <View
+            key={tab.key}
+            style={{ flex: 1, display: activeRoomTab === tab.key ? 'flex' : 'none' }}
+          >
+            <TabContent
+              branchGroupId={tab.branchGroupId}
+              typeFilter={tab.typeFilter}
+              excludeNames={tab.excludeNames}
+              isActive={activeRoomTab === tab.key}
+              onRoomsReady={handleRoomsReady(tab.key)}
+              onSelectRoom={handleSelectRoom}
+            />
           </View>
-        )}
+        ))}
       </View>
 
       <View style={{ height: insets.bottom }} />
-
       {Toast}
-
-      <SchoolLoginModal
-        visible={showLogin}
-        onSuccess={handleLoginSuccess}
-        onDismiss={() => setShowLogin(false)}
-      />
-
     </View>
   );
 }
@@ -960,9 +399,8 @@ export default function ReadingRoomsScreen() {
 // Styles
 // ══════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#F8F9FB' },
 
-  // Header
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12,
@@ -972,244 +410,33 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold' },
   headerSub: { fontSize: 11, color: '#9CA3AF', marginTop: 1, fontFamily: 'Inter_400Regular' },
-  sessionIndicator: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  sessionDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
-  sessionText: { fontSize: 11, color: '#10B981', fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-  headerLoginBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  headerLoginText: { fontSize: 12, color: C.primary, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  qrBtn: { padding: 4 },
 
-  // Main Tab Segment (notices.tsx style)
-  mainTabWrap: {
-    backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
-  },
-  tabSegment: {
-    flexDirection: 'row', backgroundColor: '#F3F4F6',
-    borderRadius: 16, padding: 4, borderWidth: 1, borderColor: '#E5E7EB',
-  },
-  tabSegItem: { flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center' },
-  tabSegItemActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
-  },
-  tabSegText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-  tabSegTextActive: { color: C.primary, fontFamily: 'Inter_700Bold' },
-
-  // Room subtabs
+  // Room Tab Bar
   roomTabBar: {
     flexDirection: 'row', backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingHorizontal: 4,
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 6,
   },
   roomTabItem: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 11, gap: 5,
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 20, backgroundColor: '#F3F4F6',
   },
-  roomTabItemActive: { borderBottomColor: C.primary },
-  roomTabLabel: { fontSize: 13, fontWeight: '500', color: '#9CA3AF', fontFamily: 'Inter_500Medium' },
-  roomTabLabelActive: { color: C.primary, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  roomTabBadge: { backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, minWidth: 18, alignItems: 'center' },
-  roomTabBadgeActive: { backgroundColor: `${C.primary}18` },
-  roomTabBadgeText: { fontSize: 10, fontWeight: '600', color: '#9CA3AF', fontFamily: 'Inter_600SemiBold' },
-  roomTabBadgeTextActive: { color: C.primary },
+  roomTabItemActive: { backgroundColor: C.primary },
+  roomTabLabel: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  roomTabLabelActive: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
 
-  // Common
-  centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  retryBtnFull: { backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, marginTop: 4 },
-  retryBtnText: { color: '#fff', fontWeight: '600', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  // Center
+  centerBox: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 24,
+  },
+  loadingText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  retryBtnFull: {
+    backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 10,
+  },
+  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
 
-  // 내 좌석 관리 scroll
-  myScrollContent: { paddingHorizontal: 16, paddingTop: 16 },
-
-  // Login prompt
-  loginPrompt: {
-    alignItems: 'center', paddingVertical: 32, paddingHorizontal: 16,
-    backgroundColor: '#fff', borderRadius: 20, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-  },
-  loginPromptIcon: {
-    width: 88, height: 88, borderRadius: 44,
-    backgroundColor: `${C.primary}0D`, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
-  },
-  loginPromptTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 8 },
-  loginPromptSub: { fontSize: 13, color: '#6B7280', textAlign: 'center', fontFamily: 'Inter_400Regular', lineHeight: 20, marginBottom: 20 },
-  loginPromptBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: C.primary, borderRadius: 14,
-    paddingHorizontal: 24, paddingVertical: 12,
-  },
-  loginPromptBtnText: { fontSize: 15, fontWeight: '700', color: '#fff', fontFamily: 'Inter_700Bold' },
-
-  // Empty state
-  emptyState: {
-    alignItems: 'center', paddingVertical: 32, paddingHorizontal: 16,
-    backgroundColor: '#fff', borderRadius: 20, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-  },
-  emptyIcon: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: `${C.primary}0D`, alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-  },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 6 },
-  emptySub: { fontSize: 13, color: '#6B7280', textAlign: 'center', fontFamily: 'Inter_400Regular', lineHeight: 19, marginBottom: 20 },
-  reservePromptBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: C.primary, borderRadius: 14,
-    paddingHorizontal: 24, paddingVertical: 12, marginBottom: 12,
-  },
-  reservePromptBtnText: { fontSize: 14, fontWeight: '700', color: '#fff', fontFamily: 'Inter_700Bold' },
-
-  // Ticket card
-  ticketCard: {
-    backgroundColor: '#fff', borderRadius: 20, marginBottom: 12, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4,
-  },
-  ticketWarnBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: '#FFFBEB', paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#FEF3C7',
-  },
-  ticketWarnText: { fontSize: 12, color: '#92400E', fontFamily: 'Inter_500Medium', flex: 1 },
-  ticketConfirmedBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: '#ECFDF5', paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#D1FAE5',
-  },
-  confirmedDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
-  ticketConfirmedText: { fontSize: 12, color: '#065F46', fontFamily: 'Inter_600SemiBold' },
-  ticketBody: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 16,
-  },
-  ticketLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  ticketIconBox: {
-    width: 46, height: 46, borderRadius: 14,
-    backgroundColor: `${C.primary}12`, alignItems: 'center', justifyContent: 'center',
-  },
-  ticketInfo: { flex: 1 },
-  ticketSeatNum: { fontSize: 18, fontWeight: '800', color: '#111827', fontFamily: 'Inter_700Bold' },
-  ticketRoomName: { fontSize: 13, color: '#374151', fontFamily: 'Inter_500Medium', marginTop: 2 },
-  ticketBranch: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 1 },
-  deadlineBox: { alignItems: 'flex-end', gap: 2 },
-  deadlineLabel: { fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  deadlineTime: { fontSize: 16, fontWeight: '700', color: '#D97706', fontFamily: 'Inter_700Bold' },
-  extendHint: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 16, paddingBottom: 10,
-  },
-  extendHintText: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_400Regular' },
-  ticketActions: {
-    flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: '#F3F4F6',
-  },
-  ticketActionBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, borderRadius: 12, paddingVertical: 10,
-  },
-  cancelBtn: { borderWidth: 1.5, borderColor: '#FCA5A5', backgroundColor: '#FFF5F5' },
-  cancelBtnText: { fontSize: 13, fontWeight: '600', color: '#DC2626', fontFamily: 'Inter_600SemiBold' },
-  extendBtn: { borderWidth: 1.5, borderColor: C.primary, backgroundColor: '#fff' },
-  extendBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-  returnBtn: { backgroundColor: C.primary },
-  returnBtnText: { fontSize: 13, fontWeight: '600', color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  favSeatBtn: { borderWidth: 1.5, borderColor: '#FBCFE8', backgroundColor: '#FDF2F8' },
-  favSeatBtnText: { fontSize: 13, fontWeight: '600', color: '#EC4899', fontFamily: 'Inter_600SemiBold' },
-
-  confirmGuide: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#F9FAFB', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12,
-  },
-  confirmGuideText: { flex: 1, fontSize: 12, color: '#6B7280', fontFamily: 'Inter_400Regular', lineHeight: 18 },
-
-  // Logout link
-  logoutLink: { flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center', paddingVertical: 8 },
-  logoutLinkText: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-
-  // SessionInfoCard
-  sessionCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
-  },
-  sessionCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  sessionCardIconBox: {
-    width: 44, height: 44, borderRadius: 14,
-    backgroundColor: `${C.primary}12`, alignItems: 'center', justifyContent: 'center',
-  },
-  sessionCardName: { fontSize: 15, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold' },
-  sessionCardId: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 1 },
-  sessionStatusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
-  },
-  sessionStatusDot: { width: 7, height: 7, borderRadius: 4 },
-  sessionStatusText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  sessionTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  sessionTimeText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  sessionBarTrack: {
-    height: 6, backgroundColor: '#F3F4F6', borderRadius: 3,
-    overflow: 'hidden', marginBottom: 6,
-  },
-  sessionBarFill: { height: 6, borderRadius: 3 },
-  sessionBarHint: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 14 },
-  sessionLogoutBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    justifyContent: 'center', paddingVertical: 6,
-    borderTopWidth: 1, borderTopColor: '#F3F4F6',
-  },
-  sessionLogoutText: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-
-  // NoSeatCard
-  noSeatCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 12,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
-  },
-  noSeatLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  noSeatTitle: { fontSize: 14, fontWeight: '600', color: '#374151', fontFamily: 'Inter_600SemiBold' },
-  noSeatSub: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
-  noSeatBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: `${C.primary}10`, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 7,
-  },
-  noSeatBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-
-  // StudyStatsDashboard
-  statsDash: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-  },
-  statsHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
-  statsTitleText: { fontSize: 15, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', flex: 1 },
-  statsSubText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-  statsLoading: { paddingVertical: 24, alignItems: 'center' },
-
-  statsSummaryRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  statsSummaryCard: {
-    flex: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14,
-    alignItems: 'center', gap: 4,
-  },
-  statsSummaryNum: { fontSize: 18, fontWeight: '800', fontFamily: 'Inter_700Bold' },
-  statsSummaryLabel: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_400Regular' },
-
-  // Bar chart
-  barChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: 12, height: 110 },
-  barCol: { flex: 1, alignItems: 'center', gap: 2 },
-  barOuter: { width: '100%', height: 80, justifyContent: 'flex-end', alignItems: 'center' },
-  barInner: { width: '70%', borderRadius: 4 },
-  barMin: { fontSize: 9, fontFamily: 'Inter_600SemiBold' },
-  barDayLabel: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_500Medium' },
-  barDateLabel: { fontSize: 9, color: '#D1D5DB', fontFamily: 'Inter_400Regular' },
-
-  motivBox: { backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
-  motivText: { fontSize: 12, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center' },
-
-  // Room list
-  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+  // Summary bar
   summaryBar: {
     flexDirection: 'row', backgroundColor: '#fff', borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: 8, marginBottom: 8,
@@ -1235,9 +462,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
-  roomCardTappable: {
-    borderWidth: 1, borderColor: `${C.primary}22`,
-  },
+  roomCardTappable: { borderWidth: 1, borderColor: `${C.primary}22` },
   roomCardDisabled: { backgroundColor: '#F9FAFB', opacity: 0.7 },
   roomCardTop: { marginBottom: 10 },
   roomNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
@@ -1254,6 +479,7 @@ const styles = StyleSheet.create({
   unableMsg: { fontSize: 12, color: '#9CA3AF', marginTop: 2, fontFamily: 'Inter_400Regular', lineHeight: 16 },
   barTrack: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
   barFill: { height: 6, borderRadius: 3 },
+
   reserveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14,
@@ -1261,6 +487,8 @@ const styles = StyleSheet.create({
     shadowColor: C.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
   reserveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
 
   toast: {
     position: 'absolute', bottom: 28, left: 20, right: 20,
