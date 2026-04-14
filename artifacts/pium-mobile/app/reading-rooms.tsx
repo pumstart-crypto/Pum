@@ -2,17 +2,21 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
+  TextInput, Modal, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
 
 const isWeb = Platform.OS === 'web';
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
-const SEAT_URL = 'https://lib.pusan.ac.kr/facility/seat';
-const QR_URL   = 'https://lib.pusan.ac.kr/mobile/membership-card';
+const SEAT_URL        = 'https://lib.pusan.ac.kr/facility/seat';
+const QR_URL          = 'https://lib.pusan.ac.kr/mobile/membership-card';
+const RESERVATION_URL = 'https://lib.pusan.ac.kr/mylibrary/seat/reservations?openPanelId=29619';
+const MY_SEAT_KEY     = 'pium_my_seat_v1';
 
 function pyxisUrl(branchGroupId: number) {
   return isWeb
@@ -106,6 +110,211 @@ const ROOM_TABS = [
   { key: 'medical',     label: '의생명',  branchGroupId: 4, typeFilter: null,    short: '의생명과학도서관',   excludeNames: ['PC'] },
 ] as const;
 type RoomTabKey = typeof ROOM_TABS[number]['key'];
+
+// ══════════════════════════════════════════════════════════════
+// MySeatCard — 내 자리 카드 (수동 입력)
+// ══════════════════════════════════════════════════════════════
+interface MySeatInfo {
+  roomName: string;
+  seatNo: string;
+  endTime: string; // "HH:MM" 24h
+  savedDate: string; // "YYYY-MM-DD"
+}
+
+function calcRemaining(info: MySeatInfo): { text: string; pct: number; expired: boolean; totalMin: number } {
+  const now = new Date();
+  const [h, m] = info.endTime.split(':').map(Number);
+  const end = new Date(info.savedDate);
+  end.setHours(h, m, 0, 0);
+  const diffMs = end.getTime() - now.getTime();
+  if (diffMs <= 0) return { text: '이용 종료', pct: 0, expired: true, totalMin: 0 };
+  const totalMin = Math.floor(diffMs / 60000);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  const text = hh > 0 ? `${hh}시간 ${mm}분 남음` : `${mm}분 남음`;
+  // 최대 8시간 기준 진행률
+  const maxMs = 8 * 60 * 60 * 1000;
+  const pct = Math.min(100, Math.round((diffMs / maxMs) * 100));
+  return { text, pct, expired: false, totalMin };
+}
+
+function MySeatCard() {
+  const [info, setInfo] = useState<MySeatInfo | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [roomName, setRoomName] = useState('');
+  const [seatNo, setSeatNo] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
+  const [endTimeError, setEndTimeError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(MY_SEAT_KEY);
+      if (!raw) return;
+      const parsed: MySeatInfo = JSON.parse(raw);
+      const rem = calcRemaining(parsed);
+      if (rem.expired) { await AsyncStorage.removeItem(MY_SEAT_KEY); return; }
+      setInfo(parsed);
+      setRemaining(rem);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!info) return;
+    const id = setInterval(() => {
+      const rem = calcRemaining(info);
+      setRemaining(rem);
+      if (rem.expired) { setInfo(null); AsyncStorage.removeItem(MY_SEAT_KEY); }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [info]);
+
+  const openEdit = () => {
+    setRoomName(info?.roomName ?? '');
+    setSeatNo(info?.seatNo ?? '');
+    setEndTime(info?.endTime ?? '');
+    setEndTimeError('');
+    setModalVisible(true);
+  };
+
+  const save = async () => {
+    if (!roomName.trim() || !seatNo.trim()) return;
+    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (!timeRegex.test(endTime.trim())) {
+      setEndTimeError('HH:MM 형식으로 입력해주세요 (예: 14:30)');
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const newInfo: MySeatInfo = { roomName: roomName.trim(), seatNo: seatNo.trim(), endTime: endTime.trim(), savedDate: today };
+    const rem = calcRemaining(newInfo);
+    if (rem.expired) { setEndTimeError('이미 지난 시간입니다'); return; }
+    await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
+    setInfo(newInfo);
+    setRemaining(rem);
+    setModalVisible(false);
+  };
+
+  const clear = async () => {
+    await AsyncStorage.removeItem(MY_SEAT_KEY);
+    setInfo(null);
+    setRemaining(null);
+    setModalVisible(false);
+  };
+
+  const barColor = remaining
+    ? (remaining.totalMin > 60 ? '#10B981' : remaining.totalMin > 20 ? '#F59E0B' : '#EF4444')
+    : '#10B981';
+
+  return (
+    <>
+      {/* 카드 */}
+      {info && remaining ? (
+        <TouchableOpacity
+          style={seatStyles.card}
+          onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
+          activeOpacity={0.85}
+        >
+          <View style={seatStyles.cardHeader}>
+            <View style={seatStyles.cardTitleRow}>
+              <Ionicons name="library-outline" size={15} color={C.primary} />
+              <Text style={seatStyles.cardTitle}>내 자리</Text>
+            </View>
+            <View style={seatStyles.cardActions}>
+              <TouchableOpacity onPress={openEdit} hitSlop={8} style={seatStyles.editBtn}>
+                <Feather name="edit-2" size={13} color="#9CA3AF" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={clear} hitSlop={8} style={seatStyles.editBtn}>
+                <Feather name="x" size={14} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={seatStyles.seatRow}>
+            <View style={seatStyles.seatInfo}>
+              <Text style={seatStyles.seatRoom} numberOfLines={1}>{info.roomName}</Text>
+              <View style={seatStyles.seatNoRow}>
+                <Text style={seatStyles.seatNoLabel}>좌석</Text>
+                <Text style={seatStyles.seatNo}>{info.seatNo}</Text>
+              </View>
+            </View>
+            <View style={seatStyles.timeBox}>
+              <Text style={[seatStyles.timeText, { color: barColor }]}>{remaining.text}</Text>
+              <Text style={seatStyles.endTimeText}>~ {info.endTime}</Text>
+            </View>
+          </View>
+
+          <View style={seatStyles.barTrack}>
+            <View style={[seatStyles.barFill, { width: `${remaining.pct}%` as any, backgroundColor: barColor }]} />
+          </View>
+
+          <View style={seatStyles.linkRow}>
+            <Text style={seatStyles.linkText}>예약 현황 확인하기</Text>
+            <Feather name="external-link" size={11} color={C.primary} />
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={seatStyles.emptyCard} onPress={openEdit} activeOpacity={0.8}>
+          <Feather name="plus-circle" size={15} color={C.primary} />
+          <Text style={seatStyles.emptyText}>내 자리 등록</Text>
+          <Text style={seatStyles.emptySubText}>예약 후 좌석 번호와 종료 시간을 입력해두세요</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 입력 모달 */}
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+        <Pressable style={seatStyles.overlay} onPress={() => setModalVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={seatStyles.overlayInner}>
+            <Pressable style={seatStyles.sheet} onPress={e => e.stopPropagation()}>
+              <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
+
+              <Text style={seatStyles.inputLabel}>열람실 이름</Text>
+              <TextInput
+                style={seatStyles.input}
+                value={roomName}
+                onChangeText={setRoomName}
+                placeholder="예: 2열람실-A"
+                placeholderTextColor="#D1D5DB"
+              />
+
+              <Text style={seatStyles.inputLabel}>좌석 번호</Text>
+              <TextInput
+                style={seatStyles.input}
+                value={seatNo}
+                onChangeText={setSeatNo}
+                placeholder="예: A-042"
+                placeholderTextColor="#D1D5DB"
+              />
+
+              <Text style={seatStyles.inputLabel}>이용 종료 시간</Text>
+              <TextInput
+                style={[seatStyles.input, endTimeError ? seatStyles.inputError : null]}
+                value={endTime}
+                onChangeText={t => { setEndTime(t); setEndTimeError(''); }}
+                placeholder="HH:MM (예: 14:30)"
+                placeholderTextColor="#D1D5DB"
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
+              />
+              {endTimeError ? <Text style={seatStyles.errorText}>{endTimeError}</Text> : null}
+
+              <TouchableOpacity style={seatStyles.saveBtn} onPress={save} activeOpacity={0.85}>
+                <Text style={seatStyles.saveBtnText}>저장</Text>
+              </TouchableOpacity>
+
+              {info && (
+                <TouchableOpacity style={seatStyles.clearBtn} onPress={clear}>
+                  <Text style={seatStyles.clearBtnText}>등록 취소</Text>
+                </TouchableOpacity>
+              )}
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
 
 // ══════════════════════════════════════════════════════════════
 // Toast hook
@@ -401,6 +610,11 @@ export default function ReadingRoomsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── 내 자리 카드 ── */}
+      <View style={styles.mySeatWrapper}>
+        <MySeatCard />
+      </View>
+
       {/* ── Room subtabs ── */}
       <View style={styles.roomTabBar}>
         {ROOM_TABS.map(tab => (
@@ -537,6 +751,8 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
 
+  mySeatWrapper: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: '#F8F9FB' },
+
   toast: {
     position: 'absolute', bottom: 28, left: 20, right: 20,
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -545,4 +761,67 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
   },
   toastText: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+});
+
+const seatStyles = StyleSheet.create({
+  // 등록된 자리 카드
+  card: {
+    backgroundColor: '#fff', borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: `${C.primary}22`,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  cardTitle: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  editBtn: { padding: 2 },
+
+  seatRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 },
+  seatInfo: { flex: 1, marginRight: 12 },
+  seatRoom: { fontSize: 15, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 4 },
+  seatNoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  seatNoLabel: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+  seatNo: { fontSize: 15, fontWeight: '700', color: '#374151', fontFamily: 'Inter_700Bold' },
+
+  timeBox: { alignItems: 'flex-end' },
+  timeText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  endTimeText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
+
+  barTrack: { height: 5, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
+  barFill: { height: 5, borderRadius: 3 },
+
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linkText: { fontSize: 11, color: C.primary, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+
+  // 빈 카드 (등록 전)
+  emptyCard: {
+    backgroundColor: '#fff', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed',
+  },
+  emptyText: { fontSize: 14, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold', flex: 1 },
+  emptySubText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+
+  // 모달
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  overlayInner: { justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 24, paddingBottom: 36,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 20, textAlign: 'center' },
+  inputLabel: { fontSize: 12, color: '#6B7280', fontFamily: 'Inter_500Medium', fontWeight: '500', marginBottom: 6, marginTop: 12 },
+  input: {
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 11,
+    fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', backgroundColor: '#FAFAFA',
+  },
+  inputError: { borderColor: '#EF4444' },
+  errorText: { fontSize: 11, color: '#EF4444', fontFamily: 'Inter_400Regular', marginTop: 4 },
+  saveBtn: {
+    backgroundColor: C.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20,
+  },
+  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  clearBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
+  clearBtnText: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 });
