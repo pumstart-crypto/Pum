@@ -322,7 +322,7 @@ function MySeatCard() {
         <View style={seatStyles.overlay}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setModalVisible(false)} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[seatStyles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={[seatStyles.sheet, { paddingBottom: 20 }]}>
               <View style={seatStyles.sheetHandle} />
               <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
 
@@ -453,6 +453,8 @@ function MySeatCard() {
               )}
             </View>
           </KeyboardAvoidingView>
+          {/* 홈 인디케이터 영역 흰 배경으로 채움 */}
+          <View style={{ height: insets.bottom, backgroundColor: '#fff' }} />
         </View>
       </Modal>
     </>
