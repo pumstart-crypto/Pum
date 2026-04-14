@@ -20,6 +20,53 @@ function pyxisUrl(branchGroupId: number) {
     : `https://lib.pusan.ac.kr/pyxis-api/1/seat-rooms?homepageId=1&smufMethodCode=SEAT&branchGroupId=${branchGroupId}`;
 }
 
+const BASE_ROOM = 'https://lib.pusan.ac.kr/facility/seat/reading-rooms-for-reservation';
+
+/** 열람실 이름으로 예약 페이지 URL 반환 (매칭 실패 시 통합 예약 페이지) */
+function getRoomUrl(name: string): string {
+  const n = name.replace(/\s/g, '');
+  // 새벽누리
+  if (n.includes('새벽누리') && n.includes('열람')) return `${BASE_ROOM}/3`;
+  if (n.includes('새벽누리') && n.includes('미디어')) return `${BASE_ROOM}/2`;
+  // 새벽별당
+  if (n.includes('새벽별당') && /[Aa]/.test(n)) return `${BASE_ROOM}/7`;
+  if (n.includes('새벽별당') && /[Bb]/.test(n)) return `${BASE_ROOM}/8`;
+  if (n.includes('새벽별당')) return `${BASE_ROOM}/7`;
+  // 1열람실
+  if (/^1열람실/.test(n) || n === '1열람실') return `${BASE_ROOM}/69`;
+  // 2열람실
+  if (n.includes('2열람실') && /[Dd]/.test(n)) return `${BASE_ROOM}/12`;
+  if (n.includes('2열람실') && /[Cc]/.test(n)) return `${BASE_ROOM}/11`;
+  if (n.includes('2열람실') && /[Bb]/.test(n)) return `${BASE_ROOM}/10`;
+  if (n.includes('2열람실') && /[Aa]/.test(n)) return `${BASE_ROOM}/9`;
+  if (n.includes('2열람실')) return `${BASE_ROOM}/9`;
+  // 3열람실
+  if (n.includes('3열람실') && /[Dd]/.test(n)) return `${BASE_ROOM}/18`;
+  if (n.includes('3열람실') && /[Cc]/.test(n)) return `${BASE_ROOM}/17`;
+  if (n.includes('3열람실') && /[Bb]/.test(n)) return `${BASE_ROOM}/16`;
+  if (n.includes('3열람실') && /[Aa]/.test(n)) return `${BASE_ROOM}/15`;
+  if (n.includes('3열람실')) return `${BASE_ROOM}/15`;
+  // 노트북열람실
+  if (n.includes('노트북') && /[Bb]/.test(n)) return `${BASE_ROOM}/14`;
+  if (n.includes('노트북') && /[Aa]/.test(n)) return `${BASE_ROOM}/13`;
+  if (n.includes('노트북')) return `${BASE_ROOM}/13`;
+  // 대학원캐럴실
+  if (n.includes('대학원') && n.includes('캐럴')) return `${BASE_ROOM}/19`;
+  // 미리내
+  if (n.includes('숲열람실')) return `${BASE_ROOM}/20`;
+  if (n.includes('나무열람실')) return `${BASE_ROOM}/21`;
+  if (n.includes('아카데미아') && n.includes('열람')) return `${BASE_ROOM}/22`;
+  if (n.includes('아카데미아') && n.includes('캐럴') && /[Bb]/.test(n)) return `${BASE_ROOM}/24`;
+  if (n.includes('아카데미아') && n.includes('캐럴')) return `${BASE_ROOM}/23`;
+  // 나노생명
+  if (n.includes('미르마루')) return `${BASE_ROOM}/26`;
+  if (n.includes('집중열람실')) return `${BASE_ROOM}/27`;
+  // 의생명
+  if (n.includes('행림')) return `${BASE_ROOM}/25`;
+  // fallback
+  return SEAT_URL;
+}
+
 // ── Types ─────────────────────────────────────────────────────
 interface SeatRoom {
   id: number; name: string; floor: number;
@@ -331,7 +378,7 @@ export default function ReadingRoomsScreen() {
   }, []);
 
   const handleSelectRoom = useCallback((room: SeatRoom) => {
-    WebBrowser.openBrowserAsync(SEAT_URL);
+    WebBrowser.openBrowserAsync(getRoomUrl(room.name));
   }, []);
 
   const openQR = useCallback(() => {
