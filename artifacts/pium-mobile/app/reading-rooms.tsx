@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -189,6 +189,7 @@ function MySeatCard() {
     if (digits === '') { setStartMin(''); return; }
     if (Number(digits) > 59) return;
     setStartMin(digits);
+    if (digits.length === 2) Keyboard.dismiss();
   };
   const onMinBlur = () => setStartMin(m => m.length === 1 ? m.padStart(2, '0') : m || '00');
 
