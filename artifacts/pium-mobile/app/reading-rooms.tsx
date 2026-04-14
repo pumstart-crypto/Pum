@@ -206,7 +206,7 @@ function DrumPicker({ values, selected, onSelect }: {
 }
 
 const HOURS   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MINUTES = ['00', '10', '20', '30', '40', '50'];
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
 // ── MySeatCard ─────────────────────────────────────────────────
 function MySeatCard() {
@@ -255,12 +255,7 @@ function MySeatCard() {
       setSeatNo(info.seatNo);
       const [h, m] = info.startTime.split(':');
       setStartHour(h);
-      // snap minute to nearest 10-min step
-      const mNum = Number(m);
-      const snapMin = MINUTES.reduce((prev, cur) =>
-        Math.abs(Number(cur) - mNum) < Math.abs(Number(prev) - mNum) ? cur : prev
-      );
-      setStartMin(snapMin);
+      setStartMin(m);
     } else {
       setSelectedLib(null);
       setSelectedRoom(''); setSeatNo('');
@@ -403,7 +398,6 @@ function MySeatCard() {
                       <View style={seatStyles.chipGrid}>
                         {filtered.map(r => {
                           const active = selectedRoom === r;
-                          const is24h = r.includes('24h');
                           return (
                             <TouchableOpacity
                               key={r}
@@ -412,7 +406,6 @@ function MySeatCard() {
                               activeOpacity={0.7}
                             >
                               <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
-                              {is24h && <Text style={seatStyles.chip24h}>24H</Text>}
                             </TouchableOpacity>
                           );
                         })}
