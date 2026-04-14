@@ -158,55 +158,6 @@ function calcRemaining(info: MySeatInfo): {
   return { text, pct, expired: false, totalMin, endTime, extensionTime, extensionPassed };
 }
 
-// ── DrumPicker ─────────────────────────────────────────────────
-const DRUM_H = 48;
-function DrumPicker({ values, selected, onSelect }: {
-  values: string[]; selected: string; onSelect: (v: string) => void;
-}) {
-  const ref = useRef<ScrollView>(null);
-  const [cur, setCur] = useState(() => Math.max(0, values.indexOf(selected)));
-
-  useEffect(() => {
-    const idx = Math.max(0, values.indexOf(selected));
-    const t = setTimeout(() => ref.current?.scrollTo({ y: idx * DRUM_H, animated: false }), 80);
-    return () => clearTimeout(t);
-  }, []);
-
-  const snap = useCallback((y: number) => {
-    const i = Math.max(0, Math.min(values.length - 1, Math.round(y / DRUM_H)));
-    setCur(i); onSelect(values[i]);
-    ref.current?.scrollTo({ y: i * DRUM_H, animated: true });
-  }, [values, onSelect]);
-
-  return (
-    <View style={{ height: DRUM_H * 3, overflow: 'hidden' }}>
-      <View style={seatStyles.drumHighlight} pointerEvents="none" />
-      <ScrollView
-        ref={ref}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={DRUM_H}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: DRUM_H }}
-        onMomentumScrollEnd={e => snap(e.nativeEvent.contentOffset.y)}
-        onScrollEndDrag={e => snap(e.nativeEvent.contentOffset.y)}
-      >
-        {values.map((v, i) => (
-          <TouchableOpacity
-            key={v}
-            style={seatStyles.drumItem}
-            onPress={() => snap(i * DRUM_H)}
-            activeOpacity={0.7}
-          >
-            <Text style={[seatStyles.drumText, v === values[cur] && seatStyles.drumTextSelected]}>{v}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-const HOURS   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
 // ── MySeatCard ─────────────────────────────────────────────────
 function MySeatCard() {
@@ -214,13 +165,32 @@ function MySeatCard() {
   const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const insets = useSafeAreaInsets();
+  const minRef  = useRef<TextInput>(null);
+
   const [selectedLib,  setSelectedLib]  = useState<string | null>(null);
   const [roomSearch,   setRoomSearch]   = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
   const [seatNo, setSeatNo] = useState('');
   const [startHour, setStartHour] = useState('00');
   const [startMin,  setStartMin]  = useState('00');
-  const [timePickerOpen, setTimePickerOpen] = useState(false);
+
+  const onHourChange = (text: string) => {
+    const digits = text.replace(/[^0-9]/g, '');
+    if (digits === '') { setStartHour(''); return; }
+    if (Number(digits) > 23) return;
+    setStartHour(digits);
+    if (digits.length === 2) minRef.current?.focus();
+  };
+  const onHourBlur = () => setStartHour(h => h.length === 1 ? h.padStart(2, '0') : h || '00');
+
+  const onMinChange = (text: string) => {
+    const digits = text.replace(/[^0-9]/g, '');
+    if (digits === '') { setStartMin(''); return; }
+    if (Number(digits) > 59) return;
+    setStartMin(digits);
+  };
+  const onMinBlur = () => setStartMin(m => m.length === 1 ? m.padStart(2, '0') : m || '00');
 
   const load = useCallback(async () => {
     try {
@@ -262,7 +232,6 @@ function MySeatCard() {
       setStartHour('00'); setStartMin('00');
     }
     setRoomSearch('');
-    setTimePickerOpen(false);
     setModalVisible(true);
   };
 
@@ -352,7 +321,7 @@ function MySeatCard() {
         <View style={seatStyles.overlay}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setModalVisible(false)} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={seatStyles.sheet}>
+            <View style={[seatStyles.sheet, { paddingBottom: insets.bottom + 20 }]}>
               <View style={seatStyles.sheetHandle} />
               <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
 
@@ -431,43 +400,40 @@ function MySeatCard() {
 
               {/* ── 시작 시간 ── */}
               <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
-              <TouchableOpacity
-                style={seatStyles.timeDisplayBtn}
-                onPress={() => setTimePickerOpen(o => !o)}
-                activeOpacity={0.8}
-              >
-                <Feather name="clock" size={15} color={C.primary} />
-                <Text style={seatStyles.timeDisplayText}>{startHour}:{startMin}</Text>
-                <Feather name={timePickerOpen ? 'chevron-up' : 'chevron-down'} size={15} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              {timePickerOpen && (
-                <View style={seatStyles.drumRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={seatStyles.drumLabel}>시</Text>
-                    <DrumPicker values={HOURS} selected={startHour} onSelect={setStartHour} />
-                  </View>
-                  <Text style={seatStyles.drumColon}>:</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={seatStyles.drumLabel}>분</Text>
-                    <DrumPicker values={MINUTES} selected={startMin} onSelect={setStartMin} />
-                  </View>
+              <View style={seatStyles.timeInputRow}>
+                <View style={seatStyles.timeInputWrap}>
+                  <Text style={seatStyles.timeInputLabel}>시</Text>
+                  <TextInput
+                    style={seatStyles.timeInput}
+                    value={startHour}
+                    onChangeText={onHourChange}
+                    onBlur={onHourBlur}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor="#D1D5DB"
+                    textAlign="center"
+                    selectTextOnFocus
+                    returnKeyType="next"
+                    onSubmitEditing={() => minRef.current?.focus()}
+                  />
                 </View>
-              )}
-
-              {/* ── 자동 계산 표시 ── */}
-              <View style={seatStyles.autoCalcBox}>
-                <View style={seatStyles.autoCalcRow}>
-                  <Feather name="clock" size={12} color="#6B7280" />
-                  <Text style={seatStyles.autoCalcText}>
-                    종료: {addMins(`${startHour}:${startMin}`, 4 * 60)}
-                  </Text>
-                </View>
-                <View style={seatStyles.autoCalcRow}>
-                  <Feather name="refresh-cw" size={12} color="#6B7280" />
-                  <Text style={seatStyles.autoCalcText}>
-                    연장 가능: {addMins(`${startHour}:${startMin}`, 2 * 60)}부터
-                  </Text>
+                <Text style={seatStyles.timeInputColon}>:</Text>
+                <View style={seatStyles.timeInputWrap}>
+                  <Text style={seatStyles.timeInputLabel}>분</Text>
+                  <TextInput
+                    ref={minRef}
+                    style={seatStyles.timeInput}
+                    value={startMin}
+                    onChangeText={onMinChange}
+                    onBlur={onMinBlur}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor="#D1D5DB"
+                    textAlign="center"
+                    selectTextOnFocus
+                  />
                 </View>
               </View>
 
@@ -484,7 +450,6 @@ function MySeatCard() {
                   <Text style={seatStyles.clearBtnText}>등록 취소</Text>
                 </TouchableOpacity>
               )}
-              <View style={{ height: 20 }} />
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -1042,28 +1007,26 @@ const seatStyles = StyleSheet.create({
     fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', backgroundColor: '#FAFAFA',
   },
 
-  // ── 시간 표시 버튼 ──
-  timeDisplayBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#FAFAFA',
+  // ── 시간 입력 ──
+  timeInputRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 12, marginBottom: 4,
   },
-  timeDisplayText: {
-    flex: 1, fontSize: 18, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold',
-    letterSpacing: 1,
+  timeInputWrap: { alignItems: 'center', flex: 1 },
+  timeInputLabel: {
+    fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_500Medium',
+    fontWeight: '500', marginBottom: 6, letterSpacing: 0.5,
   },
-
-  // ── 드럼 피커 ──
-  drumRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8F9FB', borderRadius: 14, padding: 8 },
-  drumLabel: { textAlign: 'center', fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 4 },
-  drumHighlight: {
-    position: 'absolute', top: DRUM_H, left: 4, right: 4, height: DRUM_H,
-    backgroundColor: `${C.primary}12`, borderRadius: 8, zIndex: 0,
+  timeInput: {
+    width: '100%', paddingVertical: 14,
+    borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12,
+    backgroundColor: '#FAFAFA',
+    fontSize: 32, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold',
   },
-  drumItem: { height: DRUM_H, alignItems: 'center', justifyContent: 'center' },
-  drumText: { fontSize: 18, color: '#C4C9D4', fontFamily: 'Inter_400Regular' },
-  drumTextSelected: { fontSize: 24, color: C.primary, fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  drumColon: { fontSize: 24, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold', paddingTop: 20 },
+  timeInputColon: {
+    fontSize: 28, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold',
+    marginTop: 20,
+  },
 
   // ── 자동 계산 표시 ──
   autoCalcBox: {
