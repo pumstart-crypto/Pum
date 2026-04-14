@@ -715,6 +715,15 @@ export default function ReadingRoomsScreen() {
       {/* ── 내 자리 카드 ── */}
       <View style={styles.mySeatWrapper}>
         <MySeatCard />
+        <TouchableOpacity
+          style={styles.reservationBtn}
+          onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="calendar-outline" size={15} color={C.primary} style={{ marginRight: 6 }} />
+          <Text style={styles.reservationBtnText}>내 좌석 예약 현황 보기</Text>
+          <Feather name="external-link" size={12} color={C.primary} style={{ marginLeft: 6, opacity: 0.6 }} />
+        </TouchableOpacity>
       </View>
 
       {/* ── Room subtabs ── */}
@@ -834,7 +843,13 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
 
-  mySeatWrapper: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: '#F8F9FB' },
+  mySeatWrapper: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, backgroundColor: '#F8F9FB' },
+  reservationBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: C.primary, borderRadius: 12,
+    paddingVertical: 10, marginTop: 8,
+  },
+  reservationBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
 
   toast: {
     position: 'absolute', bottom: 28, left: 20, right: 20,
