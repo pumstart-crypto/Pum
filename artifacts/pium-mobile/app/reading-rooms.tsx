@@ -356,134 +356,135 @@ function MySeatCard() {
               <View style={seatStyles.sheetHandle} />
               <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
 
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-                {/* ── 도서관 탭 ── */}
-                <Text style={seatStyles.inputLabel}>열람실</Text>
-                <View style={seatStyles.libTabRow}>
-                  {ROOM_LIST.map(({ section }) => {
-                    const active = selectedLib === section;
-                    return (
-                      <TouchableOpacity
-                        key={section}
-                        style={[seatStyles.libTab, active && seatStyles.libTabActive]}
-                        onPress={() => { setSelectedLib(section); setSelectedRoom(''); setRoomSearch(''); }}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={[seatStyles.libTabText, active && seatStyles.libTabTextActive]}>{section}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                {/* ── 열람실 검색 + 칩 ── */}
-                {selectedLib ? (() => {
-                  const libRooms = ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? [];
-                  const filtered = roomSearch
-                    ? libRooms.filter(r => r.includes(roomSearch))
-                    : libRooms;
+              {/* ── 도서관 탭 ── */}
+              <Text style={seatStyles.inputLabel}>열람실</Text>
+              <View style={seatStyles.libTabRow}>
+                {ROOM_LIST.map(({ section }) => {
+                  const active = selectedLib === section;
                   return (
-                    <>
-                      <View style={seatStyles.searchBox}>
-                        <Feather name="search" size={14} color="#9CA3AF" />
-                        <TextInput
-                          style={seatStyles.searchInput}
-                          value={roomSearch}
-                          onChangeText={setRoomSearch}
-                          placeholder="열람실 검색..."
-                          placeholderTextColor="#C4C9D4"
-                        />
-                      </View>
-                      <View style={seatStyles.chipGrid}>
-                        {filtered.map(r => {
-                          const active = selectedRoom === r;
-                          return (
-                            <TouchableOpacity
-                              key={r}
-                              style={[seatStyles.chip, active && seatStyles.chipSelected]}
-                              onPress={() => setSelectedRoom(r)}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </>
+                    <TouchableOpacity
+                      key={section}
+                      style={[seatStyles.libTab, active && seatStyles.libTabActive]}
+                      onPress={() => { setSelectedLib(section); setSelectedRoom(''); setRoomSearch(''); }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[seatStyles.libTabText, active && seatStyles.libTabTextActive]}>{section}</Text>
+                    </TouchableOpacity>
                   );
-                })() : (
-                  <Text style={seatStyles.libHint}>도서관을 먼저 선택해주세요</Text>
-                )}
+                })}
+              </View>
 
-                {/* ── 좌석 번호 ── */}
-                <Text style={[seatStyles.inputLabel, { marginTop: 20 }]}>좌석 번호</Text>
-                <TextInput
-                  style={seatStyles.input}
-                  value={seatNo}
-                  onChangeText={t => setSeatNo(t.replace(/[^0-9]/g, ''))}
-                  placeholder="숫자만 입력 (예: 42)"
-                  placeholderTextColor="#C4C9D4"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                />
-
-                {/* ── 시작 시간 ── */}
-                <Text style={[seatStyles.inputLabel, { marginTop: 20 }]}>이용 시작 시간</Text>
-                <TouchableOpacity
-                  style={seatStyles.timeDisplayBtn}
-                  onPress={() => setTimePickerOpen(o => !o)}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="clock" size={15} color={C.primary} />
-                  <Text style={seatStyles.timeDisplayText}>{startHour}:{startMin}</Text>
-                  <Feather name={timePickerOpen ? 'chevron-up' : 'chevron-down'} size={15} color="#9CA3AF" />
-                </TouchableOpacity>
-
-                {timePickerOpen && (
-                  <View style={seatStyles.drumRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={seatStyles.drumLabel}>시</Text>
-                      <DrumPicker values={HOURS} selected={startHour} onSelect={setStartHour} />
-                    </View>
-                    <Text style={seatStyles.drumColon}>:</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={seatStyles.drumLabel}>분</Text>
-                      <DrumPicker values={MINUTES} selected={startMin} onSelect={setStartMin} />
-                    </View>
+              {/* ── 열람실 검색 + 칩 ── */}
+              {selectedLib ? (
+                <>
+                  <View style={seatStyles.searchBox}>
+                    <Feather name="search" size={14} color="#9CA3AF" />
+                    <TextInput
+                      style={seatStyles.searchInput}
+                      value={roomSearch}
+                      onChangeText={setRoomSearch}
+                      placeholder="열람실 검색..."
+                      placeholderTextColor="#C4C9D4"
+                    />
                   </View>
-                )}
+                  <ScrollView
+                    style={seatStyles.chipScroll}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled
+                  >
+                    <View style={seatStyles.chipGrid}>
+                      {(roomSearch
+                        ? (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? []).filter(r => r.includes(roomSearch))
+                        : (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? [])
+                      ).map(r => {
+                        const active = selectedRoom === r;
+                        return (
+                          <TouchableOpacity
+                            key={r}
+                            style={[seatStyles.chip, active && seatStyles.chipSelected]}
+                            onPress={() => setSelectedRoom(r)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </>
+              ) : (
+                <Text style={seatStyles.libHint}>도서관을 먼저 선택해주세요</Text>
+              )}
 
-                {/* ── 자동 계산 표시 ── */}
-                <View style={seatStyles.autoCalcBox}>
-                  <View style={seatStyles.autoCalcRow}>
-                    <Feather name="clock" size={12} color="#6B7280" />
-                    <Text style={seatStyles.autoCalcText}>
-                      종료: {addMins(`${startHour}:${startMin}`, 4 * 60)}
-                    </Text>
+              {/* ── 좌석 번호 ── */}
+              <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>좌석 번호</Text>
+              <TextInput
+                style={seatStyles.input}
+                value={seatNo}
+                onChangeText={t => setSeatNo(t.replace(/[^0-9]/g, ''))}
+                placeholder="숫자만 입력 (예: 42)"
+                placeholderTextColor="#C4C9D4"
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+
+              {/* ── 시작 시간 ── */}
+              <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
+              <TouchableOpacity
+                style={seatStyles.timeDisplayBtn}
+                onPress={() => setTimePickerOpen(o => !o)}
+                activeOpacity={0.8}
+              >
+                <Feather name="clock" size={15} color={C.primary} />
+                <Text style={seatStyles.timeDisplayText}>{startHour}:{startMin}</Text>
+                <Feather name={timePickerOpen ? 'chevron-up' : 'chevron-down'} size={15} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              {timePickerOpen && (
+                <View style={seatStyles.drumRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={seatStyles.drumLabel}>시</Text>
+                    <DrumPicker values={HOURS} selected={startHour} onSelect={setStartHour} />
                   </View>
-                  <View style={seatStyles.autoCalcRow}>
-                    <Feather name="refresh-cw" size={12} color="#6B7280" />
-                    <Text style={seatStyles.autoCalcText}>
-                      연장 가능: {addMins(`${startHour}:${startMin}`, 2 * 60)}부터
-                    </Text>
+                  <Text style={seatStyles.drumColon}>:</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={seatStyles.drumLabel}>분</Text>
+                    <DrumPicker values={MINUTES} selected={startMin} onSelect={setStartMin} />
                   </View>
                 </View>
+              )}
 
-                <TouchableOpacity
-                  style={[seatStyles.saveBtn, (!selectedRoom || !seatNo.trim()) && seatStyles.saveBtnDisabled]}
-                  onPress={save}
-                  activeOpacity={0.85}
-                >
-                  <Text style={seatStyles.saveBtnText}>저장</Text>
+              {/* ── 자동 계산 표시 ── */}
+              <View style={seatStyles.autoCalcBox}>
+                <View style={seatStyles.autoCalcRow}>
+                  <Feather name="clock" size={12} color="#6B7280" />
+                  <Text style={seatStyles.autoCalcText}>
+                    종료: {addMins(`${startHour}:${startMin}`, 4 * 60)}
+                  </Text>
+                </View>
+                <View style={seatStyles.autoCalcRow}>
+                  <Feather name="refresh-cw" size={12} color="#6B7280" />
+                  <Text style={seatStyles.autoCalcText}>
+                    연장 가능: {addMins(`${startHour}:${startMin}`, 2 * 60)}부터
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[seatStyles.saveBtn, (!selectedRoom || !seatNo.trim()) && seatStyles.saveBtnDisabled]}
+                onPress={save}
+                activeOpacity={0.85}
+              >
+                <Text style={seatStyles.saveBtnText}>저장</Text>
+              </TouchableOpacity>
+
+              {info && (
+                <TouchableOpacity style={seatStyles.clearBtn} onPress={clear}>
+                  <Text style={seatStyles.clearBtnText}>등록 취소</Text>
                 </TouchableOpacity>
-
-                {info && (
-                  <TouchableOpacity style={seatStyles.clearBtn} onPress={clear}>
-                    <Text style={seatStyles.clearBtnText}>등록 취소</Text>
-                  </TouchableOpacity>
-                )}
-                <View style={{ height: 24 }} />
-              </ScrollView>
+              )}
+              <View style={{ height: 20 }} />
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -1009,6 +1010,8 @@ const seatStyles = StyleSheet.create({
   libTabTextActive: { color: '#fff', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
 
   libHint: { fontSize: 13, color: '#AAAAAA', fontStyle: 'italic', fontFamily: 'Inter_400Regular', marginBottom: 8 },
+
+  chipScroll: { maxHeight: 160, marginBottom: 4 },
 
   // ── 열람실 검색 ──
   searchBox: {
