@@ -215,8 +215,9 @@ function MySeatCard() {
 
   const [selectedRoom, setSelectedRoom] = useState('');
   const [seatNo, setSeatNo] = useState('');
-  const [startHour, setStartHour] = useState(new Date().getHours());
-  const [startMin,  setStartMin]  = useState(new Date().getMinutes());
+  const [startHour, setStartHour] = useState(0);
+  const [startMin,  setStartMin]  = useState(0);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -243,7 +244,6 @@ function MySeatCard() {
   }, [info]);
 
   const openEdit = () => {
-    const now = new Date();
     if (info) {
       setSelectedRoom(info.roomName);
       setSeatNo(info.seatNo);
@@ -251,8 +251,9 @@ function MySeatCard() {
       setStartHour(h); setStartMin(m);
     } else {
       setSelectedRoom(''); setSeatNo('');
-      setStartHour(now.getHours()); setStartMin(now.getMinutes());
+      setStartHour(0); setStartMin(0);
     }
+    setTimePickerOpen(false);
     setModalVisible(true);
   };
 
@@ -381,25 +382,31 @@ function MySeatCard() {
 
                 {/* 시작 시간 드럼 피커 */}
                 <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
-                <View style={seatStyles.drumRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={seatStyles.drumLabel}>시</Text>
-                    <DrumPicker
-                      values={HOURS}
-                      selectedIndex={startHour}
-                      onSelect={setStartHour}
-                    />
+                <TouchableOpacity
+                  style={seatStyles.timeDisplayBtn}
+                  onPress={() => setTimePickerOpen(o => !o)}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="clock" size={15} color={C.primary} />
+                  <Text style={seatStyles.timeDisplayText}>
+                    {String(startHour).padStart(2, '0')}:{String(startMin).padStart(2, '0')}
+                  </Text>
+                  <Feather name={timePickerOpen ? 'chevron-up' : 'chevron-down'} size={15} color="#9CA3AF" />
+                </TouchableOpacity>
+
+                {timePickerOpen && (
+                  <View style={seatStyles.drumRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={seatStyles.drumLabel}>시</Text>
+                      <DrumPicker values={HOURS} selectedIndex={startHour} onSelect={setStartHour} />
+                    </View>
+                    <Text style={seatStyles.drumColon}>:</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={seatStyles.drumLabel}>분</Text>
+                      <DrumPicker values={MINUTES} selectedIndex={startMin} onSelect={setStartMin} />
+                    </View>
                   </View>
-                  <Text style={seatStyles.drumColon}>:</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={seatStyles.drumLabel}>분</Text>
-                    <DrumPicker
-                      values={MINUTES}
-                      selectedIndex={startMin}
-                      onSelect={setStartMin}
-                    />
-                  </View>
-                </View>
+                )}
 
                 {/* 자동 계산 표시 */}
                 <View style={seatStyles.autoCalcBox}>
@@ -953,6 +960,17 @@ const seatStyles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 11,
     fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', backgroundColor: '#FAFAFA',
+  },
+
+  // ── 시간 표시 버튼 ──
+  timeDisplayBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#FAFAFA',
+  },
+  timeDisplayText: {
+    flex: 1, fontSize: 18, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold',
+    letterSpacing: 1,
   },
 
   // ── 드럼 피커 ──
