@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard, SafeAreaView,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
 
@@ -182,6 +183,118 @@ function MySeatCard() {
   const [startHour, setStartHour] = useState('00');
   const [startMin,  setStartMin]  = useState('00');
 
+  // WebView 자동 동기화
+  const [libWebViewVisible, setLibWebViewVisible] = useState(false);
+  const [webSyncLoading, setWebSyncLoading] = useState(false);
+  const webViewRef = useRef<any>(null);
+  const hasInjected = useRef(false);
+
+  const INJECT_SCRIPT = `(function() {
+    fetch('/pyxis-api/1/api/seat-charges', {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d })); })
+    .catch(function(e) { window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'err', m: String(e) })); });
+    true;
+  })();`;
+
+  const openLibWebView = () => {
+    hasInjected.current = false;
+    setWebSyncLoading(false);
+    setLibWebViewVisible(true);
+  };
+
+  const closeLibWebView = () => {
+    hasInjected.current = false;
+    setWebSyncLoading(false);
+    setLibWebViewVisible(false);
+  };
+
+  const handleWebNavChange = (state: { url?: string }) => {
+    if (!state.url) return;
+    const isMyLib = state.url.includes('/mylibrary/') || state.url.includes('/mypage/');
+    if (isMyLib && !hasInjected.current) {
+      hasInjected.current = true;
+      setWebSyncLoading(true);
+      setTimeout(() => {
+        webViewRef.current?.injectJavaScript(INJECT_SCRIPT);
+      }, 1200);
+    }
+  };
+
+  const handleWebMessage = async (event: { nativeEvent: { data: string } }) => {
+    setWebSyncLoading(false);
+    try {
+      const parsed = JSON.parse(event.nativeEvent.data);
+      if (parsed.t !== 'ok') {
+        hasInjected.current = false;
+        return;
+      }
+      const raw = parsed.d;
+      const list: any[] =
+        raw?.data?.list ??
+        raw?.data?.rows ??
+        raw?.list ??
+        (Array.isArray(raw?.data) ? raw.data : null) ??
+        [];
+
+      const active = list.filter((item: any) => {
+        const status: string =
+          item.status ?? item.chargeStatus ?? item.state ?? item.statusCode ?? '';
+        return !['반납', '종료', '취소', 'RETURN', 'END', 'CANCEL', 'return', 'end', 'cancel'].some(k =>
+          String(status).toUpperCase().includes(k.toUpperCase())
+        );
+      });
+
+      if (active.length === 0) {
+        hasInjected.current = false;
+        return;
+      }
+
+      const item = active[0];
+      const roomName: string =
+        item.seatRoom?.name ??
+        item.room?.name ??
+        item.roomName ??
+        item.seatRoomName ??
+        '';
+      const seatNum: string = String(
+        item.seat?.no ?? item.seat?.number ??
+        item.seatNo ?? item.seatNumber ?? item.no ?? ''
+      );
+      const startRaw: string =
+        item.startDate ?? item.startDatetime ?? item.startTime ?? item.start ?? '';
+      const startDate = new Date(startRaw);
+
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      const startH = startRaw
+        ? String(startDate.getHours()).padStart(2, '0')
+        : '00';
+      const startM = startRaw
+        ? String(startDate.getMinutes()).padStart(2, '0')
+        : '00';
+
+      const newInfo: MySeatInfo = {
+        roomName: roomName || '알 수 없음',
+        seatNo: seatNum,
+        startTime: `${startH}:${startM}`,
+        savedDate: today,
+      };
+      const rem = calcRemaining(newInfo);
+      await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
+      setInfo(newInfo);
+      setRemaining(rem);
+      setLibWebViewVisible(false);
+      hasInjected.current = false;
+    } catch {
+      hasInjected.current = false;
+    }
+  };
+
   const onHourChange = (text: string) => {
     const digits = text.replace(/[^0-9]/g, '');
     if (digits === '') { setStartHour(''); return; }
@@ -332,13 +445,23 @@ function MySeatCard() {
           </View>
         </View>
       ) : (
-        <TouchableOpacity style={seatStyles.emptyCard} onPress={openEdit} activeOpacity={0.8}>
-          <Feather name="plus-circle" size={15} color={C.primary} />
-          <View style={{ flex: 1 }}>
+        <View style={seatStyles.emptyCard}>
+          <View style={seatStyles.emptyTopRow}>
+            <Ionicons name="library-outline" size={15} color={C.primary} />
             <Text style={seatStyles.emptyText}>내 자리 등록</Text>
-            <Text style={seatStyles.emptySubText}>예약 후 열람실과 좌석 번호를 등록해두세요</Text>
           </View>
-        </TouchableOpacity>
+          <Text style={seatStyles.emptySubText}>예약 후 좌석 정보를 불러오거나 직접 입력하세요</Text>
+          <View style={seatStyles.emptyBtnRow}>
+            <TouchableOpacity style={seatStyles.autoSyncBtn} onPress={openLibWebView} activeOpacity={0.85}>
+              <Ionicons name="sync-outline" size={13} color="#fff" />
+              <Text style={seatStyles.autoSyncBtnText}>자동 불러오기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={seatStyles.manualBtn} onPress={openEdit} activeOpacity={0.85}>
+              <Feather name="edit-2" size={13} color={C.primary} />
+              <Text style={seatStyles.manualBtnText}>직접 입력</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       {/* ── 입력 바텀시트 ── */}
@@ -475,6 +598,37 @@ function MySeatCard() {
             )}
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── 도서관 WebView 자동 동기화 ── */}
+      <Modal visible={libWebViewVisible} animationType="slide" statusBarTranslucent onRequestClose={closeLibWebView}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={seatStyles.wvHeader}>
+            <TouchableOpacity onPress={closeLibWebView} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x" size={20} color="#374151" />
+            </TouchableOpacity>
+            <Text style={seatStyles.wvTitle}>부산대 도서관</Text>
+            {webSyncLoading
+              ? <ActivityIndicator size="small" color={C.primary} />
+              : <View style={{ width: 20 }} />
+            }
+          </View>
+          <View style={seatStyles.wvBanner}>
+            <Ionicons name="information-circle-outline" size={13} color={C.primary} />
+            <Text style={seatStyles.wvBannerText}>로그인 후 예약현황 페이지로 이동하면 자동으로 정보를 가져옵니다</Text>
+          </View>
+          <WebView
+            ref={webViewRef}
+            source={{ uri: 'https://lib.pusan.ac.kr/mylibrary/seat/reservations' }}
+            onNavigationStateChange={handleWebNavChange}
+            onMessage={handleWebMessage}
+            sharedCookiesEnabled
+            thirdPartyCookiesEnabled
+            javaScriptEnabled
+            domStorageEnabled
+            style={{ flex: 1 }}
+          />
+        </SafeAreaView>
       </Modal>
 
       {/* ── 인앱 확인 다이얼로그 ── */}
@@ -949,11 +1103,39 @@ const seatStyles = StyleSheet.create({
   // ── 빈 카드 ──
   emptyCard: {
     backgroundColor: '#fff', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
     borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed',
+    gap: 8,
   },
-  emptyText: { fontSize: 14, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-  emptySubText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: 2 },
+  emptyTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  emptyText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
+  emptySubText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
+  emptyBtnRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  autoSyncBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: C.primary,
+  },
+  autoSyncBtnText: { fontSize: 13, fontWeight: '600', color: '#fff', fontFamily: 'Inter_600SemiBold' },
+  manualBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: 9, borderRadius: 10,
+    borderWidth: 1.5, borderColor: C.primary,
+  },
+  manualBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
+
+  // ── 도서관 WebView ──
+  wvHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  wvTitle: { fontSize: 15, fontWeight: '600', color: '#111827', fontFamily: 'Inter_600SemiBold' },
+  wvBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: `${C.primary}0D`, paddingHorizontal: 14, paddingVertical: 9,
+    borderBottomWidth: 1, borderBottomColor: `${C.primary}18`,
+  },
+  wvBannerText: { flex: 1, fontSize: 11, color: C.primary, fontFamily: 'Inter_400Regular', lineHeight: 16 },
 
   // ── 모달 ──
   sheet: {
