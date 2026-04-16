@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard, Alert,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -290,6 +290,14 @@ function MySeatCard() {
       if (active.length === 0) return;
 
       const item = active[0];
+
+      // ── 임시 디버그 ── 실제 필드명 확인용 (완료 후 삭제)
+      {
+        const keys = Object.keys(item);
+        const preview = keys.slice(0, 20).map((k: string) => `${k}: ${JSON.stringify(item[k]).slice(0, 40)}`).join('\n');
+        Alert.alert('[DEBUG] API 응답 첫 번째 항목', preview);
+      }
+
       const roomName: string =
         item.seatRoom?.name ??
         item.room?.name ??
