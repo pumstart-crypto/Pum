@@ -240,9 +240,11 @@ function MySeatCard() {
 
   const tryInject = (url: string) => {
     if (!url) return;
+    console.log('[WebSync] tryInject url=' + url + ' hasInjected=' + hasInjected.current);
     // /mylibrary/ 또는 로그인 후 리다이렉트되는 경로에서만 실행
     const isMyLib = url.includes('/mylibrary/') || url.includes('/mypage/') || url.includes('/myLibrary/');
     if (isMyLib && !hasInjected.current) {
+      console.log('[WebSync] → injecting API script');
       hasInjected.current = true;
       setWebSyncLoading(true);
       setTimeout(() => {
@@ -264,6 +266,7 @@ function MySeatCard() {
   const handleWebMessage = async (event: { nativeEvent: { data: string } }) => {
     try {
       const parsed = JSON.parse(event.nativeEvent.data);
+      console.log('[WebSync] message t=' + parsed.t, parsed.t === 'nav' ? parsed.url : parsed.t === 'ok' ? JSON.stringify(parsed.d).slice(0, 200) : parsed.m ?? '');
 
       // SPA 내부 URL 변경 알림
       if (parsed.t === 'nav') {
@@ -273,6 +276,7 @@ function MySeatCard() {
 
       // 인증 안 됨 → hasInjected 리셋해서 로그인 후 재시도 가능하게
       if (parsed.t === 'unauth') {
+        console.log('[WebSync] 401 unauth → reset');
         setWebSyncLoading(false);
         hasInjected.current = false;
         return;
@@ -280,6 +284,7 @@ function MySeatCard() {
 
       // 에러
       if (parsed.t !== 'ok') {
+        console.log('[WebSync] error → reset');
         setWebSyncLoading(false);
         hasInjected.current = false;
         return;
@@ -287,12 +292,17 @@ function MySeatCard() {
 
       setWebSyncLoading(false);
       const raw = parsed.d;
+      console.log('[WebSync] raw keys=' + Object.keys(raw ?? {}).join(','));
+      console.log('[WebSync] raw.data keys=' + Object.keys(raw?.data ?? {}).join(','));
       const list: any[] =
         raw?.data?.list ??
         raw?.data?.rows ??
         raw?.list ??
         (Array.isArray(raw?.data) ? raw.data : null) ??
         [];
+
+      console.log('[WebSync] list.length=' + list.length);
+      if (list.length > 0) console.log('[WebSync] list[0] keys=' + Object.keys(list[0]).join(','));
 
       const active = list.filter((item: any) => {
         const status: string =
@@ -302,7 +312,10 @@ function MySeatCard() {
         );
       });
 
+      console.log('[WebSync] active.length=' + active.length);
+
       if (active.length === 0) {
+        console.log('[WebSync] no active reservations');
         hasInjected.current = false;
         return;
       }
