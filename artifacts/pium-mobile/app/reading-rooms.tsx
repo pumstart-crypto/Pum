@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard, SafeAreaView,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -189,13 +189,39 @@ function MySeatCard() {
   const webViewRef = useRef<any>(null);
   const hasInjected = useRef(false);
 
+  // SPA 내부 URL 변경을 감지하기 위해 history.pushState 가로채기
+  const HISTORY_MONITOR = `(function() {
+    function notifyNav() {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'nav', url: location.href }));
+      }
+    }
+    var _push = history.pushState.bind(history);
+    var _replace = history.replaceState.bind(history);
+    history.pushState = function() { _push.apply(history, arguments); setTimeout(notifyNav, 200); };
+    history.replaceState = function() { _replace.apply(history, arguments); setTimeout(notifyNav, 200); };
+    window.addEventListener('popstate', function() { setTimeout(notifyNav, 200); });
+    true;
+  })();`;
+
+  // 로그인 후 호출되는 실제 API 주입 스크립트
   const INJECT_SCRIPT = `(function() {
     fetch('/pyxis-api/1/api/seat-charges', {
       credentials: 'include',
       headers: { 'Accept': 'application/json' }
     })
-    .then(function(r) { return r.json(); })
-    .then(function(d) { window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d })); })
+    .then(function(r) {
+      if (r.status === 401 || r.status === 403) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'unauth' }));
+        return null;
+      }
+      if (!r.ok) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'err', m: 'HTTP ' + r.status }));
+        return null;
+      }
+      return r.json();
+    })
+    .then(function(d) { if (d) window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d })); })
     .catch(function(e) { window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'err', m: String(e) })); });
     true;
   })();`;
@@ -212,26 +238,54 @@ function MySeatCard() {
     setLibWebViewVisible(false);
   };
 
-  const handleWebNavChange = (state: { url?: string }) => {
-    if (!state.url) return;
-    const isMyLib = state.url.includes('/mylibrary/') || state.url.includes('/mypage/');
+  const tryInject = (url: string) => {
+    if (!url) return;
+    // /mylibrary/ 또는 로그인 후 리다이렉트되는 경로에서만 실행
+    const isMyLib = url.includes('/mylibrary/') || url.includes('/mypage/') || url.includes('/myLibrary/');
     if (isMyLib && !hasInjected.current) {
       hasInjected.current = true;
       setWebSyncLoading(true);
       setTimeout(() => {
         webViewRef.current?.injectJavaScript(INJECT_SCRIPT);
-      }, 1200);
+      }, 1500);
     }
   };
 
+  // 일반 페이지 로드(전체 새로고침) 완료 시
+  const handleWebLoadEnd = (event: { nativeEvent: { url?: string } }) => {
+    tryInject(event.nativeEvent.url ?? '');
+  };
+
+  // onNavigationStateChange는 전체 페이지 이동 시 추가 보험
+  const handleWebNavChange = (state: { url?: string }) => {
+    tryInject(state.url ?? '');
+  };
+
   const handleWebMessage = async (event: { nativeEvent: { data: string } }) => {
-    setWebSyncLoading(false);
     try {
       const parsed = JSON.parse(event.nativeEvent.data);
-      if (parsed.t !== 'ok') {
+
+      // SPA 내부 URL 변경 알림
+      if (parsed.t === 'nav') {
+        tryInject(parsed.url ?? '');
+        return;
+      }
+
+      // 인증 안 됨 → hasInjected 리셋해서 로그인 후 재시도 가능하게
+      if (parsed.t === 'unauth') {
+        setWebSyncLoading(false);
         hasInjected.current = false;
         return;
       }
+
+      // 에러
+      if (parsed.t !== 'ok') {
+        setWebSyncLoading(false);
+        hasInjected.current = false;
+        return;
+      }
+
+      setWebSyncLoading(false);
       const raw = parsed.d;
       const list: any[] =
         raw?.data?.list ??
@@ -620,6 +674,8 @@ function MySeatCard() {
           <WebView
             ref={webViewRef}
             source={{ uri: 'https://lib.pusan.ac.kr/mylibrary/seat/reservations' }}
+            injectedJavaScriptBeforeContentLoaded={HISTORY_MONITOR}
+            onLoadEnd={handleWebLoadEnd}
             onNavigationStateChange={handleWebNavChange}
             onMessage={handleWebMessage}
             sharedCookiesEnabled
