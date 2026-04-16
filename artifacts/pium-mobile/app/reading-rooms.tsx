@@ -311,21 +311,33 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         ? String(startDate.getMinutes()).padStart(2, '0')
         : '00';
 
-      // ── 임시배정 판별 ──
-      const stateCode = String(
-        item.state?.code ?? item.state?.name ?? item.chargeStatus?.code ?? ''
-      ).toUpperCase();
-      const isTempAssign = /TEMP|임시/.test(stateCode);
+      // ── 임시배정 판별 ── (code + name 둘 다 체크)
+      const stateCode = String(item.state?.code ?? item.chargeStatus?.code ?? '').toUpperCase();
+      const stateName = String(item.state?.name ?? item.state?.description ?? '');
+      const isTempAssign = /TEMP|임시/.test(stateCode) || /임시/.test(stateName);
 
       // ── 임시배정 종료 시각 ──
       const tempEndRaw: string =
         item.state?.endDatetime ?? item.state?.limitDatetime ??
         item.stateEndDatetime ?? item.tempEndDatetime ?? '';
       let tempEndTime: string | undefined;
-      if (isTempAssign && tempEndRaw) {
-        const td = new Date(tempEndRaw.replace(' ', 'T'));
-        if (!isNaN(td.getTime())) {
-          tempEndTime = `${String(td.getHours()).padStart(2, '0')}:${String(td.getMinutes()).padStart(2, '0')}`;
+      if (isTempAssign) {
+        if (tempEndRaw) {
+          const td = new Date(tempEndRaw.replace(' ', 'T'));
+          if (!isNaN(td.getTime())) {
+            tempEndTime = `${String(td.getHours()).padStart(2, '0')}:${String(td.getMinutes()).padStart(2, '0')}`;
+          }
+        }
+        // 폴백: state.name 문자열에서 "오전/오후 HH:MM" 형식 파싱
+        // 예) "임시배정 ~ 오전 12:53"
+        if (!tempEndTime) {
+          const m = stateName.match(/([오전후]+)\s*(\d{1,2}):(\d{2})/);
+          if (m) {
+            let h = Number(m[2]);
+            if (m[1].includes('후') && h < 12) h += 12;
+            if (m[1].includes('전') && h === 12) h = 0;
+            tempEndTime = `${String(h).padStart(2, '0')}:${m[3]}`;
+          }
         }
       }
 
@@ -436,19 +448,13 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
           </View>
 
           <View style={seatStyles.metaRow}>
-            <View style={seatStyles.metaItem}>
-              <Feather name="refresh-cw" size={10} color={remaining.extensionPassed ? '#10B981' : '#9CA3AF'} />
-              <Text style={[seatStyles.metaText, remaining.extensionPassed && { color: '#10B981' }]}>
-                {remaining.extensionPassed ? '연장 가능' : `연장 ${remaining.extensionTime}부터`}
-              </Text>
-            </View>
+            <Text style={[seatStyles.metaText, remaining.extensionPassed && { color: '#10B981' }]}>
+              {remaining.extensionPassed ? '연장 가능' : `연장 ${remaining.extensionTime}부터`}
+            </Text>
             {info.extensionMax !== undefined && (
-              <View style={seatStyles.metaItem}>
-                <Feather name="layers" size={10} color="#9CA3AF" />
-                <Text style={seatStyles.metaText}>
-                  연장 {info.extensionCount ?? 0} / {info.extensionMax}회
-                </Text>
-              </View>
+              <Text style={seatStyles.metaText}>
+                연장 {info.extensionCount ?? 0} / {info.extensionMax}회
+              </Text>
             )}
           </View>
         </TouchableOpacity>
@@ -842,10 +848,12 @@ export default function ReadingRoomsScreen() {
           ))}
         </View>
         <TouchableOpacity onPress={handleRefresh} hitSlop={10} style={styles.tabRefreshBtn}>
-          {isRefreshingHeader
-            ? <ActivityIndicator size="small" color={C.primary} style={{ width: 18, height: 18 }} />
-            : <Feather name="refresh-cw" size={15} color={C.primary} />
-          }
+          <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+            {isRefreshingHeader
+              ? <ActivityIndicator size="small" color={C.primary} />
+              : <Feather name="refresh-cw" size={15} color={C.primary} />
+            }
+          </View>
         </TouchableOpacity>
       </View>
 
