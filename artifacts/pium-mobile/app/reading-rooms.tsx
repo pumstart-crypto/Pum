@@ -170,13 +170,6 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
   const insets = useSafeAreaInsets();
   const minRef  = useRef<TextInput>(null);
 
-  const [confirmDialog, setConfirmDialog] = useState<{
-    visible: boolean; title: string; message: string; onConfirm: () => void;
-  }>({ visible: false, title: '', message: '', onConfirm: () => {} });
-  const showConfirm = (title: string, message: string, onConfirm: () => void) =>
-    setConfirmDialog({ visible: true, title, message, onConfirm });
-  const hideConfirm = () => setConfirmDialog(d => ({ ...d, visible: false }));
-
   const [selectedLib,  setSelectedLib]  = useState<string | null>(null);
   const [roomSearch,   setRoomSearch]   = useState('');
   const [selectedRoom, setSelectedRoom] = useState('');
@@ -291,7 +284,14 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
 
       if (active.length === 0) {
         setLibWebViewVisible(false);
-        showToast('현재 이용 중인 좌석이 없습니다', 'error');
+        if (info) {
+          // 기존 좌석이 있었는데 없어짐 → 반납/만료
+          await AsyncStorage.removeItem(MY_SEAT_KEY);
+          setInfo(null); setRemaining(null);
+          showToast('자리가 반납되었습니다', 'success');
+        } else {
+          showToast('현재 이용 중인 좌석이 없습니다', 'error');
+        }
         return;
       }
 
@@ -425,26 +425,6 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
     setInfo(null); setRemaining(null); setModalVisible(false);
   };
 
-  const extend = () => {
-    showConfirm('연장', '연장하시겠습니까?', async () => {
-      if (!info) return;
-      const newStart = addMins(info.startTime, 2 * 60);
-      const d = new Date();
-      const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      const newInfo = { ...info, startTime: newStart, savedDate: today };
-      const rem = calcRemaining(newInfo);
-      await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
-      setInfo(newInfo); setRemaining(rem);
-    });
-  };
-
-  const returnSeat = () => {
-    showConfirm('반납', '반납하시겠습니까?', async () => {
-      await AsyncStorage.removeItem(MY_SEAT_KEY);
-      setInfo(null); setRemaining(null);
-    });
-  };
-
   const barColor = remaining
     ? (remaining.totalMin > 60 ? '#10B981' : remaining.totalMin > 20 ? '#F59E0B' : '#EF4444')
     : '#10B981';
@@ -453,11 +433,15 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
     <>
       {/* ── 등록된 카드 ── */}
       {info && remaining ? (
-        <View style={seatStyles.card}>
+        <TouchableOpacity style={seatStyles.card} onPress={openLibWebView} activeOpacity={0.85}>
           <View style={seatStyles.cardHeader}>
             <View style={seatStyles.cardTitleRow}>
               <Ionicons name="library-outline" size={15} color={C.primary} />
               <Text style={seatStyles.cardTitle}>내 자리</Text>
+            </View>
+            <View style={seatStyles.cardManageHint}>
+              <Text style={seatStyles.cardManageHintText}>탭하여 관리</Text>
+              <Feather name="external-link" size={11} color="#9CA3AF" />
             </View>
           </View>
 
@@ -486,17 +470,12 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
                 {remaining.extensionPassed ? '연장 가능' : `연장 ${remaining.extensionTime}부터`}
               </Text>
             </View>
+            <View style={seatStyles.metaItem}>
+              <Feather name="edit-2" size={10} color="#9CA3AF" />
+              <Text style={seatStyles.metaText} onPress={openEdit}>수정</Text>
+            </View>
           </View>
-
-          <View style={seatStyles.cardBtnRow}>
-            <TouchableOpacity style={seatStyles.extendBtn} onPress={extend} activeOpacity={0.8}>
-              <Text style={seatStyles.extendBtnText}>연장</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={seatStyles.returnBtn} onPress={returnSeat} activeOpacity={0.8}>
-              <Text style={seatStyles.returnBtnText}>반납</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        </TouchableOpacity>
       ) : (
         <View style={seatStyles.emptyCard}>
           <View style={seatStyles.emptyTopRow}>
@@ -670,7 +649,7 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
           {/* 안내 배너 */}
           <View style={seatStyles.wvBanner}>
             <Ionicons name="information-circle-outline" size={13} color={C.primary} />
-            <Text style={seatStyles.wvBannerText}>로그인 후 예약현황 페이지로 이동하면 자동으로 정보를 가져옵니다</Text>
+            <Text style={seatStyles.wvBannerText}>로그인 후 연장·반납 등 관리하면 앱에 자동 반영됩니다</Text>
           </View>
           <WebView
             ref={webViewRef}
@@ -694,27 +673,6 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
         </View>
       </Modal>
 
-      {/* ── 인앱 확인 다이얼로그 ── */}
-      <Modal visible={confirmDialog.visible} transparent animationType="fade" statusBarTranslucent onRequestClose={hideConfirm}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 }}>
-          <View style={seatStyles.confirmBox}>
-            <Text style={seatStyles.confirmTitle}>{confirmDialog.title}</Text>
-            <Text style={seatStyles.confirmMsg}>{confirmDialog.message}</Text>
-            <View style={seatStyles.confirmBtnRow}>
-              <TouchableOpacity style={seatStyles.confirmCancelBtn} onPress={hideConfirm} activeOpacity={0.8}>
-                <Text style={seatStyles.confirmCancelText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={seatStyles.confirmOkBtn}
-                onPress={() => { hideConfirm(); confirmDialog.onConfirm(); }}
-                activeOpacity={0.8}
-              >
-                <Text style={seatStyles.confirmOkText}>확인</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
       {Toast}
     </>
   );
@@ -1159,17 +1117,8 @@ const seatStyles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-  cardBtnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  extendBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 10,
-    borderWidth: 1.5, borderColor: C.primary, alignItems: 'center',
-  },
-  extendBtnText: { fontSize: 13, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold' },
-  returnBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 10,
-    borderWidth: 1.5, borderColor: '#EF4444', alignItems: 'center',
-  },
-  returnBtnText: { fontSize: 13, fontWeight: '700', color: '#EF4444', fontFamily: 'Inter_700Bold' },
+  cardManageHint: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  cardManageHintText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
   seatRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 },
   seatInfo: { flex: 1, marginRight: 12 },
@@ -1333,24 +1282,4 @@ const seatStyles = StyleSheet.create({
   clearBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
   clearBtnText: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
-  // ── 인앱 확인 다이얼로그 ──
-  confirmBox: {
-    width: '100%', backgroundColor: '#fff', borderRadius: 18,
-    paddingHorizontal: 24, paddingTop: 28, paddingBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12,
-  },
-  confirmTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 8 },
-  confirmMsg: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
-  confirmBtnRow: { flexDirection: 'row', gap: 10, width: '100%' },
-  confirmCancelBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 12,
-    backgroundColor: '#F3F4F6', alignItems: 'center',
-  },
-  confirmCancelText: { fontSize: 15, fontWeight: '600', color: '#6B7280', fontFamily: 'Inter_600SemiBold' },
-  confirmOkBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 12,
-    backgroundColor: C.primary, alignItems: 'center',
-  },
-  confirmOkText: { fontSize: 15, fontWeight: '700', color: '#fff', fontFamily: 'Inter_700Bold' },
 });
