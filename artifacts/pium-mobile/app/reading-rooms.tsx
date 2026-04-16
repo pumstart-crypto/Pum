@@ -120,6 +120,10 @@ interface MySeatInfo {
   seatNo: string;
   startTime: string; // "HH:MM" 24h
   savedDate: string; // "YYYY-MM-DD"
+  isTempAssign?: boolean;  // 임시배정 상태
+  tempEndTime?: string;    // "HH:MM" - 임시배정 종료 시각
+  extensionCount?: number; // 이미 연장한 횟수
+  extensionMax?: number;   // 최대 연장 가능 횟수
 }
 
 function addMins(time: string, mins: number): string {
@@ -307,11 +311,39 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         ? String(startDate.getMinutes()).padStart(2, '0')
         : '00';
 
+      // ── 임시배정 판별 ──
+      const stateCode = String(
+        item.state?.code ?? item.state?.name ?? item.chargeStatus?.code ?? ''
+      ).toUpperCase();
+      const isTempAssign = /TEMP|임시/.test(stateCode);
+
+      // ── 임시배정 종료 시각 ──
+      const tempEndRaw: string =
+        item.state?.endDatetime ?? item.state?.limitDatetime ??
+        item.stateEndDatetime ?? item.tempEndDatetime ?? '';
+      let tempEndTime: string | undefined;
+      if (isTempAssign && tempEndRaw) {
+        const td = new Date(tempEndRaw.replace(' ', 'T'));
+        if (!isNaN(td.getTime())) {
+          tempEndTime = `${String(td.getHours()).padStart(2, '0')}:${String(td.getMinutes()).padStart(2, '0')}`;
+        }
+      }
+
+      // ── 연장 횟수 ──
+      const extensionCount: number =
+        item.extensionCount ?? item.extensionUsedCount ?? item.renewCount ?? 0;
+      const extensionMax: number =
+        item.extensionLimitCount ?? item.extensionMaxCount ?? item.maxRenewCount ?? 4;
+
       const newInfo: MySeatInfo = {
         roomName: roomName || '알 수 없음',
         seatNo: seatNum,
         startTime: `${startH}:${startM}`,
         savedDate: today,
+        isTempAssign,
+        tempEndTime,
+        extensionCount,
+        extensionMax,
       };
       const rem = calcRemaining(newInfo);
       await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
@@ -370,10 +402,18 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
             <View style={seatStyles.cardTitleRow}>
               <Ionicons name="library-outline" size={15} color={C.primary} />
               <Text style={seatStyles.cardTitle}>내 자리</Text>
+              {info.isTempAssign && (
+                <View style={seatStyles.tempBadge}>
+                  <Text style={seatStyles.tempBadgeText}>임시배정</Text>
+                  {info.tempEndTime && (
+                    <Text style={seatStyles.tempBadgeTime}>~ {info.tempEndTime}</Text>
+                  )}
+                </View>
+              )}
             </View>
             <View style={seatStyles.cardManageHint}>
-              <Text style={seatStyles.cardManageHintText}>탭하여 관리</Text>
-              <Feather name="external-link" size={11} color="#9CA3AF" />
+              <Text style={seatStyles.cardManageHintText}>탭하여 불러오기</Text>
+              <Feather name="refresh-cw" size={11} color="#9CA3AF" />
             </View>
           </View>
 
@@ -402,6 +442,14 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
                 {remaining.extensionPassed ? '연장 가능' : `연장 ${remaining.extensionTime}부터`}
               </Text>
             </View>
+            {info.extensionMax !== undefined && (
+              <View style={seatStyles.metaItem}>
+                <Feather name="layers" size={10} color="#9CA3AF" />
+                <Text style={seatStyles.metaText}>
+                  연장 {info.extensionCount ?? 0} / {info.extensionMax}회
+                </Text>
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       ) : (
@@ -758,17 +806,9 @@ export default function ReadingRoomsScreen() {
           <Text style={styles.headerTitle}>도서관</Text>
           <Text style={styles.headerSub}>{activeRoomTabDef.short} · 실시간</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <TouchableOpacity style={styles.qrBtn} onPress={handleRefresh} hitSlop={8}>
-            {isRefreshingHeader
-              ? <ActivityIndicator size="small" color={C.primary} />
-              : <Feather name="refresh-cw" size={20} color={C.primary} />
-            }
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
-            <Ionicons name="qr-code-outline" size={22} color={C.primary} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
+          <Ionicons name="qr-code-outline" size={22} color={C.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* ── 내 자리 카드 ── */}
@@ -787,18 +827,26 @@ export default function ReadingRoomsScreen() {
 
       {/* ── Room subtabs ── */}
       <View style={styles.roomTabBar}>
-        {ROOM_TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.roomTabItem, activeRoomTab === tab.key && styles.roomTabItemActive]}
-            onPress={() => setActiveRoomTab(tab.key)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          {ROOM_TABS.map(tab => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.roomTabItem, activeRoomTab === tab.key && styles.roomTabItemActive]}
+              onPress={() => setActiveRoomTab(tab.key)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity onPress={handleRefresh} hitSlop={10} style={styles.tabRefreshBtn}>
+          {isRefreshingHeader
+            ? <ActivityIndicator size="small" color={C.primary} style={{ width: 18, height: 18 }} />
+            : <Feather name="refresh-cw" size={15} color={C.primary} />
+          }
+        </TouchableOpacity>
       </View>
 
       {/* ── Tab content ── */}
@@ -845,17 +893,18 @@ const styles = StyleSheet.create({
 
   // Room Tab Bar
   roomTabBar: {
-    flexDirection: 'row', backgroundColor: '#fff',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
     paddingHorizontal: 16, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 6,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
   },
   roomTabItem: {
     paddingHorizontal: 14, paddingVertical: 6,
-    borderRadius: 20, backgroundColor: '#F3F4F6',
+    borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 6,
   },
   roomTabItemActive: { backgroundColor: C.primary },
   roomTabLabel: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_500Medium', fontWeight: '500' },
   roomTabLabelActive: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  tabRefreshBtn: { padding: 6, marginLeft: 4 },
 
   // Center
   centerBox: {
@@ -934,8 +983,16 @@ const seatStyles = StyleSheet.create({
     shadowColor: C.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
   cardTitle: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
+  tempBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#FFF7ED', borderRadius: 6,
+    paddingHorizontal: 7, paddingVertical: 2,
+    borderWidth: 1, borderColor: '#FDBA74',
+  },
+  tempBadgeText: { fontSize: 10, fontWeight: '600', color: '#C2410C', fontFamily: 'Inter_600SemiBold' },
+  tempBadgeTime: { fontSize: 10, color: '#EA580C', fontFamily: 'Inter_500Medium' },
   cardManageHint: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   cardManageHintText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
