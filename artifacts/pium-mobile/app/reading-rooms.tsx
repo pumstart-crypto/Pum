@@ -161,10 +161,11 @@ function calcRemaining(info: MySeatInfo): {
 
 
 // ── MySeatCard ─────────────────────────────────────────────────
-function MySeatCard() {
+function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
   const [info, setInfo] = useState<MySeatInfo | null>(null);
   const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const { show: showToast, Toast } = useToast();
 
   const insets = useSafeAreaInsets();
   const minRef  = useRef<TextInput>(null);
@@ -288,7 +289,11 @@ function MySeatCard() {
         return !INACTIVE.some(k => String(code).toUpperCase().includes(k.toUpperCase()));
       });
 
-      if (active.length === 0) return;
+      if (active.length === 0) {
+        setLibWebViewVisible(false);
+        showToast('현재 이용 중인 좌석이 없습니다', 'error');
+        return;
+      }
 
       const item = active[0];
 
@@ -374,6 +379,16 @@ function MySeatCard() {
     }, 30_000);
     return () => clearInterval(id);
   }, [info]);
+
+  // 외부 새로고침 트리거 — 내 자리 남은 시간 재계산
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    if (!info) return;
+    const rem = calcRemaining(info);
+    setRemaining(rem);
+    if (rem.expired) { setInfo(null); setRemaining(null); AsyncStorage.removeItem(MY_SEAT_KEY); }
+  }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEdit = () => {
     if (info) {
@@ -700,6 +715,7 @@ function MySeatCard() {
           </View>
         </View>
       </Modal>
+      {Toast}
     </>
   );
 }
@@ -815,13 +831,14 @@ function RoomCard({ room, onSelect }: {
 // ══════════════════════════════════════════════════════════════
 function TabContent({
   branchGroupId, typeFilter, excludeNames, isActive,
-  onRoomsReady, onSelectRoom,
+  onRoomsReady, onSelectRoom, refreshTrigger = 0,
 }: {
   branchGroupId: number; typeFilter: string | null;
   excludeNames: readonly string[];
   isActive: boolean;
   onRoomsReady: (rooms: SeatRoom[]) => void;
   onSelectRoom: (room: SeatRoom) => void;
+  refreshTrigger?: number;
 }) {
   const [rooms, setRooms] = useState<SeatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -865,6 +882,13 @@ function TabContent({
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [isActive, fetchRooms]);
+
+  // 외부 새로고침 트리거
+  const triggerFirst = useRef(true);
+  useEffect(() => {
+    if (triggerFirst.current) { triggerFirst.current = false; return; }
+    fetchRooms(true);
+  }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return (
     <View style={styles.centerBox}>
@@ -929,6 +953,8 @@ export default function ReadingRoomsScreen() {
   const [tabRooms, setTabRooms] = useState<Record<RoomTabKey, SeatRoom[]>>({
     saebbyukbul: [], mirinai: [], nano: [], medical: [],
   });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isRefreshingHeader, setIsRefreshingHeader] = useState(false);
 
   const activeRoomTabDef = ROOM_TABS.find(t => t.key === activeRoomTab)!;
 
@@ -944,6 +970,12 @@ export default function ReadingRoomsScreen() {
     WebBrowser.openBrowserAsync(QR_URL);
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    setIsRefreshingHeader(true);
+    setRefreshTrigger(t => t + 1);
+    setTimeout(() => setIsRefreshingHeader(false), 800);
+  }, []);
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       {/* ── Header ── */}
@@ -955,14 +987,22 @@ export default function ReadingRoomsScreen() {
           <Text style={styles.headerTitle}>도서관</Text>
           <Text style={styles.headerSub}>{activeRoomTabDef.short} · 실시간</Text>
         </View>
-        <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
-          <Ionicons name="qr-code-outline" size={22} color={C.primary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <TouchableOpacity style={styles.qrBtn} onPress={handleRefresh} hitSlop={8}>
+            {isRefreshingHeader
+              ? <ActivityIndicator size="small" color={C.primary} />
+              : <Feather name="refresh-cw" size={20} color={C.primary} />
+            }
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
+            <Ionicons name="qr-code-outline" size={22} color={C.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── 내 자리 카드 ── */}
       <View style={styles.mySeatWrapper}>
-        <MySeatCard />
+        <MySeatCard refreshTrigger={refreshTrigger} />
         <TouchableOpacity
           style={styles.reservationBtn}
           onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
@@ -1004,6 +1044,7 @@ export default function ReadingRoomsScreen() {
               isActive={activeRoomTab === tab.key}
               onRoomsReady={handleRoomsReady(tab.key)}
               onSelectRoom={handleSelectRoom}
+              refreshTrigger={refreshTrigger}
             />
           </View>
         ))}
