@@ -187,10 +187,49 @@ function MySeatCard() {
   const [libWebViewVisible, setLibWebViewVisible] = useState(false);
   const [webSyncLoading, setWebSyncLoading] = useState(false);
   const webViewRef = useRef<any>(null);
-  const hasInjected = useRef(false);
 
-  // SPA 내부 URL 변경을 감지하기 위해 history.pushState 가로채기
-  const HISTORY_MONITOR = `(function() {
+  // 페이지 로드 전에 주입 — fetch/XHR을 가로채서 seat-charges 응답을 낚아챔
+  // SPA가 자체 인증으로 API를 호출하므로 우리는 인증 걱정 없이 응답만 캡처
+  const INTERCEPTOR_SCRIPT = `(function() {
+    // fetch 가로채기
+    var origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+      var urlStr = typeof url === 'string' ? url : (url instanceof Request ? url.url : String(url));
+      return origFetch.apply(this, arguments).then(function(response) {
+        if (urlStr.indexOf('seat-charges') !== -1) {
+          response.clone().json().then(function(d) {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d }));
+            }
+          }).catch(function() {});
+        }
+        return response;
+      });
+    };
+
+    // XMLHttpRequest 가로채기
+    var _open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._captureUrl = String(url || '');
+      return _open.apply(this, arguments);
+    };
+    var _send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function() {
+      var self = this;
+      if (this._captureUrl && this._captureUrl.indexOf('seat-charges') !== -1) {
+        this.addEventListener('load', function() {
+          try {
+            var d = JSON.parse(self.responseText);
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d }));
+            }
+          } catch(e) {}
+        });
+      }
+      return _send.apply(this, arguments);
+    };
+
+    // URL 변경 감지 (로딩 인디케이터용)
     function notifyNav() {
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'nav', url: location.href }));
@@ -204,145 +243,41 @@ function MySeatCard() {
     true;
   })();`;
 
-  // localStorage/sessionStorage/쿠키 조사 스크립트 (디버그용)
-  const DEBUG_STORAGE_SCRIPT = `(function() {
-    var ls = {};
-    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k) ls[k] = localStorage.getItem(k); } } catch(e) {}
-    var ss = {};
-    try { for (var i = 0; i < sessionStorage.length; i++) { var k = sessionStorage.key(i); if (k) ss[k] = sessionStorage.getItem(k); } } catch(e) {}
-    window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'storage', ls: ls, ss: ss, cookie: document.cookie, url: location.href }));
-    true;
-  })();`;
-
-  // 로그인 후 호출되는 실제 API 주입 스크립트
-  // PUSAN_PYXIS3 쿠키에서 accessToken을 꺼내 X-Auth-Token 헤더로 전송
-  const INJECT_SCRIPT = `(function() {
-    var token = null;
-    try {
-      var cookieParts = document.cookie.split(';');
-      for (var i = 0; i < cookieParts.length; i++) {
-        var part = cookieParts[i].trim();
-        if (part.indexOf('PUSAN_PYXIS3=') === 0) {
-          var raw = part.slice('PUSAN_PYXIS3='.length);
-          var obj = JSON.parse(decodeURIComponent(raw));
-          token = obj.accessToken || null;
-          break;
-        }
-      }
-    } catch(e) {}
-
-    var headers = { 'Accept': 'application/json' };
-    if (token) headers['X-Auth-Token'] = token;
-
-    fetch('/pyxis-api/1/api/seat-charges', { credentials: 'include', headers: headers })
-    .then(function(r) {
-      if (r.status === 401 || r.status === 403) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'unauth' }));
-        return null;
-      }
-      if (!r.ok) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'err', m: 'HTTP ' + r.status }));
-        return null;
-      }
-      return r.json();
-    })
-    .then(function(d) { if (d) window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d })); })
-    .catch(function(e) { window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'err', m: String(e) })); });
-    true;
-  })()`;
-
   const openLibWebView = () => {
-    hasInjected.current = false;
     setWebSyncLoading(false);
     setLibWebViewVisible(true);
   };
 
   const closeLibWebView = () => {
-    hasInjected.current = false;
     setWebSyncLoading(false);
     setLibWebViewVisible(false);
   };
 
-  const tryInject = (url: string) => {
-    if (!url) return;
-    console.log('[WebSync] tryInject url=' + url + ' hasInjected=' + hasInjected.current);
-    const isMyLib = url.includes('/mylibrary/') || url.includes('/mypage/') || url.includes('/myLibrary/');
-    if (isMyLib && !hasInjected.current) {
-      console.log('[WebSync] → injecting debug+API script');
-      hasInjected.current = true;
-      setWebSyncLoading(true);
-      setTimeout(() => {
-        // 먼저 스토리지 정보 수집
-        webViewRef.current?.injectJavaScript(DEBUG_STORAGE_SCRIPT);
-        // 그 다음 API 호출
-        setTimeout(() => {
-          webViewRef.current?.injectJavaScript(INJECT_SCRIPT);
-        }, 300);
-      }, 1500);
-    }
-  };
-
-  // 일반 페이지 로드(전체 새로고침) 완료 시
-  const handleWebLoadEnd = (event: { nativeEvent: { url?: string } }) => {
-    tryInject(event.nativeEvent.url ?? '');
-  };
-
-  // onNavigationStateChange는 전체 페이지 이동 시 추가 보험
   const handleWebNavChange = (state: { url?: string }) => {
-    tryInject(state.url ?? '');
+    const url = state.url ?? '';
+    const onReservationPage = url.includes('/mylibrary/') && url.includes('reservations');
+    setWebSyncLoading(onReservationPage);
   };
 
   const handleWebMessage = async (event: { nativeEvent: { data: string } }) => {
     try {
       const parsed = JSON.parse(event.nativeEvent.data);
-      console.log('[WebSync] message t=' + parsed.t, parsed.t === 'nav' ? parsed.url : parsed.t === 'ok' ? JSON.stringify(parsed.d).slice(0, 200) : parsed.m ?? '');
 
-      // SPA 내부 URL 변경 알림
-      if (parsed.t === 'nav') {
-        tryInject(parsed.url ?? '');
-        return;
-      }
+      // URL 변경 알림 — 무시 (로딩은 onNavigationStateChange로 처리)
+      if (parsed.t === 'nav') return;
 
-      // 스토리지 디버그 덤프
-      if (parsed.t === 'storage') {
-        console.log('[WebSync][storage] url=' + parsed.url);
-        console.log('[WebSync][storage] cookie=' + parsed.cookie);
-        console.log('[WebSync][storage] ls keys=' + Object.keys(parsed.ls ?? {}).join(','));
-        console.log('[WebSync][storage] ss keys=' + Object.keys(parsed.ss ?? {}).join(','));
-        Object.entries(parsed.ls ?? {}).forEach(([k, v]) => console.log('[WebSync][ls] ' + k + '=' + String(v).slice(0, 80)));
-        Object.entries(parsed.ss ?? {}).forEach(([k, v]) => console.log('[WebSync][ss] ' + k + '=' + String(v).slice(0, 80)));
-        return;
-      }
+      // seat-charges 응답이 아니면 무시
+      if (parsed.t !== 'ok') return;
 
-      // 인증 안 됨 → hasInjected 리셋해서 로그인 후 재시도 가능하게
-      if (parsed.t === 'unauth') {
-        console.log('[WebSync] 401 unauth → reset');
-        setWebSyncLoading(false);
-        hasInjected.current = false;
-        return;
-      }
-
-      // 에러
-      if (parsed.t !== 'ok') {
-        console.log('[WebSync] error → reset');
-        setWebSyncLoading(false);
-        hasInjected.current = false;
-        return;
-      }
-
-      setWebSyncLoading(false);
+      // success:false 이면 로그인 안 된 상태 → 무시 (로그인 후 재호출됨)
+      if (parsed.d?.success === false) return;
       const raw = parsed.d;
-      console.log('[WebSync] raw keys=' + Object.keys(raw ?? {}).join(','));
-      console.log('[WebSync] raw.data keys=' + Object.keys(raw?.data ?? {}).join(','));
       const list: any[] =
         raw?.data?.list ??
         raw?.data?.rows ??
         raw?.list ??
         (Array.isArray(raw?.data) ? raw.data : null) ??
         [];
-
-      console.log('[WebSync] list.length=' + list.length);
-      if (list.length > 0) console.log('[WebSync] list[0] keys=' + Object.keys(list[0]).join(','));
 
       const active = list.filter((item: any) => {
         const status: string =
@@ -352,13 +287,7 @@ function MySeatCard() {
         );
       });
 
-      console.log('[WebSync] active.length=' + active.length);
-
-      if (active.length === 0) {
-        console.log('[WebSync] no active reservations');
-        hasInjected.current = false;
-        return;
-      }
+      if (active.length === 0) return;
 
       const item = active[0];
       const roomName: string =
@@ -396,9 +325,8 @@ function MySeatCard() {
       setInfo(newInfo);
       setRemaining(rem);
       setLibWebViewVisible(false);
-      hasInjected.current = false;
     } catch {
-      hasInjected.current = false;
+      // 파싱 실패 시 무시 — 다음 seat-charges 응답에서 재시도
     }
   };
 
@@ -727,8 +655,7 @@ function MySeatCard() {
           <WebView
             ref={webViewRef}
             source={{ uri: 'https://lib.pusan.ac.kr/mylibrary/seat/reservations' }}
-            injectedJavaScriptBeforeContentLoaded={HISTORY_MONITOR}
-            onLoadEnd={handleWebLoadEnd}
+            injectedJavaScriptBeforeContentLoaded={INTERCEPTOR_SCRIPT}
             onNavigationStateChange={handleWebNavChange}
             onMessage={handleWebMessage}
             sharedCookiesEnabled
