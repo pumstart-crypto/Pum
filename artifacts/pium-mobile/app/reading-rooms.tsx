@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard, Alert,
+  TextInput, Modal, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -279,38 +279,33 @@ function MySeatCard() {
         (Array.isArray(raw?.data) ? raw.data : null) ??
         [];
 
+      const INACTIVE = ['반납', '종료', '취소', 'RETURN', 'END', 'CANCEL', 'EXPIRE'];
       const active = list.filter((item: any) => {
-        const status: string =
-          item.status ?? item.chargeStatus ?? item.state ?? item.statusCode ?? '';
-        return !['반납', '종료', '취소', 'RETURN', 'END', 'CANCEL', 'return', 'end', 'cancel'].some(k =>
-          String(status).toUpperCase().includes(k.toUpperCase())
-        );
+        const stateObj = item.state ?? item.status ?? item.chargeStatus ?? {};
+        const code = typeof stateObj === 'object'
+          ? (stateObj.code ?? stateObj.name ?? '')
+          : String(stateObj);
+        return !INACTIVE.some(k => String(code).toUpperCase().includes(k.toUpperCase()));
       });
 
       if (active.length === 0) return;
 
       const item = active[0];
 
-      // ── 임시 디버그 ── 실제 필드명 확인용 (완료 후 삭제)
-      {
-        const keys = Object.keys(item);
-        const preview = keys.slice(0, 20).map((k: string) => `${k}: ${JSON.stringify(item[k]).slice(0, 40)}`).join('\n');
-        Alert.alert('[DEBUG] API 응답 첫 번째 항목', preview);
-      }
-
       const roomName: string =
-        item.seatRoom?.name ??
         item.room?.name ??
+        item.seatRoom?.name ??
         item.roomName ??
         item.seatRoomName ??
         '';
       const seatNum: string = String(
-        item.seat?.no ?? item.seat?.number ??
+        item.seat?.code ?? item.seat?.no ?? item.seat?.number ??
         item.seatNo ?? item.seatNumber ?? item.no ?? ''
       );
       const startRaw: string =
-        item.startDate ?? item.startDatetime ?? item.startTime ?? item.start ?? '';
-      const startDate = new Date(startRaw);
+        item.beginTime ?? item.startDate ?? item.startDatetime ??
+        item.startTime ?? item.chargeStartDate ?? item.start ?? '';
+      const startDate = new Date(startRaw.replace(' ', 'T'));
 
       const d = new Date();
       const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
