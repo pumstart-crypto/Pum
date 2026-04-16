@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Platform, RefreshControl, Animated,
-  TextInput, Modal, KeyboardAvoidingView, Keyboard,
+  Modal,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -113,15 +113,8 @@ const ROOM_TABS = [
 type RoomTabKey = typeof ROOM_TABS[number]['key'];
 
 // ══════════════════════════════════════════════════════════════
-// MySeatCard — 내 자리 카드 (수동 입력)
+// MySeatCard — 내 자리 카드
 // ══════════════════════════════════════════════════════════════
-const ROOM_LIST = [
-  { section: '새벽벌도서관', rooms: ['새벽누리-열람존', '새벽누리-미디어존', '새벽별당[24h]-A', '새벽별당[24h]-B', '1열람실', '2열람실-A', '2열람실-B', '2열람실-C', '2열람실-D', '3열람실-A', '3열람실-B', '3열람실-C', '3열람실-D', '노트북열람실-A', '노트북열람실-B', '대학원캐럴실'] },
-  { section: '미리내열람실', rooms: ['숲열람실', '나무열람실', '아카데미아-열람실', '아카데미아-캐럴실-A', '아카데미아-캐럴실-B'] },
-  { section: '나노생명과학도서관', rooms: ['미르마루', '집중열람실'] },
-  { section: '의생명과학도서관', rooms: ['행림별당'] },
-];
-
 interface MySeatInfo {
   roomName: string;
   seatNo: string;
@@ -164,18 +157,8 @@ function calcRemaining(info: MySeatInfo): {
 function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
   const [info, setInfo] = useState<MySeatInfo | null>(null);
   const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const { show: showToast, Toast } = useToast();
-
   const insets = useSafeAreaInsets();
-  const minRef  = useRef<TextInput>(null);
-
-  const [selectedLib,  setSelectedLib]  = useState<string | null>(null);
-  const [roomSearch,   setRoomSearch]   = useState('');
-  const [selectedRoom, setSelectedRoom] = useState('');
-  const [seatNo, setSeatNo] = useState('');
-  const [startHour, setStartHour] = useState('00');
-  const [startMin,  setStartMin]  = useState('00');
 
   // WebView 자동 동기화
   const [libWebViewVisible, setLibWebViewVisible] = useState(false);
@@ -338,24 +321,6 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
     }
   };
 
-  const onHourChange = (text: string) => {
-    const digits = text.replace(/[^0-9]/g, '');
-    if (digits === '') { setStartHour(''); return; }
-    if (Number(digits) > 23) return;
-    setStartHour(digits);
-    if (digits.length === 2) minRef.current?.focus();
-  };
-  const onHourBlur = () => setStartHour(h => h.length === 1 ? h.padStart(2, '0') : h || '00');
-
-  const onMinChange = (text: string) => {
-    const digits = text.replace(/[^0-9]/g, '');
-    if (digits === '') { setStartMin(''); return; }
-    if (Number(digits) > 59) return;
-    setStartMin(digits);
-    if (digits.length === 2) Keyboard.dismiss();
-  };
-  const onMinBlur = () => setStartMin(m => m.length === 1 ? m.padStart(2, '0') : m || '00');
-
   const load = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(MY_SEAT_KEY);
@@ -389,41 +354,6 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
     setRemaining(rem);
     if (rem.expired) { setInfo(null); setRemaining(null); AsyncStorage.removeItem(MY_SEAT_KEY); }
   }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const openEdit = () => {
-    if (info) {
-      // find which library this room belongs to
-      const lib = ROOM_LIST.find(l => l.rooms.includes(info.roomName));
-      setSelectedLib(lib?.section ?? null);
-      setSelectedRoom(info.roomName);
-      setSeatNo(info.seatNo);
-      const [h, m] = info.startTime.split(':');
-      setStartHour(h);
-      setStartMin(m);
-    } else {
-      setSelectedLib(null);
-      setSelectedRoom(''); setSeatNo('');
-      setStartHour('00'); setStartMin('00');
-    }
-    setRoomSearch('');
-    setModalVisible(true);
-  };
-
-  const save = async () => {
-    if (!selectedRoom || !seatNo.trim()) return;
-    const startTime = `${startHour.padStart(2,'0')}:${startMin.padStart(2,'0')}`;
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const newInfo: MySeatInfo = { roomName: selectedRoom, seatNo: seatNo.trim(), startTime, savedDate: today };
-    const rem = calcRemaining(newInfo);
-    await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
-    setInfo(newInfo); setRemaining(rem); setModalVisible(false);
-  };
-
-  const clear = async () => {
-    await AsyncStorage.removeItem(MY_SEAT_KEY);
-    setInfo(null); setRemaining(null); setModalVisible(false);
-  };
 
   const barColor = remaining
     ? (remaining.totalMin > 60 ? '#10B981' : remaining.totalMin > 20 ? '#F59E0B' : '#EF4444')
@@ -470,167 +400,23 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
                 {remaining.extensionPassed ? '연장 가능' : `연장 ${remaining.extensionTime}부터`}
               </Text>
             </View>
-            <View style={seatStyles.metaItem}>
-              <Feather name="edit-2" size={10} color="#9CA3AF" />
-              <Text style={seatStyles.metaText} onPress={openEdit}>수정</Text>
-            </View>
           </View>
         </TouchableOpacity>
       ) : (
-        <View style={seatStyles.emptyCard}>
+        <TouchableOpacity style={seatStyles.emptyCard} onPress={openLibWebView} activeOpacity={0.85}>
           <View style={seatStyles.emptyTopRow}>
             <Ionicons name="library-outline" size={15} color={C.primary} />
-            <Text style={seatStyles.emptyText}>내 자리 등록</Text>
+            <Text style={seatStyles.emptyText}>내 자리</Text>
           </View>
-          <Text style={seatStyles.emptySubText}>예약 후 좌석 정보를 불러오거나 직접 입력하세요</Text>
+          <Text style={seatStyles.emptySubText}>예약 중인 좌석이 있으면 탭하여 불러오세요</Text>
           <View style={seatStyles.emptyBtnRow}>
-            <TouchableOpacity style={seatStyles.autoSyncBtn} onPress={openLibWebView} activeOpacity={0.85}>
+            <View style={seatStyles.autoSyncBtn}>
               <Ionicons name="sync-outline" size={13} color="#fff" />
               <Text style={seatStyles.autoSyncBtnText}>자동 불러오기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={seatStyles.manualBtn} onPress={openEdit} activeOpacity={0.85}>
-              <Feather name="edit-2" size={13} color={C.primary} />
-              <Text style={seatStyles.manualBtnText}>직접 입력</Text>
-            </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
-
-      {/* ── 입력 바텀시트 ── */}
-      <Modal visible={modalVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setModalVisible(false)}>
-        {/* 배경 딤 */}
-        <TouchableOpacity
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' }}
-          activeOpacity={1}
-          onPress={() => { Keyboard.dismiss(); setModalVisible(false); }}
-        />
-        {/* 시트 — absolute bottom:0 으로 화면 최하단에 완전히 붙임 */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'position' : undefined}
-          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
-        >
-          <View style={seatStyles.sheet}>
-            <View style={seatStyles.sheetHandle} />
-            <Text style={seatStyles.sheetTitle}>내 자리 등록</Text>
-
-            {/* ── 도서관 탭 ── */}
-            <Text style={seatStyles.inputLabel}>열람실</Text>
-            <View style={seatStyles.libTabRow}>
-              {ROOM_LIST.map(({ section }) => {
-                const active = selectedLib === section;
-                return (
-                  <TouchableOpacity
-                    key={section}
-                    style={[seatStyles.libTab, active && seatStyles.libTabActive]}
-                    onPress={() => { setSelectedLib(section); setSelectedRoom(''); setRoomSearch(''); }}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[seatStyles.libTabText, active && seatStyles.libTabTextActive]}>{section}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* ── 열람실 검색 + 칩 ── */}
-            {selectedLib ? (
-              <>
-                <View style={seatStyles.searchBox}>
-                  <Feather name="search" size={14} color="#9CA3AF" />
-                  <TextInput
-                    style={seatStyles.searchInput}
-                    value={roomSearch}
-                    onChangeText={setRoomSearch}
-                    placeholder="열람실 검색..."
-                    placeholderTextColor="#C4C9D4"
-                  />
-                </View>
-                <ScrollView style={seatStyles.chipScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-                  <View style={seatStyles.chipGrid}>
-                    {(roomSearch
-                      ? (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? []).filter(r => r.includes(roomSearch))
-                      : (ROOM_LIST.find(l => l.section === selectedLib)?.rooms ?? [])
-                    ).map(r => {
-                      const active = selectedRoom === r;
-                      return (
-                        <TouchableOpacity key={r} style={[seatStyles.chip, active && seatStyles.chipSelected]} onPress={() => setSelectedRoom(r)} activeOpacity={0.7}>
-                          <Text style={[seatStyles.chipText, active && seatStyles.chipTextSelected]}>{r}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </>
-            ) : (
-              <Text style={seatStyles.libHint}>도서관을 먼저 선택해주세요</Text>
-            )}
-
-            {/* ── 좌석 번호 ── */}
-            <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>좌석 번호</Text>
-            <TextInput
-              style={seatStyles.input}
-              value={seatNo}
-              onChangeText={t => setSeatNo(t.replace(/[^0-9]/g, ''))}
-              placeholder="숫자만 입력 (예: 42)"
-              placeholderTextColor="#C4C9D4"
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-
-            {/* ── 시작 시간 ── */}
-            <Text style={[seatStyles.inputLabel, { marginTop: 16 }]}>이용 시작 시간</Text>
-            <View style={seatStyles.timeInputRow}>
-              <View style={seatStyles.timeInputWrap}>
-                <Text style={seatStyles.timeInputLabel}>시</Text>
-                <TextInput
-                  style={seatStyles.timeInput}
-                  value={startHour}
-                  onChangeText={onHourChange}
-                  onBlur={onHourBlur}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="00"
-                  placeholderTextColor="#D1D5DB"
-                  textAlign="center"
-                  selectTextOnFocus
-                  returnKeyType="next"
-                  onSubmitEditing={() => minRef.current?.focus()}
-                />
-              </View>
-              <Text style={seatStyles.timeInputColon}>:</Text>
-              <View style={seatStyles.timeInputWrap}>
-                <Text style={seatStyles.timeInputLabel}>분</Text>
-                <TextInput
-                  ref={minRef}
-                  style={seatStyles.timeInput}
-                  value={startMin}
-                  onChangeText={onMinChange}
-                  onBlur={onMinBlur}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="00"
-                  placeholderTextColor="#D1D5DB"
-                  textAlign="center"
-                  selectTextOnFocus
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[seatStyles.saveBtn, (!selectedRoom || !seatNo.trim()) && seatStyles.saveBtnDisabled]}
-              onPress={save}
-              activeOpacity={0.85}
-            >
-              <Text style={seatStyles.saveBtnText}>저장</Text>
-            </TouchableOpacity>
-
-            {info && (
-              <TouchableOpacity style={seatStyles.clearBtn} onPress={clear}>
-                <Text style={seatStyles.clearBtnText}>등록 취소</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* ── 도서관 WebView 자동 동기화 ── */}
       <Modal visible={libWebViewVisible} animationType="slide" onRequestClose={closeLibWebView}>
@@ -1154,13 +940,6 @@ const seatStyles = StyleSheet.create({
     backgroundColor: C.primary,
   },
   autoSyncBtnText: { fontSize: 13, fontWeight: '600', color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  manualBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, paddingVertical: 9, borderRadius: 10,
-    borderWidth: 1.5, borderColor: C.primary,
-  },
-  manualBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
-
   // ── 도서관 WebView ──
   wvHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -1183,103 +962,5 @@ const seatStyles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: `${C.primary}18`,
   },
   wvBannerText: { flex: 1, fontSize: 11, color: C.primary, fontFamily: 'Inter_400Regular', lineHeight: 16 },
-
-  // ── 모달 ──
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 48,
-  },
-  sheetHandle: { width: 36, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 14 },
-  sheetTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold', marginBottom: 4, textAlign: 'center' },
-
-  inputLabel: { fontSize: 12, color: '#6B7280', fontFamily: 'Inter_500Medium', fontWeight: '500', marginBottom: 8, marginTop: 4 },
-  sectionLabel: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 6, marginTop: 4 },
-
-  // ── 도서관 탭 ──
-  libTabRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12,
-  },
-  libTab: {
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
-    backgroundColor: '#F3F4F8', borderWidth: 0,
-  },
-  libTabActive: {
-    backgroundColor: C.primary,
-    shadowColor: C.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  libTabText: { fontSize: 12, fontWeight: '500', color: '#666', fontFamily: 'Inter_500Medium' },
-  libTabTextActive: { color: '#fff', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-
-  libHint: { fontSize: 13, color: '#AAAAAA', fontStyle: 'italic', fontFamily: 'Inter_400Regular', marginBottom: 8 },
-
-  chipScroll: { maxHeight: 160, marginBottom: 4 },
-
-  // ── 열람실 검색 ──
-  searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F8F9FB', borderRadius: 10,
-    borderWidth: 1, borderColor: '#E8E9F0',
-    paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10,
-  },
-  searchInput: {
-    flex: 1, fontSize: 13, color: '#374151', fontFamily: 'Inter_400Regular', padding: 0,
-  },
-
-  // ── 열람실 칩 ──
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 4 },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E8E9F0',
-  },
-  chipSelected: { backgroundColor: `${C.primary}0F`, borderColor: C.primary },
-  chipText: { fontSize: 13, color: '#555', fontFamily: 'Inter_400Regular' },
-  chipTextSelected: { color: C.primary, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-  chip24h: { fontSize: 9, fontWeight: '700', color: '#E67E22', fontFamily: 'Inter_700Bold' },
-
-  input: {
-    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 11,
-    fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', backgroundColor: '#FAFAFA',
-  },
-
-  // ── 시간 입력 ──
-  timeInputRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 12, marginBottom: 4,
-  },
-  timeInputWrap: { alignItems: 'center', flex: 1 },
-  timeInputLabel: {
-    fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_500Medium',
-    fontWeight: '500', marginBottom: 6, letterSpacing: 0.5,
-  },
-  timeInput: {
-    width: '100%', paddingVertical: 14,
-    borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12,
-    backgroundColor: '#FAFAFA',
-    fontSize: 32, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold',
-  },
-  timeInputColon: {
-    fontSize: 28, fontWeight: '700', color: C.primary, fontFamily: 'Inter_700Bold',
-    marginTop: 20,
-  },
-
-  // ── 자동 계산 표시 ──
-  autoCalcBox: {
-    backgroundColor: '#F0F9F4', borderRadius: 10, padding: 10, marginTop: 10, gap: 4,
-  },
-  autoCalcRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  autoCalcText: { fontSize: 12, color: '#374151', fontFamily: 'Inter_400Regular' },
-
-  saveBtn: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
-  saveBtnDisabled: { backgroundColor: '#D1D5DB' },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  clearBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
-  clearBtnText: { fontSize: 13, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
 });
