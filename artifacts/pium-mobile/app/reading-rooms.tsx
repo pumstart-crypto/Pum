@@ -639,18 +639,20 @@ function MySeatCard() {
       </Modal>
 
       {/* ── 도서관 WebView 자동 동기화 ── */}
-      <Modal visible={libWebViewVisible} animationType="slide" statusBarTranslucent onRequestClose={closeLibWebView}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <Modal visible={libWebViewVisible} animationType="slide" onRequestClose={closeLibWebView}>
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+          {/* 헤더 */}
           <View style={seatStyles.wvHeader}>
-            <TouchableOpacity onPress={closeLibWebView} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name="x" size={20} color="#374151" />
-            </TouchableOpacity>
             <Text style={seatStyles.wvTitle}>부산대 도서관</Text>
             {webSyncLoading
               ? <ActivityIndicator size="small" color={C.primary} />
-              : <View style={{ width: 20 }} />
+              : <View style={{ width: 28 }} />
             }
+            <TouchableOpacity onPress={closeLibWebView} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={seatStyles.wvCloseBtn}>
+              <Feather name="x" size={20} color="#374151" />
+            </TouchableOpacity>
           </View>
+          {/* 안내 배너 */}
           <View style={seatStyles.wvBanner}>
             <Ionicons name="information-circle-outline" size={13} color={C.primary} />
             <Text style={seatStyles.wvBannerText}>로그인 후 예약현황 페이지로 이동하면 자동으로 정보를 가져옵니다</Text>
@@ -667,7 +669,14 @@ function MySeatCard() {
             domStorageEnabled
             style={{ flex: 1 }}
           />
-        </SafeAreaView>
+          {/* 하단 닫기 버튼 */}
+          <TouchableOpacity
+            onPress={closeLibWebView}
+            style={[seatStyles.wvCloseBar, { paddingBottom: insets.bottom + 8 }]}
+          >
+            <Text style={seatStyles.wvCloseBarText}>닫기</Text>
+          </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* ── 인앱 확인 다이얼로그 ── */}
@@ -1168,7 +1177,16 @@ const seatStyles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
   },
-  wvTitle: { fontSize: 15, fontWeight: '600', color: '#111827', fontFamily: 'Inter_600SemiBold' },
+  wvTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: '#111827', fontFamily: 'Inter_600SemiBold' },
+  wvCloseBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center',
+  },
+  wvCloseBar: {
+    backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    alignItems: 'center', justifyContent: 'center', paddingTop: 14,
+  },
+  wvCloseBarText: { fontSize: 16, fontWeight: '600', color: '#374151', fontFamily: 'Inter_600SemiBold' },
   wvBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: `${C.primary}0D`, paddingHorizontal: 14, paddingVertical: 9,
