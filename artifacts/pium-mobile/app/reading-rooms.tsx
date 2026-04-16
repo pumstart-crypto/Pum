@@ -154,10 +154,12 @@ function calcRemaining(info: MySeatInfo): {
 
 
 // ── MySeatCard ─────────────────────────────────────────────────
-function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
+function MySeatCard({ refreshTrigger = 0, showToast }: {
+  refreshTrigger?: number;
+  showToast: (msg: string, type?: keyof typeof TOAST_CFG, sub?: string) => void;
+}) {
   const [info, setInfo] = useState<MySeatInfo | null>(null);
   const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
-  const { show: showToast, Toast } = useToast();
   const insets = useSafeAreaInsets();
 
   // WebView 자동 동기화
@@ -271,9 +273,9 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
           // 기존 좌석이 있었는데 없어짐 → 반납/만료
           await AsyncStorage.removeItem(MY_SEAT_KEY);
           setInfo(null); setRemaining(null);
-          showToast('자리가 반납되었습니다', 'success');
+          showToast('좌석이 반납되었어요', 'info', '반납 또는 이용 종료가 확인되었습니다');
         } else {
-          showToast('현재 이용 중인 좌석이 없습니다', 'error');
+          showToast('예약된 좌석이 없어요', 'info', '도서관에서 먼저 좌석을 예약해 주세요');
         }
         return;
       }
@@ -458,8 +460,6 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
           </TouchableOpacity>
         </View>
       </Modal>
-
-      {Toast}
     </>
   );
 }
@@ -467,31 +467,58 @@ function MySeatCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
 // ══════════════════════════════════════════════════════════════
 // Toast hook
 // ══════════════════════════════════════════════════════════════
+const TOAST_CFG = {
+  success: { bg: '#F0FDF9', border: '#10B981', iconColor: '#059669', icon: 'check-circle' as const, labelColor: '#065F46' },
+  info:    { bg: '#EEF4FB', border: C.primary,  iconColor: C.primary,  icon: 'info'         as const, labelColor: C.primary },
+  error:   { bg: '#FFF1F2', border: '#F43F5E',  iconColor: '#E11D48',  icon: 'alert-circle' as const, labelColor: '#9F1239' },
+};
+
 function useToast() {
   const [msg, setMsg] = useState('');
-  const [type, setType] = useState<'success' | 'error'>('success');
-  const opacity = useRef(new Animated.Value(0)).current;
+  const [type, setType] = useState<keyof typeof TOAST_CFG>('info');
+  const [sub, setSub] = useState('');
+  const opacity   = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(-20)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const insets = useSafeAreaInsets();
 
-  const show = useCallback((message: string, t: 'success' | 'error' = 'success') => {
+  const show = useCallback((message: string, t: keyof typeof TOAST_CFG = 'info', subtitle?: string) => {
     if (timer.current) clearTimeout(timer.current);
-    setMsg(message); setType(t);
-    Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+    setMsg(message); setType(t); setSub(subtitle ?? '');
+    Animated.parallel([
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 90, friction: 10 }),
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start();
     timer.current = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }).start();
-    }, 3000);
-  }, [opacity]);
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: -20, duration: 280, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 280, useNativeDriver: true }),
+      ]).start();
+    }, 3200);
+  }, [opacity, translateY]);
 
+  const cfg = TOAST_CFG[type];
   const Toast = (
     <Animated.View
       pointerEvents="none"
       style={[
         styles.toast,
-        { opacity, backgroundColor: type === 'success' ? '#064E3B' : '#7F1D1D' },
+        {
+          opacity,
+          transform: [{ translateY }],
+          top: insets.top + 12,
+          backgroundColor: cfg.bg,
+          borderLeftColor: cfg.border,
+        },
       ]}
     >
-      <Feather name={type === 'success' ? 'check-circle' : 'alert-circle'} size={15} color="#fff" />
-      <Text style={styles.toastText}>{msg}</Text>
+      <View style={[styles.toastIconWrap, { backgroundColor: `${cfg.border}18` }]}>
+        <Feather name={cfg.icon} size={14} color={cfg.iconColor} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.toastText, { color: cfg.labelColor }]}>{msg}</Text>
+        {!!sub && <Text style={styles.toastSub}>{sub}</Text>}
+      </View>
     </Animated.View>
   );
   return { show, Toast };
@@ -746,7 +773,7 @@ export default function ReadingRoomsScreen() {
 
       {/* ── 내 자리 카드 ── */}
       <View style={styles.mySeatWrapper}>
-        <MySeatCard refreshTrigger={refreshTrigger} />
+        <MySeatCard refreshTrigger={refreshTrigger} showToast={showToast} />
         <TouchableOpacity
           style={styles.reservationBtn}
           onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
@@ -884,13 +911,19 @@ const styles = StyleSheet.create({
   reservationBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
 
   toast: {
-    position: 'absolute', bottom: 28, left: 20, right: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderRadius: 14, zIndex: 999,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
+    position: 'absolute', left: 16, right: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 14, zIndex: 9999,
+    borderLeftWidth: 4,
+    shadowColor: '#00427D', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 8,
   },
-  toastText: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  toastIconWrap: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  toastText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  toastSub: { fontSize: 11, color: '#6B7280', fontFamily: 'Inter_400Regular', marginTop: 1 },
 });
 
 const seatStyles = StyleSheet.create({
