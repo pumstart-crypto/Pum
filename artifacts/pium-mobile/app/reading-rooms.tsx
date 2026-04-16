@@ -316,19 +316,30 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
       const stateName = String(item.state?.name ?? item.state?.description ?? '');
       const isTempAssign = /TEMP|임시/.test(stateCode) || /임시/.test(stateName);
 
-      // ── 임시배정 종료 시각 ──
+      // ── 디버그: item 전체를 로그 (임시배정 시 필드 파악용) ──
+      if (isTempAssign) {
+        console.log('[MySeat] 임시배정 item:', JSON.stringify(item, null, 2));
+      }
+
+      // ── 임시배정 종료 시각 ── (다양한 필드명 시도)
       const tempEndRaw: string =
-        item.state?.endDatetime ?? item.state?.limitDatetime ??
-        item.stateEndDatetime ?? item.tempEndDatetime ?? '';
+        item.state?.limitDatetime ?? item.state?.endDatetime ??
+        item.state?.limitTime    ?? item.state?.endTime     ??
+        item.state?.endAt        ??
+        item.limitDatetime       ?? item.tempLimitDatetime  ??
+        item.stateEndDatetime    ?? item.tempEndDatetime    ??
+        item.limitTime           ?? item.tempEndTime        ??
+        '';
       let tempEndTime: string | undefined;
       if (isTempAssign) {
+        // 시도 1: datetime 문자열 파싱
         if (tempEndRaw) {
           const td = new Date(tempEndRaw.replace(' ', 'T'));
           if (!isNaN(td.getTime())) {
             tempEndTime = `${String(td.getHours()).padStart(2, '0')}:${String(td.getMinutes()).padStart(2, '0')}`;
           }
         }
-        // 폴백: state.name 문자열에서 "오전/오후 HH:MM" 형식 파싱
+        // 시도 2: state.name 문자열에서 "오전/오후 HH:MM" 파싱
         // 예) "임시배정 ~ 오전 12:53"
         if (!tempEndTime) {
           const m = stateName.match(/([오전후]+)\s*(\d{1,2}):(\d{2})/);
@@ -338,6 +349,48 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
             if (m[1].includes('전') && h === 12) h = 0;
             tempEndTime = `${String(h).padStart(2, '0')}:${m[3]}`;
           }
+        }
+        // 시도 3: item 최상위에서 HH:MM 패턴 탐색
+        if (!tempEndTime) {
+          for (const key of Object.keys(item)) {
+            const val = String(item[key] ?? '');
+            if (/^\d{2}:\d{2}(:\d{2})?$/.test(val)) {
+              if (!(`${startH}:${startM}`).startsWith(val.substring(0, 5))) {
+                tempEndTime = val.substring(0, 5);
+                console.log(`[MySeat] tempEndTime 추정 from item.${key}:`, val);
+                break;
+              }
+            }
+          }
+        }
+        // 시도 4: state 내 모든 datetime/time 필드 스캔
+        if (!tempEndTime && item.state) {
+          for (const key of Object.keys(item.state)) {
+            const val = String(item.state[key] ?? '');
+            // "2026-04-17 00:53:00" 또는 "00:53" 형태
+            const dtMatch = val.match(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/);
+            const timeMatch = val.match(/^(\d{2}):(\d{2})/);
+            if (dtMatch) {
+              const td = new Date(val.replace(' ', 'T'));
+              if (!isNaN(td.getTime())) {
+                const candidate = `${String(td.getHours()).padStart(2,'0')}:${String(td.getMinutes()).padStart(2,'0')}`;
+                if (candidate !== `${startH}:${startM}`) {
+                  tempEndTime = candidate;
+                  console.log(`[MySeat] tempEndTime from state.${key}:`, val, '→', tempEndTime);
+                  break;
+                }
+              }
+            } else if (timeMatch && val.length <= 8 && val !== `${startH}:${startM}`) {
+              tempEndTime = `${timeMatch[1]}:${timeMatch[2]}`;
+              console.log(`[MySeat] tempEndTime from state.${key}:`, val);
+              break;
+            }
+          }
+        }
+        // 최종 폴백: 임시배정은 통상 예약 후 15분 (정확한 필드명 모를 때)
+        if (!tempEndTime) {
+          tempEndTime = addMins(`${startH}:${startM}`, 15);
+          console.log('[MySeat] tempEndTime 15분 폴백:', tempEndTime);
         }
       }
 
