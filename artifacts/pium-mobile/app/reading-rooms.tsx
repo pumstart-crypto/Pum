@@ -204,12 +204,33 @@ function MySeatCard() {
     true;
   })();`;
 
+  // localStorage/sessionStorage/쿠키 조사 스크립트 (디버그용)
+  const DEBUG_STORAGE_SCRIPT = `(function() {
+    var ls = {};
+    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k) ls[k] = localStorage.getItem(k); } } catch(e) {}
+    var ss = {};
+    try { for (var i = 0; i < sessionStorage.length; i++) { var k = sessionStorage.key(i); if (k) ss[k] = sessionStorage.getItem(k); } } catch(e) {}
+    window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'storage', ls: ls, ss: ss, cookie: document.cookie, url: location.href }));
+    true;
+  })();`;
+
   // 로그인 후 호출되는 실제 API 주입 스크립트
   const INJECT_SCRIPT = `(function() {
-    fetch('/pyxis-api/1/api/seat-charges', {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' }
-    })
+    // localStorage/sessionStorage에서 인증 토큰 탐색
+    var token = null;
+    var extraHeaders = {};
+    try {
+      var candidates = ['accessToken', 'access_token', 'token', 'authToken', 'auth_token', 'Authorization', 'jwt', 'bearer'];
+      for (var i = 0; i < candidates.length; i++) {
+        var v = localStorage.getItem(candidates[i]) || sessionStorage.getItem(candidates[i]);
+        if (v) { token = v; extraHeaders['Authorization'] = 'Bearer ' + v; break; }
+      }
+      // Vuex/Redux store에서 꺼내기 시도
+      if (!token && window.__vue_store__) { try { token = window.__vue_store__.state?.auth?.accessToken; if (token) extraHeaders['Authorization'] = 'Bearer ' + token; } catch(e) {} }
+    } catch(e) {}
+
+    var headers = Object.assign({ 'Accept': 'application/json' }, extraHeaders);
+    fetch('/pyxis-api/1/api/seat-charges', { credentials: 'include', headers: headers })
     .then(function(r) {
       if (r.status === 401 || r.status === 403) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'unauth' }));
@@ -224,7 +245,7 @@ function MySeatCard() {
     .then(function(d) { if (d) window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ok', d: d })); })
     .catch(function(e) { window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'err', m: String(e) })); });
     true;
-  })();`;
+  })()`;
 
   const openLibWebView = () => {
     hasInjected.current = false;
@@ -241,14 +262,18 @@ function MySeatCard() {
   const tryInject = (url: string) => {
     if (!url) return;
     console.log('[WebSync] tryInject url=' + url + ' hasInjected=' + hasInjected.current);
-    // /mylibrary/ 또는 로그인 후 리다이렉트되는 경로에서만 실행
     const isMyLib = url.includes('/mylibrary/') || url.includes('/mypage/') || url.includes('/myLibrary/');
     if (isMyLib && !hasInjected.current) {
-      console.log('[WebSync] → injecting API script');
+      console.log('[WebSync] → injecting debug+API script');
       hasInjected.current = true;
       setWebSyncLoading(true);
       setTimeout(() => {
-        webViewRef.current?.injectJavaScript(INJECT_SCRIPT);
+        // 먼저 스토리지 정보 수집
+        webViewRef.current?.injectJavaScript(DEBUG_STORAGE_SCRIPT);
+        // 그 다음 API 호출
+        setTimeout(() => {
+          webViewRef.current?.injectJavaScript(INJECT_SCRIPT);
+        }, 300);
       }, 1500);
     }
   };
@@ -271,6 +296,17 @@ function MySeatCard() {
       // SPA 내부 URL 변경 알림
       if (parsed.t === 'nav') {
         tryInject(parsed.url ?? '');
+        return;
+      }
+
+      // 스토리지 디버그 덤프
+      if (parsed.t === 'storage') {
+        console.log('[WebSync][storage] url=' + parsed.url);
+        console.log('[WebSync][storage] cookie=' + parsed.cookie);
+        console.log('[WebSync][storage] ls keys=' + Object.keys(parsed.ls ?? {}).join(','));
+        console.log('[WebSync][storage] ss keys=' + Object.keys(parsed.ss ?? {}).join(','));
+        Object.entries(parsed.ls ?? {}).forEach(([k, v]) => console.log('[WebSync][ls] ' + k + '=' + String(v).slice(0, 80)));
+        Object.entries(parsed.ss ?? {}).forEach(([k, v]) => console.log('[WebSync][ss] ' + k + '=' + String(v).slice(0, 80)));
         return;
       }
 
