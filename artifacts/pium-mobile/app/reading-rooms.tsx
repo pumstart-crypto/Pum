@@ -215,21 +215,25 @@ function MySeatCard() {
   })();`;
 
   // 로그인 후 호출되는 실제 API 주입 스크립트
+  // PUSAN_PYXIS3 쿠키에서 accessToken을 꺼내 X-Auth-Token 헤더로 전송
   const INJECT_SCRIPT = `(function() {
-    // localStorage/sessionStorage에서 인증 토큰 탐색
     var token = null;
-    var extraHeaders = {};
     try {
-      var candidates = ['accessToken', 'access_token', 'token', 'authToken', 'auth_token', 'Authorization', 'jwt', 'bearer'];
-      for (var i = 0; i < candidates.length; i++) {
-        var v = localStorage.getItem(candidates[i]) || sessionStorage.getItem(candidates[i]);
-        if (v) { token = v; extraHeaders['Authorization'] = 'Bearer ' + v; break; }
+      var cookieParts = document.cookie.split(';');
+      for (var i = 0; i < cookieParts.length; i++) {
+        var part = cookieParts[i].trim();
+        if (part.indexOf('PUSAN_PYXIS3=') === 0) {
+          var raw = part.slice('PUSAN_PYXIS3='.length);
+          var obj = JSON.parse(decodeURIComponent(raw));
+          token = obj.accessToken || null;
+          break;
+        }
       }
-      // Vuex/Redux store에서 꺼내기 시도
-      if (!token && window.__vue_store__) { try { token = window.__vue_store__.state?.auth?.accessToken; if (token) extraHeaders['Authorization'] = 'Bearer ' + token; } catch(e) {} }
     } catch(e) {}
 
-    var headers = Object.assign({ 'Accept': 'application/json' }, extraHeaders);
+    var headers = { 'Accept': 'application/json' };
+    if (token) headers['X-Auth-Token'] = token;
+
     fetch('/pyxis-api/1/api/seat-charges', { credentials: 'include', headers: headers })
     .then(function(r) {
       if (r.status === 401 || r.status === 403) {
