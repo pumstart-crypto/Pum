@@ -118,13 +118,14 @@ type RoomTabKey = typeof ROOM_TABS[number]['key'];
 interface MySeatInfo {
   roomName: string;
   seatNo: string;
-  startTime: string; // "HH:MM" 24h
-  endTime?: string;  // "HH:MM" 24h — API에서 받은 실제 종료 시각 (연장 반영)
-  savedDate: string; // "YYYY-MM-DD"
+  startTime: string;    // "HH:MM" 24h
+  endTime?: string;     // "HH:MM" 24h — API에서 받은 실제 종료 시각 (연장 반영)
+  renewableTime?: string; // "HH:MM" — renewableDate 파싱값 (연장 가능 시작 시각)
+  savedDate: string;    // "YYYY-MM-DD"
   isTempAssign?: boolean;  // 임시배정 상태
   tempEndTime?: string;    // "HH:MM" - 임시배정 종료 시각
-  extensionCount?: number; // 이미 연장한 횟수
-  extensionMax?: number;   // 최대 연장 가능 횟수
+  extensionCount?: number; // 이미 연장한 횟수 (= renewalLimit - renewableCnt)
+  extensionMax?: number;   // 최대 연장 가능 횟수 (= renewalLimit)
 }
 
 function addMins(time: string, mins: number): string {
@@ -139,8 +140,8 @@ function calcRemaining(info: MySeatInfo): {
 } {
   // API에서 받은 실제 종료 시각 우선, 없으면 시작+4h 폴백
   const endTime = info.endTime ?? addMins(info.startTime, 4 * 60);
-  // 연장 가능 시각 = 종료 - 2h (연장 버튼 활성화 시점 — 연장 후 종료 시각이 바뀌면 같이 갱신)
-  const extensionTime = addMins(endTime, -(2 * 60));
+  // renewableTime = renewableDate에서 직접 파싱 (Pyxis API). 없으면 종료-2h 폴백
+  const extensionTime = info.renewableTime ?? addMins(endTime, -(2 * 60));
   const now = new Date();
 
   // 자정 넘김 처리: endTime < startTime이면 다음 날
@@ -427,23 +428,35 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
       }
 
       // ── 연장 횟수 ──
+      // Pyxis API: renewableCnt = 남은 횟수, renewalLimit = 최대 횟수
+      // 사용 횟수 = renewalLimit - renewableCnt
+      const renewalLimit: number =
+        item.renewalLimit ?? item.extensionLimitCount ?? item.extensionMaxCount ??
+        item.maxRenewCount ?? item.extLimitCount ?? 4;
+      const renewableCnt: number | undefined =
+        item.renewableCnt ?? item.renewableCount ?? item.extensionRemaining;
+      const extensionMax: number = renewalLimit;
       const extensionCount: number =
-        item.extensionCount   ?? item.extensionUsedCount ??
-        item.renewCount       ?? item.chargeExtensionCount ??
-        item.useExtensionCount ?? item.extension?.count ??
-        item.extCount         ?? 0;
-      const extensionMax: number =
-        item.extensionLimitCount ?? item.extensionMaxCount ??
-        item.maxRenewCount       ?? item.chargeExtensionLimitCount ??
-        item.extension?.limitCount ?? item.extLimitCount ?? 4;
-      console.log('[MySeat] extensionCount:', extensionCount, '/', extensionMax,
-        '| raw fields:', item.extensionCount, item.extensionUsedCount, item.renewCount);
+        renewableCnt !== undefined
+          ? renewalLimit - renewableCnt          // 사용 = 최대 - 남은
+          : (item.extensionCount ?? item.extensionUsedCount ?? item.renewCount ?? 0);
+
+      // ── 연장 가능 시각 (renewableDate) ──
+      const renewableDateRaw: string = item.renewableDate ?? item.renewableAt ?? '';
+      let renewableTime: string | undefined;
+      if (renewableDateRaw) {
+        const rd = new Date(renewableDateRaw.replace(' ', 'T'));
+        if (!isNaN(rd.getTime())) {
+          renewableTime = `${String(rd.getHours()).padStart(2,'0')}:${String(rd.getMinutes()).padStart(2,'0')}`;
+        }
+      }
 
       const newInfo: MySeatInfo = {
         roomName: roomName || '알 수 없음',
         seatNo: seatNum,
         startTime: `${startH}:${startM}`,
-        endTime: endTimeHHMM,   // 실제 종료 시각 — 연장 후 갱신됨
+        endTime: endTimeHHMM,       // 실제 종료 시각 — 연장 후 갱신됨
+        renewableTime,              // renewableDate 파싱값 — 연장 가능 시작 시각
         savedDate: today,
         isTempAssign,
         tempEndTime,
