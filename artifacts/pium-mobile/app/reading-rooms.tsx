@@ -119,6 +119,7 @@ interface MySeatInfo {
   roomName: string;
   seatNo: string;
   startTime: string; // "HH:MM" 24h
+  endTime?: string;  // "HH:MM" 24h — API에서 받은 실제 종료 시각 (연장 반영)
   savedDate: string; // "YYYY-MM-DD"
   isTempAssign?: boolean;  // 임시배정 상태
   tempEndTime?: string;    // "HH:MM" - 임시배정 종료 시각
@@ -136,20 +137,36 @@ function calcRemaining(info: MySeatInfo): {
   text: string; pct: number; expired: boolean; totalMin: number;
   endTime: string; extensionTime: string; extensionPassed: boolean;
 } {
-  const endTime       = addMins(info.startTime, 4 * 60);
+  // API에서 받은 실제 종료 시각 우선, 없으면 시작+4h 폴백
+  const endTime = info.endTime ?? addMins(info.startTime, 4 * 60);
+  // 연장 가능 시각 = 시작 + 2h (연장 버튼이 활성화되는 시점)
   const extensionTime = addMins(info.startTime, 2 * 60);
   const now = new Date();
+
+  // 자정 넘김 처리: endTime < startTime이면 다음 날
+  const [sh, sm] = info.startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
+  const startTotalMin = sh * 60 + sm;
+  const endTotalMin   = eh * 60 + em;
+  const crossesMidnight = endTotalMin < startTotalMin;
+
   const end = new Date(info.savedDate);
   end.setHours(eh, em, 0, 0);
+  if (crossesMidnight) end.setDate(end.getDate() + 1);
+
   const diffMs = end.getTime() - now.getTime();
   if (diffMs <= 0) return { text: '이용 종료', pct: 0, expired: true, totalMin: 0, endTime, extensionTime, extensionPassed: true };
+
   const totalMin = Math.floor(diffMs / 60000);
   const hh = Math.floor(totalMin / 60);
   const mm = totalMin % 60;
   const text = hh > 0 ? `${hh}시간 ${mm}분 남음` : `${mm}분 남음`;
-  const maxMs = 4 * 60 * 60 * 1000;
+
+  // 프로그레스 바: 시작 → 종료 전체 구간 기준
+  const totalDuration = end.getTime() - (new Date(info.savedDate).setHours(sh, sm, 0, 0));
+  const maxMs = Math.max(totalDuration, 60_000);
   const pct = Math.min(100, Math.round((diffMs / maxMs) * 100));
+
   const [xh, xm] = extensionTime.split(':').map(Number);
   const extDate = new Date(info.savedDate); extDate.setHours(xh, xm, 0, 0);
   const extensionPassed = now >= extDate;
@@ -301,6 +318,21 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         item.startTime ?? item.chargeStartDate ?? item.start ?? '';
       const startDate = new Date(startRaw.replace(' ', 'T'));
 
+      // ── 실제 종료 시각 (연장 후에도 정확히 반영됨) ──
+      const endRaw: string =
+        item.endTime ?? item.endDatetime ?? item.endDate ??
+        item.chargeEndDate ?? item.expireTime ?? item.expireDatetime ??
+        item.endAt ?? item.finishTime ?? '';
+      let endTimeHHMM: string | undefined;
+      if (endRaw) {
+        const ed = new Date(endRaw.replace(' ', 'T'));
+        if (!isNaN(ed.getTime())) {
+          endTimeHHMM = `${String(ed.getHours()).padStart(2,'0')}:${String(ed.getMinutes()).padStart(2,'0')}`;
+        } else if (/^\d{2}:\d{2}/.test(endRaw)) {
+          endTimeHHMM = endRaw.substring(0, 5);
+        }
+      }
+
       const d = new Date();
       const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -404,6 +436,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         roomName: roomName || '알 수 없음',
         seatNo: seatNum,
         startTime: `${startH}:${startM}`,
+        endTime: endTimeHHMM,   // 실제 종료 시각 — 연장 후 갱신됨
         savedDate: today,
         isTempAssign,
         tempEndTime,
