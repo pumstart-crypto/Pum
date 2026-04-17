@@ -10,7 +10,7 @@ router.use((_req, res, next) => {
   next();
 });
 
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const KOREA_PROXY = process.env.KOREA_PROXY_URL ?? "http://223.130.142.144:3000";
 const PYXIS_BASE = "https://lib.pusan.ac.kr/pyxis-api";
 
