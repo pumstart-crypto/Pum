@@ -880,7 +880,7 @@ export default function ReadingRoomsScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const { show: showToast, Toast } = useToast();
 
-  const [mainTab, setMainTab] = useState<'rooms' | 'myseat'>('rooms');
+  const [mainTab, setMainTab] = useState<'rooms' | 'myseat'>('myseat');
   const [activeRoomTab, setActiveRoomTab] = useState<RoomTabKey>('saebbyukbul');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshingHeader, setIsRefreshingHeader] = useState(false);
@@ -926,18 +926,18 @@ export default function ReadingRoomsScreen() {
         <View style={styles.toggleContainer}>
           <View style={styles.toggleBg}>
             <TouchableOpacity
-              style={[styles.toggleBtn, mainTab === 'rooms' && styles.toggleBtnActive]}
-              onPress={() => setMainTab('rooms')}
-            >
-              <Feather name="book-open" size={13} color={mainTab === 'rooms' ? C.primary : '#9CA3AF'} />
-              <Text style={[styles.toggleText, mainTab === 'rooms' && styles.toggleTextActive]}>열람실 현황</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.toggleBtn, mainTab === 'myseat' && styles.toggleBtnActive]}
               onPress={() => setMainTab('myseat')}
             >
               <Feather name="bookmark" size={13} color={mainTab === 'myseat' ? C.primary : '#9CA3AF'} />
               <Text style={[styles.toggleText, mainTab === 'myseat' && styles.toggleTextActive]}>내 자리</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, mainTab === 'rooms' && styles.toggleBtnActive]}
+              onPress={() => setMainTab('rooms')}
+            >
+              <Feather name="book-open" size={13} color={mainTab === 'rooms' ? C.primary : '#9CA3AF'} />
+              <Text style={[styles.toggleText, mainTab === 'rooms' && styles.toggleTextActive]}>열람실 현황</Text>
             </TouchableOpacity>
           </View>
         </View>
