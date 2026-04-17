@@ -261,8 +261,8 @@ export default function TodosScreen() {
   // ── Renders ──
 
   const renderSectionHeader = ({ section }: { section: Section }) => (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{section.title}</Text>
+    <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{section.title}</Text>
     </View>
   );
 
@@ -275,11 +275,10 @@ export default function TodosScreen() {
     return (
       <Animated.View style={{ opacity }}>
         <TouchableOpacity
-          style={styles.todoRow}
+          style={[styles.todoRow, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={() => openEdit(item)}
           activeOpacity={0.75}
         >
-          {/* Circular checkbox */}
           <TouchableOpacity
             onPress={() => toggleTodo(item.id, !item.completed)}
             style={styles.checkWrap}
@@ -290,14 +289,13 @@ export default function TodosScreen() {
                 <Feather name="check" size={12} color="#fff" />
               </View>
             ) : (
-              <View style={styles.checkEmpty} />
+              <View style={[styles.checkEmpty, { borderColor: colors.border }]} />
             )}
           </TouchableOpacity>
 
-          {/* Content */}
           <View style={styles.todoContent}>
             <Text
-              style={[styles.todoTitle, item.completed && styles.todoTitleDone]}
+              style={[styles.todoTitle, { color: colors.text }, item.completed && styles.todoTitleDone]}
               numberOfLines={2}
             >
               {item.title}
@@ -306,6 +304,7 @@ export default function TodosScreen() {
               <Text
                 style={[
                   styles.todoSub,
+                  { color: colors.textSecondary },
                   (dueStatus === 'overdue' || dueStatus === 'urgent') && styles.todoSubUrgent,
                 ]}
                 numberOfLines={1}
@@ -322,19 +321,19 @@ export default function TodosScreen() {
   // ── Main render ──
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="chevron-left" size={24} color="#374151" />
+          <Feather name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.uniLabel}>부산대학교</Text>
-        <Text style={styles.pageTitle}>할 일</Text>
+        <Text style={[styles.pageTitle, { color: colors.text }]}>할 일</Text>
       </View>
 
       {/* FilterBar */}
-      <View style={styles.filterBar}>
+      <View style={[styles.filterBar, { backgroundColor: colors.background }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -371,13 +370,13 @@ export default function TodosScreen() {
         <ActivityIndicator color={C.primary} style={{ marginTop: 60 }} />
       ) : sections.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <View style={styles.emptyIcon}>
-            <Feather name="check-square" size={36} color="#D1D5DB" />
+          <View style={[styles.emptyIcon, { backgroundColor: colors.inputBg }]}>
+            <Feather name="check-square" size={36} color={colors.border} />
           </View>
-          <Text style={styles.emptyTitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
             {displayTodos.length === 0 ? '할 일이 없어요' : '해당하는 항목이 없어요'}
           </Text>
-          <Text style={styles.emptyDesc}>+ 버튼을 눌러 추가해보세요</Text>
+          <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>+ 버튼을 눌러 추가해보세요</Text>
         </View>
       ) : (
         <SectionList<Todo, Section>
@@ -409,24 +408,24 @@ export default function TodosScreen() {
         onRequestClose={() => setShowCourseFilter(false)}
       >
         <Pressable style={styles.filterOverlay} onPress={() => setShowCourseFilter(false)}>
-          <Pressable style={styles.filterSheet}>
-            <Text style={styles.filterSheetTitle}>과목별 필터</Text>
+          <Pressable style={[styles.filterSheet, { backgroundColor: colors.card }]}>
+            <Text style={[styles.filterSheetTitle, { color: colors.text }]}>과목별 필터</Text>
             <TouchableOpacity
               style={[styles.filterSheetItem, !selCourse && { backgroundColor: `${C.primary}10` }]}
               onPress={() => { setSelCourse(null); setShowCourseFilter(false); }}
             >
-              <Text style={[styles.filterSheetItemText, { color: !selCourse ? C.primary : '#374151' }]}>전체 과목</Text>
+              <Text style={[styles.filterSheetItemText, { color: !selCourse ? C.primary : colors.text }]}>전체 과목</Text>
               {!selCourse && <Feather name="check" size={15} color={C.primary} />}
             </TouchableOpacity>
             {availableCourses.length === 0 ? (
-              <Text style={styles.filterSheetEmpty}>연동된 과목이 없어요</Text>
+              <Text style={[styles.filterSheetEmpty, { color: colors.textTertiary }]}>연동된 과목이 없어요</Text>
             ) : availableCourses.map(course => (
               <TouchableOpacity
                 key={course}
                 style={[styles.filterSheetItem, selCourse === course && { backgroundColor: `${C.primary}10` }]}
                 onPress={() => { setSelCourse(course); setShowCourseFilter(false); }}
               >
-                <Text style={[styles.filterSheetItemText, { color: selCourse === course ? C.primary : '#374151' }]}>{course}</Text>
+                <Text style={[styles.filterSheetItemText, { color: selCourse === course ? C.primary : colors.text }]}>{course}</Text>
                 {selCourse === course && <Feather name="check" size={15} color={C.primary} />}
               </TouchableOpacity>
             ))}
@@ -443,19 +442,19 @@ export default function TodosScreen() {
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavOverlay}>
           <Pressable style={{ flex: 1 }} onPress={() => { setShowAdd(false); resetAdd(); }} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-            <Text style={styles.sheetTitle}>할 일 추가</Text>
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>할 일 추가</Text>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
               value={newTitle} onChangeText={setNewTitle}
-              placeholder="할 일을 입력하세요" placeholderTextColor="#9CA3AF"
+              placeholder="할 일을 입력하세요" placeholderTextColor={colors.textTertiary}
               autoFocus returnKeyType="done"
             />
 
             {uniqueSubjects.length > 0 && (
               <>
-                <Text style={styles.sheetLabel}>과목 연동</Text>
+                <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>과목 연동</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                   style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
                   {uniqueSubjects.map(s => {
@@ -463,10 +462,10 @@ export default function TodosScreen() {
                     return (
                       <TouchableOpacity
                         key={s}
-                        style={[styles.courseChip, active && { backgroundColor: colorMap[s] ?? '#E5E7EB' }, active && styles.courseChipBorder]}
+                        style={[styles.courseChip, { backgroundColor: colors.inputBg }, active && { backgroundColor: colorMap[s] ?? colors.border }, active && styles.courseChipBorder]}
                         onPress={() => setNewCourseName(active ? null : s)}
                       >
-                        <Text style={[styles.courseChipText, active && { color: '#1F2937' }]}>{s}</Text>
+                        <Text style={[styles.courseChipText, { color: colors.textSecondary }, active && { color: '#1F2937' }]}>{s}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -474,7 +473,7 @@ export default function TodosScreen() {
               </>
             )}
 
-            <Text style={styles.sheetLabel}>마감일</Text>
+            <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>마감일</Text>
             <View style={styles.quickDateRow}>
               {(['오늘', '내일', '모레'] as const).map((label, i) => (
                 <TouchableOpacity
@@ -496,14 +495,14 @@ export default function TodosScreen() {
               />
             )}
 
-            <Text style={styles.sheetLabel}>카테고리</Text>
+            <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>카테고리</Text>
             <View style={styles.catRow}>
               {TODO_CATEGORIES.map(cat => (
                 <TouchableOpacity key={cat}
-                  style={[styles.catChip, newCategory === cat && styles.catChipActive]}
+                  style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
                   onPress={() => setNewCategory(cat)}
                 >
-                  <Text style={[styles.catChipText, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
+                  <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -527,34 +526,34 @@ export default function TodosScreen() {
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavOverlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setEditTodo(null)} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
             <View style={styles.editHeader}>
-              <Text style={[styles.sheetTitle, { marginBottom: 0 }]}>할 일 수정</Text>
+              <Text style={[styles.sheetTitle, { marginBottom: 0, color: colors.text }]}>할 일 수정</Text>
               <TouchableOpacity onPress={() => { deleteTodo(editTodo!.id); setEditTodo(null); }} style={styles.deleteBtn}>
                 <Feather name="trash-2" size={18} color="#EF4444" />
               </TouchableOpacity>
             </View>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
               value={editTitle} onChangeText={setEditTitle}
-              placeholder="할 일 제목" placeholderTextColor="#9CA3AF"
+              placeholder="할 일 제목" placeholderTextColor={colors.textTertiary}
               autoFocus returnKeyType="done"
             />
 
             {uniqueSubjects.length > 0 && (
               <>
-                <Text style={styles.sheetLabel}>과목 연동</Text>
+                <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>과목 연동</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
                   style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
                   {uniqueSubjects.map(s => {
                     const active = editCourseName === s;
                     return (
                       <TouchableOpacity key={s}
-                        style={[styles.courseChip, active && { backgroundColor: colorMap[s] ?? '#E5E7EB' }, active && styles.courseChipBorder]}
+                        style={[styles.courseChip, { backgroundColor: colors.inputBg }, active && { backgroundColor: colorMap[s] ?? colors.border }, active && styles.courseChipBorder]}
                         onPress={() => setEditCourseName(active ? null : s)}
                       >
-                        <Text style={[styles.courseChipText, active && { color: '#1F2937' }]}>{s}</Text>
+                        <Text style={[styles.courseChipText, { color: colors.textSecondary }, active && { color: '#1F2937' }]}>{s}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -562,14 +561,14 @@ export default function TodosScreen() {
               </>
             )}
 
-            <Text style={styles.sheetLabel}>카테고리</Text>
+            <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>카테고리</Text>
             <View style={styles.catRow}>
               {TODO_CATEGORIES.map(cat => (
                 <TouchableOpacity key={cat}
-                  style={[styles.catChip, editCategory === cat && styles.catChipActive]}
+                  style={[styles.catChip, { backgroundColor: colors.inputBg }, editCategory === cat && styles.catChipActive]}
                   onPress={() => setEditCategory(cat)}
                 >
-                  <Text style={[styles.catChipText, editCategory === cat && styles.catChipTextActive]}>{cat}</Text>
+                  <Text style={[styles.catChipText, { color: colors.textSecondary }, editCategory === cat && styles.catChipTextActive]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -588,17 +587,14 @@ export default function TodosScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ─ Root / Background ─ (#F9FAFB, same as 학사일정)
-  root: { flex: 1, backgroundColor: '#F9FAFB' },
+  root: { flex: 1 },
 
-  // ─ Header ─
-  header: { paddingHorizontal: 20, paddingBottom: 16, backgroundColor: '#F9FAFB' },
+  header: { paddingHorizontal: 20, paddingBottom: 16 },
   backBtn: { marginBottom: 4, width: 36, height: 36, justifyContent: 'center', marginLeft: -4 },
   uniLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
-  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1, lineHeight: 42 },
+  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
 
-  // ─ FilterBar ─ (학사일정 탭과 동일한 pill 칩)
-  filterBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', marginBottom: 4 },
+  filterBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   filterScroll: { flex: 1 },
   filterContent: { paddingHorizontal: 20, paddingVertical: 0, paddingBottom: 16, gap: 5 },
   filterChip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, backgroundColor: '#F3F4F6' },
@@ -607,42 +603,36 @@ const styles = StyleSheet.create({
   filterChipTextActive: { color: '#fff' },
   funnelBtn: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
 
-  // ─ Section Header ─ (학사일정 monthLabel 스타일)
-  sectionHeader: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, backgroundColor: '#F9FAFB' },
-  sectionTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#9CA3AF', letterSpacing: 2, textTransform: 'uppercase' },
+  sectionHeader: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
+  sectionTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 2, textTransform: 'uppercase' },
 
-  // ─ Todo 카드 ─ (학사일정 eventCard와 동일: 흰 배경 + 부드러운 그림자 + 테두리 없음)
   todoRow: {
     flexDirection: 'row', alignItems: 'flex-start',
     paddingHorizontal: 16, paddingVertical: 14, gap: 14,
     marginHorizontal: 20, marginBottom: 8,
-    backgroundColor: '#fff', borderRadius: 16,
+    borderRadius: 16, borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 1,
   },
 
-  // ─ Checkbox ─
   checkWrap: { paddingTop: 2 },
-  checkEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#D1D5DB' },
+  checkEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
   checkFilled: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
 
-  // ─ Text 위계 ─
   todoContent: { flex: 1, gap: 5 },
-  todoTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', lineHeight: 22, color: '#111827' },
+  todoTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', lineHeight: 22 },
   todoTitleDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
-  todoSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18, color: '#6B7280' },
+  todoSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
   todoSubUrgent: { color: '#EF4444' },
 
-  // ─ Empty State ─
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 80 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  emptyTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#374151' },
-  emptyDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280' },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  emptyTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
+  emptyDesc: { fontSize: 14, fontFamily: 'Inter_400Regular' },
 
-  // ─ FAB ─
   fab: {
     position: 'absolute', right: 20,
     width: 56, height: 56, borderRadius: 28,
@@ -652,29 +642,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
   },
 
-  // ─ 과목 필터 모달 ─
   filterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', paddingHorizontal: 28 },
-  filterSheet: { borderRadius: 20, backgroundColor: '#fff', overflow: 'hidden' },
-  filterSheetTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827', padding: 20, paddingBottom: 12 },
+  filterSheet: { borderRadius: 20, overflow: 'hidden' },
+  filterSheetTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', padding: 20, paddingBottom: 12 },
   filterSheetItem: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 14,
   },
   filterSheetItemText: { fontSize: 15, fontFamily: 'Inter_500Medium' },
-  filterSheetEmpty: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#9CA3AF', textAlign: 'center', paddingVertical: 16, paddingBottom: 20 },
+  filterSheetEmpty: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', paddingVertical: 16, paddingBottom: 20 },
 
-  // ─ 추가·수정 바텀시트 ─
   kavOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 12, backgroundColor: '#fff' },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 12 },
   editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827', marginBottom: 4 },
+  sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 4 },
   deleteBtn: { padding: 8 },
-  input: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, fontFamily: 'Inter_400Regular', backgroundColor: '#F3F4F6', color: '#111827' },
-  sheetLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  input: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  sheetLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 
-  courseChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: 'transparent', backgroundColor: '#F3F4F6' },
+  courseChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: 'transparent' },
   courseChipBorder: { borderColor: 'rgba(0,0,0,0.15)' },
-  courseChipText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6B7280' },
+  courseChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
 
   quickDateRow: { flexDirection: 'row', gap: 8 },
   quickDateBtn: { flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: 'center', backgroundColor: '#F3F4F6' },
@@ -683,9 +671,9 @@ const styles = StyleSheet.create({
   quickDateTextActive: { color: '#fff' },
 
   catRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: 1.5, borderColor: 'transparent' },
+  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: 'transparent' },
   catChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  catChipText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6B7280' },
+  catChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
   catChipTextActive: { color: '#fff', fontFamily: 'Inter_700Bold' },
 
   saveBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },

@@ -90,13 +90,17 @@ function buildColorMap(subjects: string[]): Record<string, string> {
   return map;
 }
 
-function formatDueTime(dueDate: string): string | null {
+function formatDueLabel(dueDate: string, todayStr: string): string | null {
   const d = new Date(dueDate);
+  const dueDateStr = dueDate.slice(0, 10);
   const h = d.getHours(); const m = d.getMinutes();
-  if (h === 23 && m === 59) return null;
-  const p = h < 12 ? '오전' : '오후';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${p} ${h12}:${String(m).padStart(2, '0')}`;
+  const hasTime = !(h === 23 && m === 59);
+  const timeStr = hasTime ? ` ${h < 12 ? '오전' : '오후'} ${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}` : '';
+  if (dueDateStr < todayStr) return '기한 초과';
+  if (dueDateStr === todayStr) return `오늘${timeStr}`;
+  const tmr = new Date(todayStr); tmr.setDate(tmr.getDate() + 1);
+  if (dueDateStr === `${tmr.getFullYear()}-${String(tmr.getMonth()+1).padStart(2,'0')}-${String(tmr.getDate()).padStart(2,'0')}`) return `내일${timeStr}`;
+  return `${d.getMonth()+1}/${d.getDate()}${timeStr}`;
 }
 
 export default function HomeScreen() {
@@ -110,6 +114,7 @@ export default function HomeScreen() {
   const [todosLoading, setTodosLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [todoExpanded, setTodoExpanded] = useState(false);
 
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
@@ -123,21 +128,18 @@ export default function HomeScreen() {
   const semSchedules = (schedules as any[]).filter(s => s.year === curYear && s.semester === curSem);
   const colorMap = buildColorMap(semSchedules.map((s: any) => s.subjectName));
 
-  // 오늘 할 일: dueDate가 오늘인 것 or dueDate 없는 것
-  const todayTodos = todos.filter(t =>
-    t.dueDate ? t.dueDate.slice(0, 10) === todayStr : true
-  ).sort((a, b) => {
-    if (!a.dueDate && !b.dueDate) return 0;
-    if (!a.dueDate) return 1;
-    if (!b.dueDate) return -1;
-    return a.dueDate.localeCompare(b.dueDate);
-  });
-
-  const completedCount = todayTodos.filter(t => t.completed).length;
-  const totalCount = todayTodos.length;
-  const pct = totalCount > 0 ? completedCount / totalCount : 0;
-  const previewTodos = todayTodos.slice(0, 3);
-  const hasMore = totalCount > 3;
+  // 마감 가까운 미완료 할 일 (dueDate 있는 것 우선, 없으면 뒤로)
+  const TODO_PREVIEW = 5;
+  const incompleteTodos = todos
+    .filter(t => !t.completed)
+    .sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  const displayTodos = todoExpanded ? incompleteTodos : incompleteTodos.slice(0, TODO_PREVIEW);
+  const hasMore = incompleteTodos.length > TODO_PREVIEW;
 
   const fetchTodos = useCallback(async () => {
     try {
@@ -270,10 +272,10 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── 오늘 할 일 요약 ── */}
+        {/* ── 할 일 요약 ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>오늘 할 일</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>할 일</Text>
             <TouchableOpacity onPress={() => router.push('/todos')}>
               <Text style={styles.sectionLink}>전체 보기</Text>
             </TouchableOpacity>
@@ -282,17 +284,16 @@ export default function HomeScreen() {
           <View style={[styles.todoWidget, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {todosLoading ? (
               <ActivityIndicator color={C.primary} style={{ marginVertical: 20 }} />
-            ) : totalCount === 0 ? (
-              /* Empty State */
+            ) : incompleteTodos.length === 0 ? (
               <View style={styles.emptyTodo}>
                 <View style={styles.emptyTodoIcon}>
                   <Feather name="check-circle" size={36} color={colors.textTertiary} />
                 </View>
                 <Text style={[styles.emptyTodoTitle, { color: colors.text }]}>
-                  오늘의 할 일을 모두 끝냈어요!
+                  미완료 할 일이 없어요!
                 </Text>
                 <Text style={[styles.emptyTodoDesc, { color: colors.textSecondary }]}>
-                  할 일 화면에서 새 항목을 추가해보세요
+                  새로운 할 일을 추가해보세요
                 </Text>
                 <TouchableOpacity
                   style={[styles.emptyTodoBtn, { borderColor: C.primary }]}
@@ -303,69 +304,42 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
-                {/* Progress Bar */}
-                <View style={styles.progressSection}>
-                  <View style={styles.progressLabelRow}>
-                    <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>
-                      {completedCount === totalCount
-                        ? '오늘 할 일 완료!'
-                        : `${totalCount - completedCount}개 남음`}
-                    </Text>
-                    <Text style={[styles.progressCount, { color: C.primary }]}>
-                      {completedCount}/{totalCount}
-                    </Text>
-                  </View>
-                  <View style={[styles.progressTrack, { backgroundColor: colors.inputBg ?? '#F3F4F6' }]}>
-                    <View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} />
-                  </View>
-                </View>
-
-                {/* Divider */}
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-                {/* Todo cards (max 3) */}
-                {previewTodos.map(todo => {
-                  const dueTime = todo.dueDate ? formatDueTime(todo.dueDate) : null;
+                {displayTodos.map((todo, idx) => {
+                  const dueLabel = todo.dueDate ? formatDueLabel(todo.dueDate, todayStr) : null;
+                  const isOverdue = dueLabel === '기한 초과';
+                  const isLast = idx === displayTodos.length - 1 && !hasMore && !todoExpanded;
                   return (
                     <TouchableOpacity
                       key={todo.id}
-                      style={[styles.todoRow, todo.completed && styles.todoRowDone]}
+                      style={[
+                        styles.todoRow,
+                        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                      ]}
                       onPress={() => router.push('/todos')}
                       activeOpacity={0.7}
                     >
-                      {/* Checkbox */}
                       <TouchableOpacity
                         onPress={() => toggleTodo(todo.id, !todo.completed)}
                         style={styles.todoCheck}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Feather
-                          name={todo.completed ? 'check-circle' : 'circle'}
-                          size={20}
-                          color={todo.completed ? '#10B981' : colors.textTertiary}
-                        />
+                        <Feather name="circle" size={20} color={colors.textTertiary} />
                       </TouchableOpacity>
 
-                      {/* Content */}
                       <View style={styles.todoContent}>
-                        <Text
-                          style={[
-                            styles.todoTitle,
-                            { color: colors.text },
-                            todo.completed && styles.todoTitleDone,
-                          ]}
-                          numberOfLines={1}
-                        >
+                        <Text style={[styles.todoTitle, { color: colors.text }]} numberOfLines={1}>
                           {todo.title}
                         </Text>
                         <View style={styles.todoMeta}>
                           {todo.courseName && (
-                            <View style={[styles.courseTag, { backgroundColor: colorMap[todo.courseName] ?? '#E5E7EB' }]}>
+                            <View style={[styles.courseTag, { backgroundColor: colorMap[todo.courseName] ?? colors.border }]}>
                               <Text style={styles.courseTagText} numberOfLines={1}>{todo.courseName}</Text>
                             </View>
                           )}
-                          {dueTime && (
-                            <Text style={[styles.dueTime, { color: colors.textSecondary }]}>{dueTime}</Text>
+                          {dueLabel && (
+                            <Text style={[styles.dueTime, { color: isOverdue ? '#EF4444' : colors.textSecondary }]}>
+                              {dueLabel}
+                            </Text>
                           )}
                         </View>
                       </View>
@@ -373,16 +347,17 @@ export default function HomeScreen() {
                   );
                 })}
 
-                {/* 더보기 */}
-                {hasMore && (
+                {/* 토글 버튼 */}
+                {(hasMore || todoExpanded) && (
                   <TouchableOpacity
-                    style={styles.moreBtn}
-                    onPress={() => router.push('/todos')}
+                    style={[styles.toggleBtn, { borderTopColor: colors.border }]}
+                    onPress={() => setTodoExpanded(prev => !prev)}
+                    activeOpacity={0.7}
                   >
-                    <Text style={[styles.moreText, { color: C.primary }]}>
-                      +{totalCount - 3}개 더보기
+                    <Feather name={todoExpanded ? 'chevron-up' : 'chevron-down'} size={15} color={C.primary} />
+                    <Text style={[styles.toggleText, { color: C.primary }]}>
+                      {todoExpanded ? '접기' : `+${incompleteTodos.length - TODO_PREVIEW}개 더보기`}
                     </Text>
-                    <Feather name="chevron-right" size={14} color={C.primary} />
                   </TouchableOpacity>
                 )}
               </>
@@ -471,36 +446,23 @@ const styles = StyleSheet.create({
   },
   emptyTodoBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
 
-  // Progress bar
-  progressSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  progressLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  progressCount: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: C.primary, borderRadius: 3 },
-
-  divider: { height: 1, marginHorizontal: 0 },
-
   // Todo rows
   todoRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F3F4F6',
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  todoRowDone: { opacity: 0.5 },
   todoCheck: { padding: 2 },
   todoContent: { flex: 1 },
   todoTitle: { fontSize: 14, fontFamily: 'Inter_500Medium', lineHeight: 20 },
-  todoTitleDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
   todoMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' },
   courseTag: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, maxWidth: 120 },
   courseTagText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#374151' },
   dueTime: { fontSize: 12, fontFamily: 'Inter_400Regular' },
 
-  // 더보기
-  moreBtn: {
+  // 토글 버튼
+  toggleBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 4, paddingVertical: 14,
+    gap: 4, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth,
   },
-  moreText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  toggleText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 });
