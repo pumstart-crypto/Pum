@@ -129,8 +129,8 @@ interface MySeatInfo {
 
 function addMins(time: string, mins: number): string {
   const [h, m] = time.split(':').map(Number);
-  const total = h * 60 + m + mins;
-  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  const total = ((h * 60 + m + mins) % (24 * 60) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
 function calcRemaining(info: MySeatInfo): {
@@ -139,8 +139,8 @@ function calcRemaining(info: MySeatInfo): {
 } {
   // API에서 받은 실제 종료 시각 우선, 없으면 시작+4h 폴백
   const endTime = info.endTime ?? addMins(info.startTime, 4 * 60);
-  // 연장 가능 시각 = 시작 + 2h (연장 버튼이 활성화되는 시점)
-  const extensionTime = addMins(info.startTime, 2 * 60);
+  // 연장 가능 시각 = 종료 - 2h (연장 버튼 활성화 시점 — 연장 후 종료 시각이 바뀌면 같이 갱신)
+  const extensionTime = addMins(endTime, -(2 * 60));
   const now = new Date();
 
   // 자정 넘김 처리: endTime < startTime이면 다음 날
@@ -428,9 +428,16 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
 
       // ── 연장 횟수 ──
       const extensionCount: number =
-        item.extensionCount ?? item.extensionUsedCount ?? item.renewCount ?? 0;
+        item.extensionCount   ?? item.extensionUsedCount ??
+        item.renewCount       ?? item.chargeExtensionCount ??
+        item.useExtensionCount ?? item.extension?.count ??
+        item.extCount         ?? 0;
       const extensionMax: number =
-        item.extensionLimitCount ?? item.extensionMaxCount ?? item.maxRenewCount ?? 4;
+        item.extensionLimitCount ?? item.extensionMaxCount ??
+        item.maxRenewCount       ?? item.chargeExtensionLimitCount ??
+        item.extension?.limitCount ?? item.extLimitCount ?? 4;
+      console.log('[MySeat] extensionCount:', extensionCount, '/', extensionMax,
+        '| raw fields:', item.extensionCount, item.extensionUsedCount, item.renewCount);
 
       const newInfo: MySeatInfo = {
         roomName: roomName || '알 수 없음',
