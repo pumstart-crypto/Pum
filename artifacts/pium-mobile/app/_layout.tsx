@@ -57,6 +57,7 @@ function RootLayoutNav() {
       <Stack.Screen name="privacy-settings" options={{ presentation: 'card' }} />
       <Stack.Screen name="notifications-inbox" options={{ presentation: 'card' }} />
       <Stack.Screen name="reading-rooms" options={{ presentation: 'card' }} />
+      <Stack.Screen name="todos" options={{ presentation: 'card' }} />
       <Stack.Screen name="post/[id]" options={{ presentation: 'card' }} />
       <Stack.Screen name="restaurant/index" options={{ presentation: 'card' }} />
       <Stack.Screen name="restaurant/[id]" options={{ presentation: 'card' }} />
