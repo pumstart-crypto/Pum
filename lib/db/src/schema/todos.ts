@@ -8,6 +8,7 @@ export const todosTable = pgTable("todos", {
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   category: text("category").notNull().default("기타"),
+  courseName: text("course_name"),   // 과목 연동 (nullable)
   dueDate: text("due_date"),
   completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),

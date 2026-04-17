@@ -46,10 +46,15 @@ router.patch("/todos/:id", requireAuth, async (req, res) => {
   try {
     const userId = (req as any).userId as number;
     const id = parseInt(req.params.id);
-    const { completed, title, dueDate } = req.body;
+    const { completed, title, dueDate, courseName } = req.body;
     const [updated] = await db
       .update(todosTable)
-      .set({ ...(completed !== undefined && { completed }), ...(title && { title }), ...(dueDate !== undefined && { dueDate }) })
+      .set({
+        ...(completed !== undefined && { completed }),
+        ...(title && { title }),
+        ...(dueDate !== undefined && { dueDate }),
+        ...(courseName !== undefined && { courseName }),
+      })
       .where(and(eq(todosTable.id, id), eq(todosTable.userId, userId)))
       .returning();
     if (!updated) return res.status(404).json({ message: "Not found" });
