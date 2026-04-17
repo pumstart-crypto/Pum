@@ -880,17 +880,12 @@ export default function ReadingRoomsScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const { show: showToast, Toast } = useToast();
 
+  const [mainTab, setMainTab] = useState<'rooms' | 'myseat'>('rooms');
   const [activeRoomTab, setActiveRoomTab] = useState<RoomTabKey>('saebbyukbul');
-  const [tabRooms, setTabRooms] = useState<Record<RoomTabKey, SeatRoom[]>>({
-    saebbyukbul: [], mirinai: [], nano: [], medical: [],
-  });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshingHeader, setIsRefreshingHeader] = useState(false);
 
-  const activeRoomTabDef = ROOM_TABS.find(t => t.key === activeRoomTab)!;
-
-  const handleRoomsReady = useCallback((tabKey: RoomTabKey) => (rooms: SeatRoom[]) => {
-    setTabRooms(prev => ({ ...prev, [tabKey]: rooms }));
+  const handleRoomsReady = useCallback((_tabKey: RoomTabKey) => (_rooms: SeatRoom[]) => {
   }, []);
 
   const handleSelectRoom = useCallback((room: SeatRoom) => {
@@ -908,80 +903,112 @@ export default function ReadingRoomsScreen() {
   }, []);
 
   return (
-    <View style={[styles.container, { paddingTop: topPad }]}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.primary} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>도서관</Text>
-          <Text style={styles.headerSub}>{activeRoomTabDef.short} · 실시간</Text>
-        </View>
-        <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
-          <Ionicons name="qr-code-outline" size={22} color={C.primary} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.root, { paddingTop: topPad }]}>
 
-      {/* ── 내 자리 카드 ── */}
-      <View style={styles.mySeatWrapper}>
-        <MySeatCard refreshTrigger={refreshTrigger} showToast={showToast} />
-        <TouchableOpacity
-          style={styles.reservationBtn}
-          onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="calendar-outline" size={15} color={C.primary} style={{ marginRight: 6 }} />
-          <Text style={styles.reservationBtnText}>내 좌석 예약 현황 보기</Text>
-          <Feather name="external-link" size={12} color={C.primary} style={{ marginLeft: 6, opacity: 0.6 }} />
-        </TouchableOpacity>
-      </View>
+      {/* ── Sticky Header ── */}
+      <View style={styles.stickyHeader}>
 
-      {/* ── Room subtabs ── */}
-      <View style={styles.roomTabBar}>
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          {ROOM_TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.roomTabItem, activeRoomTab === tab.key && styles.roomTabItemActive]}
-              onPress={() => setActiveRoomTab(tab.key)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
-                {tab.label}
-              </Text>
+        {/* Page Header */}
+        <View style={styles.headerSection}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Feather name="chevron-left" size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text style={styles.universityLabel}>부산대학교</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.pageTitle}>도서관</Text>
+            <TouchableOpacity style={styles.qrBtn} onPress={openQR} hitSlop={8}>
+              <Ionicons name="qr-code-outline" size={22} color={C.primary} />
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 메인 탭 토글: 열람실 현황 / 내 자리 */}
+        <View style={styles.toggleContainer}>
+          <View style={styles.toggleBg}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, mainTab === 'rooms' && styles.toggleBtnActive]}
+              onPress={() => setMainTab('rooms')}
+            >
+              <Feather name="book-open" size={13} color={mainTab === 'rooms' ? C.primary : '#9CA3AF'} />
+              <Text style={[styles.toggleText, mainTab === 'rooms' && styles.toggleTextActive]}>열람실 현황</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, mainTab === 'myseat' && styles.toggleBtnActive]}
+              onPress={() => setMainTab('myseat')}
+            >
+              <Feather name="bookmark" size={13} color={mainTab === 'myseat' ? C.primary : '#9CA3AF'} />
+              <Text style={[styles.toggleText, mainTab === 'myseat' && styles.toggleTextActive]}>내 자리</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 열람실 서브탭 (열람실 현황 탭일 때만) */}
+        {mainTab === 'rooms' && (
+          <View style={styles.roomTabBar}>
+            <View style={{ flex: 1, flexDirection: 'row' }}>
+              {ROOM_TABS.map(tab => (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[styles.roomTabItem, activeRoomTab === tab.key && styles.roomTabItemActive]}
+                  onPress={() => setActiveRoomTab(tab.key)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.roomTabLabel, activeRoomTab === tab.key && styles.roomTabLabelActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity onPress={handleRefresh} hitSlop={10} style={styles.tabRefreshBtn}>
+              <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                {isRefreshingHeader
+                  ? <ActivityIndicator size="small" color={C.primary} />
+                  : <Feather name="refresh-cw" size={15} color={C.primary} />
+                }
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* ── 내용 영역 ── */}
+      {mainTab === 'rooms' ? (
+        <View style={{ flex: 1 }}>
+          {ROOM_TABS.map(tab => (
+            <View
+              key={tab.key}
+              style={{ flex: 1, display: activeRoomTab === tab.key ? 'flex' : 'none' }}
+            >
+              <TabContent
+                branchGroupId={tab.branchGroupId}
+                typeFilter={tab.typeFilter}
+                excludeNames={tab.excludeNames}
+                isActive={activeRoomTab === tab.key}
+                onRoomsReady={handleRoomsReady(tab.key)}
+                onSelectRoom={handleSelectRoom}
+                refreshTrigger={refreshTrigger}
+              />
+            </View>
           ))}
         </View>
-        <TouchableOpacity onPress={handleRefresh} hitSlop={10} style={styles.tabRefreshBtn}>
-          <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
-            {isRefreshingHeader
-              ? <ActivityIndicator size="small" color={C.primary} />
-              : <Feather name="refresh-cw" size={15} color={C.primary} />
-            }
-          </View>
-        </TouchableOpacity>
-      </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.mySeatScrollContent}
+        >
+          <MySeatCard refreshTrigger={refreshTrigger} showToast={showToast} />
 
-      {/* ── Tab content ── */}
-      <View style={{ flex: 1 }}>
-        {ROOM_TABS.map(tab => (
-          <View
-            key={tab.key}
-            style={{ flex: 1, display: activeRoomTab === tab.key ? 'flex' : 'none' }}
+          <TouchableOpacity
+            style={styles.reservationBtn}
+            onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
+            activeOpacity={0.8}
           >
-            <TabContent
-              branchGroupId={tab.branchGroupId}
-              typeFilter={tab.typeFilter}
-              excludeNames={tab.excludeNames}
-              isActive={activeRoomTab === tab.key}
-              onRoomsReady={handleRoomsReady(tab.key)}
-              onSelectRoom={handleSelectRoom}
-              refreshTrigger={refreshTrigger}
-            />
-          </View>
-        ))}
-      </View>
+            <Ionicons name="calendar-outline" size={15} color={C.primary} style={{ marginRight: 6 }} />
+            <Text style={styles.reservationBtnText}>내 좌석 예약 현황 보기</Text>
+            <Feather name="external-link" size={12} color={C.primary} style={{ marginLeft: 6, opacity: 0.6 }} />
+          </TouchableOpacity>
+        </ScrollView>
+      )}
 
       {Toast}
     </View>
@@ -992,24 +1019,49 @@ export default function ReadingRoomsScreen() {
 // Styles
 // ══════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1, backgroundColor: '#F8F9FB' },
 
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  // ── Sticky Header (meals.tsx 패턴) ──
+  stickyHeader: {
+    backgroundColor: '#fff',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 3,
   },
-  backBtn: { padding: 4 },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#111827', fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 11, color: '#9CA3AF', marginTop: 1, fontFamily: 'Inter_400Regular' },
-  qrBtn: { padding: 4 },
+  headerSection: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
+  universityLabel: {
+    fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary,
+    letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1 },
+  qrBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 4,
+  },
 
-  // Room Tab Bar
+  // ── 메인 탭 토글 (campus-map.tsx 패턴) ──
+  toggleContainer: { paddingHorizontal: 20, paddingBottom: 12 },
+  toggleBg: {
+    flexDirection: 'row', backgroundColor: '#F3F4F6',
+    borderRadius: 14, padding: 4,
+  },
+  toggleBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 9, borderRadius: 10,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+  },
+  toggleText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+  toggleTextActive: { color: C.primary },
+
+  // ── Room Tab Bar (열람실 현황 탭) ──
   roomTabBar: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    paddingHorizontal: 16, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10,
   },
   roomTabItem: {
     paddingHorizontal: 14, paddingVertical: 6,
@@ -1020,7 +1072,7 @@ const styles = StyleSheet.create({
   roomTabLabelActive: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
   tabRefreshBtn: { padding: 6, marginLeft: 4 },
 
-  // Center
+  // ── Center ──
   centerBox: {
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 24,
   },
@@ -1042,7 +1094,7 @@ const styles = StyleSheet.create({
   floorCount: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
   roomCard: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8,
+    backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
   roomCardTappable: { borderWidth: 1, borderColor: `${C.primary}22` },
@@ -1065,13 +1117,18 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 56 },
 
-  mySeatWrapper: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, backgroundColor: '#F8F9FB' },
+  // ── 내 자리 탭 ──
+  mySeatScrollContent: {
+    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 80, gap: 12,
+  },
   reservationBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: C.primary, borderRadius: 12,
-    paddingVertical: 10, marginTop: 8,
+    borderWidth: 1.5, borderColor: C.primary, borderRadius: 14,
+    paddingVertical: 13, backgroundColor: '#fff',
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 6, elevation: 1,
   },
-  reservationBtnText: { fontSize: 13, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
+  reservationBtnText: { fontSize: 14, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
 
   toast: {
     position: 'absolute', left: 16, right: 16,
