@@ -8,6 +8,7 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 app.set("etag", false);
+app.set("trust proxy", 1); // Replit 프록시의 X-Forwarded-For 신뢰 → IP별 Rate Limit 정확히 작동
 
 // ── 보안 헤더 (helmet) ────────────────────────────────────────
 app.use(helmet());
