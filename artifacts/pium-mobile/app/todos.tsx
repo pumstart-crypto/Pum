@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  View, Text, SectionList, ScrollView, TouchableOpacity, StyleSheet,
-  Platform, RefreshControl, TextInput, Modal, Animated,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  Platform, RefreshControl, TextInput, Modal, Alert,
   ActivityIndicator, KeyboardAvoidingView, Pressable,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGetSchedules } from '@workspace/api-client-react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
 import { getNow } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,10 +15,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
-
-const FILTER_CATS = ['전체', '과제', '퀴즈', '팀플', '동영상시청', '기타'];
-const TODO_CATEGORIES = ['과제', '퀴즈', '팀플', '동영상시청', '기타'];
-const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
+const CAT_STORAGE_KEY = 'pium_todo_categories_v2';
+const DEFAULT_CATS = ['과제', '퀴즈', '시험'];
+const WEEK_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 
 interface Todo {
   id: number;
@@ -31,553 +29,562 @@ interface Todo {
   createdAt: string;
 }
 
-interface Section { key: string; title: string; data: Todo[]; }
-
-function dateToStr(d: Date): string {
+function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d); r.setDate(r.getDate() + n); return r;
-}
-function getCurrentSemester() {
-  const now = getNow();
-  return { year: now.getFullYear(), sem: now.getMonth() + 1 >= 8 ? '2' : '1' };
-}
-
-function formatDateHeader(key: string): string {
-  if (key === 'none') return '기한 없음';
-  const now = getNow();
-  if (key === dateToStr(now)) return '오늘';
-  if (key === dateToStr(addDays(now, 1))) return '내일';
-  if (key === dateToStr(addDays(now, 2))) return '모레';
-  const d = new Date(key + 'T00:00:00');
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS_KO[d.getDay()]})`;
-}
-
-function getDueStatus(dueDate: string | null): 'overdue' | 'urgent' | 'normal' {
-  if (!dueDate) return 'normal';
-  const diffMs = new Date(dueDate).getTime() - getNow().getTime();
-  if (diffMs < 0) return 'overdue';
-  if (diffMs < 24 * 3600 * 1000) return 'urgent';
-  return 'normal';
-}
-
-function formatDueLabel(dueDate: string | null): string | null {
-  if (!dueDate) return null;
-  const d = new Date(dueDate);
-  const key = dueDate.slice(0, 10);
-  const now = getNow();
-  const h = d.getHours(); const m = d.getMinutes();
-  const time = `${h}:${String(m).padStart(2, '0')}`;
-  if (key === dateToStr(now)) return `오늘 ${time}`;
-  if (key === dateToStr(addDays(now, 1))) return `내일 ${time}`;
-  return `${d.getMonth() + 1}/${d.getDate()} ${time}`;
-}
-
-const PALETTE = ['#C4EBDC', '#FFD6C4', '#FFCFCF', '#E6D9F3', '#E8F5D8', '#D0EBFA', '#FDD6DC', '#FEE6BF'];
-function buildColorMap(subjects: string[]): Record<string, string> {
-  const unique = Array.from(new Set(subjects));
-  const map: Record<string, string> = {};
-  unique.forEach((n, i) => { map[n] = PALETTE[i % PALETTE.length]; });
-  return map;
-}
-
-function sortByDueDate(a: Todo, b: Todo): number {
-  if (!a.dueDate && !b.dueDate) return 0;
-  if (!a.dueDate) return 1;
-  if (!b.dueDate) return -1;
-  return a.dueDate.localeCompare(b.dueDate);
 }
 
 export default function TodosScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   const { colors } = useTheme();
-  const { data: schedules = [] } = useGetSchedules();
-
-  const today = getNow();
+  const authH = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : insets.bottom;
 
-  // Display list (initial order locked after fetch, in-place completion)
-  const [displayTodos, setDisplayTodos] = useState<Todo[]>([]);
+  const now = getNow();
+  const TODAY = toDateKey(now);
+
+  // ── Core state ─────────────────────────────────────────────
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Filters
-  const [selCat, setSelCat] = useState('전체');
-  const [selCourse, setSelCourse] = useState<string | null>(null);
-  const [showCourseFilter, setShowCourseFilter] = useState(false);
+  // ── Categories ──────────────────────────────────────────────
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATS);
 
-  // Add modal
+  useEffect(() => {
+    AsyncStorage.getItem(CAT_STORAGE_KEY).then(raw => {
+      if (!raw) return;
+      try { setCategories(JSON.parse(raw)); } catch {}
+    });
+  }, []);
+
+  const saveCategories = useCallback(async (cats: string[]) => {
+    setCategories(cats);
+    await AsyncStorage.setItem(CAT_STORAGE_KEY, JSON.stringify(cats));
+  }, []);
+
+  // ── Calendar state ──────────────────────────────────────────
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth()); // 0-indexed
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // ── Modal state ─────────────────────────────────────────────
+  const [showCatMgr, setShowCatMgr] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [addCat, setAddCat] = useState('');
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('과제');
-  const [newCourseName, setNewCourseName] = useState<string | null>(null);
-  const [newQuickDate, setNewQuickDate] = useState<number | null>(null);
-  const [newDueTime, setNewDueTime] = useState<Date | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // Edit modal
   const [editTodo, setEditTodo] = useState<Todo | null>(null);
   const [editTitle, setEditTitle] = useState('');
-  const [editCategory, setEditCategory] = useState('과제');
-  const [editCourseName, setEditCourseName] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Animated opacity per todo (for in-place completion animation)
-  const animOpacities = useRef<Record<number, Animated.Value>>({});
-
-  function getOpacity(id: number, completed: boolean): Animated.Value {
-    if (!animOpacities.current[id]) {
-      animOpacities.current[id] = new Animated.Value(completed ? 0.4 : 1);
-    }
-    return animOpacities.current[id];
-  }
-
-  const { year: curYear, sem: curSem } = getCurrentSemester();
-  const semSchedules = (schedules as any[]).filter(s => s.year === curYear && s.semester === curSem);
-  const colorMap = buildColorMap(semSchedules.map((s: any) => s.subjectName));
-  const uniqueSubjects = Array.from(new Set(semSchedules.map((s: any) => s.subjectName))) as string[];
-
-  const availableCourses = useMemo(
-    () => Array.from(new Set(displayTodos.map(t => t.courseName).filter(Boolean))) as string[],
-    [displayTodos]
-  );
-
+  // ── Fetch ───────────────────────────────────────────────────
   const fetchTodos = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/todos`, { headers: { ...authHeader } });
-      if (r.ok) {
-        const data: Todo[] = await r.json();
-        // Show only incomplete initially, sorted by dueDate
-        const incomplete = data.filter(t => !t.completed).sort(sortByDueDate);
-        setDisplayTodos(incomplete);
-        animOpacities.current = {};  // reset animations on refresh
-      }
+      const r = await fetch(`${API}/todos`, { headers: authH });
+      if (r.ok) setTodos(await r.json());
     } catch {} finally { setLoading(false); }
-  }, [token]);
+  }, [authH]);
 
   useEffect(() => { fetchTodos(); }, [fetchTodos]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchTodos();
     setRefreshing(false);
-  };
+  }, [fetchTodos]);
 
-  // In-place toggle: item stays in position, only visual change + API call
-  const toggleTodo = (id: number, completed: boolean) => {
-    setDisplayTodos(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
-    const opacity = animOpacities.current[id] ?? (animOpacities.current[id] = new Animated.Value(completed ? 1 : 0.4));
-    Animated.timing(opacity, {
-      toValue: completed ? 0.4 : 1,
-      duration: 260,
-      useNativeDriver: true,
-    }).start();
+  // ── CRUD ────────────────────────────────────────────────────
+  const toggleTodo = useCallback((id: number, completed: boolean) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
     fetch(`${API}/todos/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeader },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authH },
       body: JSON.stringify({ completed }),
     });
-  };
+  }, [authH]);
 
-  const deleteTodo = (id: number) => {
-    setDisplayTodos(prev => prev.filter(t => t.id !== id));
-    delete animOpacities.current[id];
-    fetch(`${API}/todos/${id}`, { method: 'DELETE', headers: { ...authHeader } });
-  };
+  const deleteTodo = useCallback((id: number) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
+    fetch(`${API}/todos/${id}`, { method: 'DELETE', headers: authH });
+  }, [authH]);
 
-  const filteredTodos = useMemo(() => displayTodos.filter(t => {
-    if (selCat !== '전체' && t.category !== selCat) return false;
-    if (selCourse && t.courseName !== selCourse) return false;
-    return true;
-  }), [displayTodos, selCat, selCourse]);
+  const openAdd = useCallback((cat: string) => {
+    setAddCat(cat); setNewTitle(''); setShowAdd(true);
+  }, []);
 
-  const sections: Section[] = useMemo(() => {
-    const groups: Record<string, Todo[]> = {};
-    for (const todo of filteredTodos) {
-      const key = todo.dueDate?.slice(0, 10) ?? 'none';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(todo);
-    }
-    return Object.keys(groups)
-      .sort((a, b) => a === 'none' ? 1 : b === 'none' ? -1 : a.localeCompare(b))
-      .map(key => ({ key, title: formatDateHeader(key), data: groups[key] }));
-  }, [filteredTodos]);
-
-  const resetAdd = () => {
-    setNewTitle(''); setNewCategory('과제');
-    setNewCourseName(null); setNewQuickDate(null); setNewDueTime(null);
-  };
-
-  const addTodo = async () => {
+  const addTodo = useCallback(async () => {
     if (!newTitle.trim()) return;
     setSubmitting(true);
     try {
       let dueDateStr: string | undefined;
-      if (newQuickDate !== null) {
-        const d = new Date(today);
-        d.setDate(d.getDate() + newQuickDate);
-        d.setHours(newDueTime?.getHours() ?? 23, newDueTime?.getMinutes() ?? 59, 0, 0);
+      if (selectedDate) {
+        const d = new Date(`${selectedDate}T23:59:00`);
         dueDateStr = d.toISOString();
       }
       const r = await fetch(`${API}/todos`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ title: newTitle.trim(), category: newCategory, courseName: newCourseName, dueDate: dueDateStr }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authH },
+        body: JSON.stringify({ title: newTitle.trim(), category: addCat, dueDate: dueDateStr }),
       });
       if (r.ok) {
         const todo: Todo = await r.json();
-        // Insert into sorted position
-        setDisplayTodos(prev => [...prev, todo].sort(sortByDueDate));
-        resetAdd(); setShowAdd(false);
+        setTodos(prev => [todo, ...prev]);
+        setShowAdd(false);
       }
     } finally { setSubmitting(false); }
-  };
+  }, [newTitle, addCat, selectedDate, authH]);
 
-  const openEdit = (todo: Todo) => {
-    setEditTodo(todo);
-    setEditTitle(todo.title);
-    setEditCategory(todo.category);
-    setEditCourseName(todo.courseName);
-  };
+  const openEdit = useCallback((todo: Todo) => {
+    setEditTodo(todo); setEditTitle(todo.title);
+  }, []);
 
-  const saveEdit = async () => {
+  const saveEdit = useCallback(async () => {
     if (!editTodo || !editTitle.trim()) return;
     setEditSubmitting(true);
     try {
       const r = await fetch(`${API}/todos/${editTodo.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ title: editTitle.trim(), category: editCategory, courseName: editCourseName }),
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authH },
+        body: JSON.stringify({ title: editTitle.trim() }),
       });
       if (r.ok) {
-        const updated: Todo = await r.json();
-        setDisplayTodos(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
+        setTodos(prev => prev.map(t => t.id === editTodo.id ? { ...t, title: editTitle.trim() } : t));
         setEditTodo(null);
       }
     } finally { setEditSubmitting(false); }
-  };
+  }, [editTodo, editTitle, authH]);
 
-  // ── Renders ──
+  // ── Calendar helpers ────────────────────────────────────────
+  const calCells = useMemo<(number | null)[]>(() => {
+    const dim = new Date(calYear, calMonth + 1, 0).getDate();
+    const firstDow = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+    const offset = (firstDow + 6) % 7; // Mon-start offset
+    const cells: (number | null)[] = Array(offset).fill(null);
+    for (let d = 1; d <= dim; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [calYear, calMonth]);
 
-  const renderSectionHeader = ({ section }: { section: Section }) => (
-    <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
-      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{section.title}</Text>
-    </View>
-  );
+  // per-day task summary
+  const dayMap = useMemo(() => {
+    const map: Record<string, { total: number; completed: number; incomplete: number }> = {};
+    for (const t of todos) {
+      if (!t.dueDate) continue;
+      const k = t.dueDate.slice(0, 10);
+      if (!map[k]) map[k] = { total: 0, completed: 0, incomplete: 0 };
+      map[k].total++;
+      if (t.completed) map[k].completed++; else map[k].incomplete++;
+    }
+    return map;
+  }, [todos]);
 
-  const renderItem = ({ item }: { item: Todo; index: number; section: Section }) => {
-    const opacity = getOpacity(item.id, item.completed);
-    const dueStatus = getDueStatus(item.dueDate);
-    const dueLabel = formatDueLabel(item.dueDate);
-    const subtitle = [item.courseName, dueLabel].filter(Boolean).join(' · ');
+  const prevMonth = useCallback(() => {
+    setSelectedDate(null);
+    if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); }
+    else setCalMonth(m => m - 1);
+  }, [calMonth]);
+
+  const nextMonth = useCallback(() => {
+    setSelectedDate(null);
+    if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); }
+    else setCalMonth(m => m + 1);
+  }, [calMonth]);
+
+  const handleDayPress = useCallback((day: number) => {
+    const k = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSelectedDate(prev => (prev === k ? null : k));
+  }, [calYear, calMonth]);
+
+  // ── Filtered list ───────────────────────────────────────────
+  const listTodos = useMemo(() =>
+    selectedDate
+      ? todos.filter(t => t.dueDate?.slice(0, 10) === selectedDate)
+      : todos,
+    [todos, selectedDate]);
+
+  // ── Category management ─────────────────────────────────────
+  const addCategory = useCallback(async () => {
+    const name = newCatName.trim();
+    if (!name || categories.includes(name)) return;
+    await saveCategories([...categories, name]);
+    setNewCatName('');
+  }, [newCatName, categories, saveCategories]);
+
+  const removeCategory = useCallback((cat: string) => {
+    Alert.alert(
+      '카테고리 삭제',
+      `'${cat}' 카테고리를 삭제할까요?\n해당 카테고리의 할일은 유지됩니다.`,
+      [
+        { text: '취소', style: 'cancel' },
+        { text: '삭제', style: 'destructive', onPress: () => saveCategories(categories.filter(c => c !== cat)) },
+      ],
+    );
+  }, [categories, saveCategories]);
+
+  // ── Calendar day cell renderer ──────────────────────────────
+  const renderDayCell = (day: number | null, idx: number) => {
+    if (!day) return <View key={`e-${idx}`} style={styles.dayCell} />;
+
+    const k = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isToday = k === TODAY;
+    const isSelected = k === selectedDate;
+    const info = dayMap[k];
+    const allDone = !!info && info.total > 0 && info.incomplete === 0;
+    const incompleteCnt = info?.incomplete ?? 0;
+
+    const col = idx % 7;
+    const isSat = col === 5;
+    const isSun = col === 6;
+    const numColor = isSelected
+      ? '#fff'
+      : isToday
+      ? C.primary
+      : isSat
+      ? '#3B82F6'
+      : isSun
+      ? '#EF4444'
+      : colors.text;
 
     return (
-      <Animated.View style={{ opacity }}>
-        <TouchableOpacity
-          style={[styles.todoRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => openEdit(item)}
-          activeOpacity={0.75}
-        >
-          <TouchableOpacity
-            onPress={() => toggleTodo(item.id, !item.completed)}
-            style={styles.checkWrap}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            {item.completed ? (
-              <View style={[styles.checkFilled, { backgroundColor: C.primary }]}>
-                <Feather name="check" size={12} color="#fff" />
-              </View>
-            ) : (
-              <View style={[styles.checkEmpty, { borderColor: colors.border }]} />
-            )}
-          </TouchableOpacity>
+      <TouchableOpacity
+        key={k}
+        style={styles.dayCell}
+        onPress={() => handleDayPress(day)}
+        activeOpacity={0.65}
+      >
+        {/* Circle */}
+        <View style={[
+          styles.dayCircle,
+          isSelected && { backgroundColor: C.primary },
+          isToday && !isSelected && { borderWidth: 1.5, borderColor: C.primary },
+        ]}>
+          <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
+        </View>
 
-          <View style={styles.todoContent}>
-            <Text
-              style={[styles.todoTitle, { color: colors.text }, item.completed && styles.todoTitleDone]}
-              numberOfLines={2}
-            >
-              {item.title}
-            </Text>
-            {!!subtitle && (
-              <Text
-                style={[
-                  styles.todoSub,
-                  { color: colors.textSecondary },
-                  (dueStatus === 'overdue' || dueStatus === 'urgent') && styles.todoSubUrgent,
-                ]}
-                numberOfLines={1}
-              >
-                {subtitle}
-              </Text>
-            )}
+        {/* Today dot — always visible even when another day is selected */}
+        {isToday && !isSelected && (
+          <View style={[styles.todayDot, { backgroundColor: C.primary }]} />
+        )}
+
+        {/* All done checkmark */}
+        {allDone && !isSelected && (
+          <View style={styles.doneMark}>
+            <Feather name="check" size={7} color={C.primary} />
           </View>
-        </TouchableOpacity>
-      </Animated.View>
+        )}
+
+        {/* Incomplete count badge */}
+        {incompleteCnt > 0 && (
+          <View style={[
+            styles.badge,
+            isSelected && { backgroundColor: 'rgba(255,255,255,0.9)' },
+          ]}>
+            <Text style={[styles.badgeText, isSelected && { color: C.primary }]}>
+              {incompleteCnt}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
     );
   };
 
-  // ── Main render ──
-
+  // ── Main render ─────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Feather name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.uniLabel}>부산대학교</Text>
         <Text style={[styles.pageTitle, { color: colors.text }]}>할 일</Text>
-      </View>
-
-      {/* FilterBar */}
-      <View style={[styles.filterBar, { backgroundColor: colors.background }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScroll}
-          contentContainerStyle={styles.filterContent}
-        >
-          {FILTER_CATS.map(cat => {
-            const active = selCat === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setSelCat(cat)}
-              >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Course filter funnel */}
-        <TouchableOpacity
-          style={styles.funnelBtn}
-          onPress={() => setShowCourseFilter(true)}
-        >
-          <Feather name="filter" size={17} color={selCourse ? C.primary : '#9CA3AF'} />
+        <TouchableOpacity onPress={() => setShowCatMgr(true)} style={styles.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Feather name="menu" size={21} color={colors.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Body */}
-      {loading ? (
-        <ActivityIndicator color={C.primary} style={{ marginTop: 60 }} />
-      ) : sections.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.inputBg }]}>
-            <Feather name="check-square" size={36} color={colors.border} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            {displayTodos.length === 0 ? '할 일이 없어요' : '해당하는 항목이 없어요'}
-          </Text>
-          <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>+ 버튼을 눌러 추가해보세요</Text>
-        </View>
-      ) : (
-        <SectionList<Todo, Section>
-          sections={sections}
-          keyExtractor={item => item.id.toString()}
-          renderItem={renderItem}
-          renderSectionHeader={renderSectionHeader}
-          stickySectionHeadersEnabled
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
-          contentContainerStyle={{ paddingBottom: 120 + bottomPad, paddingTop: 4 }}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: 30 + bottomPad }]}
-        onPress={() => setShowAdd(true)}
-        activeOpacity={0.85}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
+        contentContainerStyle={{ paddingBottom: 60 + bottomPad }}
       >
-        <Feather name="plus" size={26} color="#fff" />
-      </TouchableOpacity>
+        {/* ── Calendar card ── */}
+        <View style={[styles.calCard, { backgroundColor: colors.card }]}>
 
-      {/* ── 과목 필터 모달 ── */}
-      <Modal
-        visible={showCourseFilter}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCourseFilter(false)}
-      >
-        <Pressable style={styles.filterOverlay} onPress={() => setShowCourseFilter(false)}>
-          <Pressable style={[styles.filterSheet, { backgroundColor: colors.card }]}>
-            <Text style={[styles.filterSheetTitle, { color: colors.text }]}>과목별 필터</Text>
-            <TouchableOpacity
-              style={[styles.filterSheetItem, !selCourse && { backgroundColor: `${C.primary}10` }]}
-              onPress={() => { setSelCourse(null); setShowCourseFilter(false); }}
-            >
-              <Text style={[styles.filterSheetItemText, { color: !selCourse ? C.primary : colors.text }]}>전체 과목</Text>
-              {!selCourse && <Feather name="check" size={15} color={C.primary} />}
+          {/* Month row */}
+          <View style={styles.monthRow}>
+            <TouchableOpacity onPress={prevMonth} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Feather name="chevron-left" size={20} color={colors.text} />
             </TouchableOpacity>
-            {availableCourses.length === 0 ? (
-              <Text style={[styles.filterSheetEmpty, { color: colors.textTertiary }]}>연동된 과목이 없어요</Text>
-            ) : availableCourses.map(course => (
-              <TouchableOpacity
-                key={course}
-                style={[styles.filterSheetItem, selCourse === course && { backgroundColor: `${C.primary}10` }]}
-                onPress={() => { setSelCourse(course); setShowCourseFilter(false); }}
+            <Text style={[styles.monthLabel, { color: colors.text }]}>
+              {calYear}년 {calMonth + 1}월
+            </Text>
+            <TouchableOpacity onPress={nextMonth} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Feather name="chevron-right" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Week header */}
+          <View style={styles.weekRow}>
+            {WEEK_LABELS.map((w, i) => (
+              <Text
+                key={w}
+                style={[
+                  styles.weekLabel,
+                  { color: i === 5 ? '#3B82F6' : i === 6 ? '#EF4444' : colors.textSecondary },
+                ]}
               >
-                <Text style={[styles.filterSheetItemText, { color: selCourse === course ? C.primary : colors.text }]}>{course}</Text>
-                {selCourse === course && <Feather name="check" size={15} color={C.primary} />}
-              </TouchableOpacity>
+                {w}
+              </Text>
             ))}
-          </Pressable>
-        </Pressable>
+          </View>
+
+          {/* Day grid */}
+          <View style={styles.dayGrid}>
+            {calCells.map((day, idx) => renderDayCell(day, idx))}
+          </View>
+
+          {/* Selected date label */}
+          {selectedDate && (
+            <TouchableOpacity
+              onPress={() => setSelectedDate(null)}
+              style={styles.selDateRow}
+            >
+              <Text style={[styles.selDateText, { color: C.primary }]}>
+                {selectedDate.slice(5).replace('-', '/')} 할일
+              </Text>
+              <Feather name="x" size={13} color={C.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ── Category sections ── */}
+        {loading ? (
+          <ActivityIndicator color={C.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <View style={styles.catList}>
+            {categories.map(cat => {
+              const catTodos = listTodos.filter(t => t.category === cat);
+              return (
+                <View key={cat} style={[styles.catSection, { backgroundColor: colors.card }]}>
+
+                  {/* Category header */}
+                  <View style={styles.catHeader}>
+                    <View style={[styles.catIconWrap, { backgroundColor: `${C.primary}18` }]}>
+                      <Feather name="tag" size={12} color={C.primary} />
+                    </View>
+                    <Text style={[styles.catName, { color: colors.text }]}>{cat}</Text>
+                    <TouchableOpacity
+                      onPress={() => openAdd(cat)}
+                      style={styles.catAddBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="plus" size={18} color={C.primary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Todo items */}
+                  {catTodos.map((todo, i) => (
+                    <TouchableOpacity
+                      key={todo.id}
+                      style={[
+                        styles.todoRow,
+                        { borderTopColor: colors.border },
+                        i === 0 && { borderTopWidth: StyleSheet.hairlineWidth },
+                      ]}
+                      onPress={() => openEdit(todo)}
+                      onLongPress={() => Alert.alert('삭제', `'${todo.title}'을 삭제할까요?`, [
+                        { text: '취소', style: 'cancel' },
+                        { text: '삭제', style: 'destructive', onPress: () => deleteTodo(todo.id) },
+                      ])}
+                      activeOpacity={0.65}
+                    >
+                      <TouchableOpacity
+                        onPress={() => toggleTodo(todo.id, !todo.completed)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        {todo.completed ? (
+                          <View style={[styles.checkFilled, { backgroundColor: C.primary }]}>
+                            <Feather name="check" size={11} color="#fff" />
+                          </View>
+                        ) : (
+                          <View style={[styles.checkEmpty, { borderColor: colors.border }]} />
+                        )}
+                      </TouchableOpacity>
+
+                      <Text
+                        style={[
+                          styles.todoTitle,
+                          { color: colors.text },
+                          todo.completed && styles.todoDone,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {todo.title}
+                      </Text>
+
+                      {todo.dueDate && (
+                        <Text style={[styles.todoDue, { color: colors.textTertiary }]}>
+                          {todo.dueDate.slice(5, 10).replace('-', '/')}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Category Manager Modal ── */}
+      <Modal
+        visible={showCatMgr}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCatMgr(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.overlay} onPress={() => setShowCatMgr(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>카테고리 관리</Text>
+            <Text style={[styles.sheetSub, { color: colors.textSecondary }]}>
+              기본: 과제·퀴즈·시험 | 길게 눌러 삭제
+            </Text>
+
+            <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+              {categories.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catMgrRow, { borderBottomColor: colors.border }]}
+                  onLongPress={() => removeCategory(cat)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.catIconWrap, { backgroundColor: `${C.primary}18` }]}>
+                    <Feather name="tag" size={12} color={C.primary} />
+                  </View>
+                  <Text style={[styles.catMgrName, { color: colors.text }]}>{cat}</Text>
+                  <TouchableOpacity
+                    onPress={() => removeCategory(cat)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="trash-2" size={15} color="#EF4444" />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.catAddRow}>
+              <TextInput
+                style={[styles.catInput, { backgroundColor: colors.inputBg, color: colors.text }]}
+                value={newCatName}
+                onChangeText={setNewCatName}
+                placeholder="새 카테고리 이름"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="done"
+                onSubmitEditing={addCategory}
+              />
+              <TouchableOpacity style={[styles.catAddBtn2, { backgroundColor: C.primary }]} onPress={addCategory}>
+                <Feather name="plus" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── 추가 모달 ── */}
+      {/* ── Add Todo Modal ── */}
       <Modal
         visible={showAdd}
         transparent
         animationType="slide"
-        onRequestClose={() => { setShowAdd(false); resetAdd(); }}
+        onRequestClose={() => setShowAdd(false)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavOverlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => { setShowAdd(false); resetAdd(); }} />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.overlay} onPress={() => setShowAdd(false)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>할 일 추가</Text>
-
+            <View style={styles.sheetHandle} />
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{addCat} 추가</Text>
+            {selectedDate && (
+              <Text style={[styles.sheetSub, { color: C.primary }]}>
+                마감일: {selectedDate.slice(5).replace('-', '/')} 23:59
+              </Text>
+            )}
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={newTitle} onChangeText={setNewTitle}
-              placeholder="할 일을 입력하세요" placeholderTextColor={colors.textTertiary}
-              autoFocus returnKeyType="done"
+              value={newTitle}
+              onChangeText={setNewTitle}
+              placeholder="할 일을 입력하세요"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={addTodo}
             />
-
-            {uniqueSubjects.length > 0 && (
-              <>
-                <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>과목 연동</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                  style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
-                  {uniqueSubjects.map(s => {
-                    const active = newCourseName === s;
-                    return (
-                      <TouchableOpacity
-                        key={s}
-                        style={[styles.courseChip, { backgroundColor: colors.inputBg }, active && { backgroundColor: colorMap[s] ?? colors.border }, active && styles.courseChipBorder]}
-                        onPress={() => setNewCourseName(active ? null : s)}
-                      >
-                        <Text style={[styles.courseChipText, { color: colors.textSecondary }, active && { color: '#1F2937' }]}>{s}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            )}
-
-            <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>마감일</Text>
-            <View style={styles.quickDateRow}>
-              {(['오늘', '내일', '모레'] as const).map((label, i) => (
-                <TouchableOpacity
-                  key={label}
-                  style={[styles.quickDateBtn, newQuickDate === i && styles.quickDateBtnActive]}
-                  onPress={() => setNewQuickDate(newQuickDate === i ? null : i)}
-                >
-                  <Text style={[styles.quickDateText, newQuickDate === i && styles.quickDateTextActive]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {newQuickDate !== null && (
-              <DateTimePicker
-                value={newDueTime ?? (() => { const d = new Date(); d.setHours(23, 59, 0, 0); return d; })()}
-                mode="time" display="spinner" locale="ko-KR"
-                onChange={(_, date) => { if (date) setNewDueTime(date); }}
-                style={{ width: '100%', height: 130 }}
-              />
-            )}
-
-            <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>카테고리</Text>
-            <View style={styles.catRow}>
-              {TODO_CATEGORIES.map(cat => (
-                <TouchableOpacity key={cat}
-                  style={[styles.catChip, { backgroundColor: colors.inputBg }, newCategory === cat && styles.catChipActive]}
-                  onPress={() => setNewCategory(cat)}
-                >
-                  <Text style={[styles.catChipText, { color: colors.textSecondary }, newCategory === cat && styles.catChipTextActive]}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <TouchableOpacity
-              style={[styles.saveBtn, !newTitle.trim() && styles.saveBtnDisabled]}
-              onPress={addTodo} disabled={!newTitle.trim() || submitting}
+              style={[styles.saveBtn, (!newTitle.trim() || submitting) && styles.saveBtnOff]}
+              onPress={addTodo}
+              disabled={!newTitle.trim() || submitting}
             >
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>추가하기</Text>}
+              {submitting
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.saveBtnText}>추가하기</Text>
+              }
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── 수정 모달 ── */}
+      {/* ── Edit Todo Modal ── */}
       <Modal
         visible={!!editTodo}
         transparent
         animationType="slide"
         onRequestClose={() => setEditTodo(null)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kavOverlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => setEditTodo(null)} />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.overlay} onPress={() => setEditTodo(null)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
-            <View style={styles.editHeader}>
-              <Text style={[styles.sheetTitle, { marginBottom: 0, color: colors.text }]}>할 일 수정</Text>
-              <TouchableOpacity onPress={() => { deleteTodo(editTodo!.id); setEditTodo(null); }} style={styles.deleteBtn}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.editHeaderRow}>
+              <Text style={[styles.sheetTitle, { color: colors.text, marginBottom: 0 }]}>할 일 수정</Text>
+              <TouchableOpacity
+                onPress={() => { deleteTodo(editTodo!.id); setEditTodo(null); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Feather name="trash-2" size={18} color="#EF4444" />
               </TouchableOpacity>
             </View>
-
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={editTitle} onChangeText={setEditTitle}
-              placeholder="할 일 제목" placeholderTextColor={colors.textTertiary}
-              autoFocus returnKeyType="done"
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, marginTop: 16 }]}
+              value={editTitle}
+              onChangeText={setEditTitle}
+              placeholder="할 일 제목"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={saveEdit}
             />
-
-            {uniqueSubjects.length > 0 && (
-              <>
-                <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>과목 연동</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                  style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
-                  {uniqueSubjects.map(s => {
-                    const active = editCourseName === s;
-                    return (
-                      <TouchableOpacity key={s}
-                        style={[styles.courseChip, { backgroundColor: colors.inputBg }, active && { backgroundColor: colorMap[s] ?? colors.border }, active && styles.courseChipBorder]}
-                        onPress={() => setEditCourseName(active ? null : s)}
-                      >
-                        <Text style={[styles.courseChipText, { color: colors.textSecondary }, active && { color: '#1F2937' }]}>{s}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            )}
-
-            <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>카테고리</Text>
-            <View style={styles.catRow}>
-              {TODO_CATEGORIES.map(cat => (
-                <TouchableOpacity key={cat}
-                  style={[styles.catChip, { backgroundColor: colors.inputBg }, editCategory === cat && styles.catChipActive]}
-                  onPress={() => setEditCategory(cat)}
-                >
-                  <Text style={[styles.catChipText, { color: colors.textSecondary }, editCategory === cat && styles.catChipTextActive]}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <TouchableOpacity
-              style={[styles.saveBtn, !editTitle.trim() && styles.saveBtnDisabled]}
-              onPress={saveEdit} disabled={!editTitle.trim() || editSubmitting}
+              style={[styles.saveBtn, (!editTitle.trim() || editSubmitting) && styles.saveBtnOff]}
+              onPress={saveEdit}
+              disabled={!editTitle.trim() || editSubmitting}
             >
-              {editSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>저장하기</Text>}
+              {editSubmitting
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.saveBtnText}>저장하기</Text>
+              }
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -586,97 +593,190 @@ export default function TodosScreen() {
   );
 }
 
+// ── Styles ──────────────────────────────────────────────────────
+const CIRCLE = 32;
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
-  header: { paddingHorizontal: 20, paddingBottom: 16 },
-  backBtn: { marginBottom: 4, width: 36, height: 36, justifyContent: 'center', marginLeft: -4 },
-  uniLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
-  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  pageTitle: { fontSize: 17, fontWeight: '600', letterSpacing: -0.3 },
 
-  filterBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  filterScroll: { flex: 1 },
-  filterContent: { paddingHorizontal: 20, paddingVertical: 0, paddingBottom: 16, gap: 5 },
-  filterChip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, backgroundColor: '#F3F4F6' },
-  filterChipActive: { backgroundColor: C.primary },
-  filterChipText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#6B7280' },
-  filterChipTextActive: { color: '#fff' },
-  funnelBtn: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
+  // Calendar card
+  calCard: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+  },
+  monthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginBottom: 14,
+  },
+  monthLabel: { fontSize: 15, fontWeight: '700' },
 
-  sectionHeader: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
-  sectionTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 2, textTransform: 'uppercase' },
+  // Week labels
+  weekRow: { flexDirection: 'row', marginBottom: 4 },
+  weekLabel: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', paddingVertical: 2 },
 
-  todoRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 14, gap: 14,
-    marginHorizontal: 20, marginBottom: 8,
-    borderRadius: 16, borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
+  // Day grid
+  dayGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: {
+    width: `${100 / 7}%`,
+    alignItems: 'center',
+    paddingVertical: 5,
+    position: 'relative',
+  },
+  dayCircle: {
+    width: CIRCLE,
+    height: CIRCLE,
+    borderRadius: CIRCLE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayNum: { fontSize: 13, fontWeight: '500' },
+
+  // Today dot (always visible below circle)
+  todayDot: {
+    width: 4, height: 4, borderRadius: 2,
+    marginTop: 2,
   },
 
-  checkWrap: { paddingTop: 2 },
-  checkEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
-  checkFilled: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  // All-done mark (tiny checkmark row)
+  doneMark: {
+    width: 14, height: 14, borderRadius: 7,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 2,
+  },
 
-  todoContent: { flex: 1, gap: 5 },
-  todoTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', lineHeight: 22 },
-  todoTitleDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
-  todoSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
-  todoSubUrgent: { color: '#EF4444' },
-
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 80 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  emptyTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
-  emptyDesc: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-
-  fab: {
-    position: 'absolute', right: 20,
-    width: 56, height: 56, borderRadius: 28,
+  // Incomplete badge
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: '12%',
     backgroundColor: C.primary,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
+    borderRadius: 8,
+    minWidth: 15,
+    height: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+
+  // Selected date label
+  selDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  selDateText: { fontSize: 12, fontWeight: '600' },
+
+  // Category sections
+  catList: { paddingHorizontal: 16, gap: 10, marginTop: 12 },
+  catSection: { borderRadius: 16, overflow: 'hidden' },
+  catHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  catIconWrap: {
+    width: 24, height: 24, borderRadius: 7,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  catName: { flex: 1, fontSize: 14, fontWeight: '700' },
+  catAddBtn: { padding: 2 },
+
+  // Todo row
+  todoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 12,
+    borderTopWidth: 0,
+  },
+  checkFilled: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkEmpty: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 1.5,
+  },
+  todoTitle: { flex: 1, fontSize: 14, lineHeight: 20 },
+  todoDone: { textDecorationLine: 'line-through', opacity: 0.45 },
+  todoDue: { fontSize: 11, fontWeight: '500' },
+
+  // Modals
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' },
+  sheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  sheetHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 6 },
+  sheetSub: { fontSize: 12, marginBottom: 14 },
+
+  // Category manager
+  catMgrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  catMgrName: { flex: 1, fontSize: 15 },
+  catAddRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  catInput: {
+    flex: 1, height: 44, borderRadius: 10,
+    paddingHorizontal: 12, fontSize: 14,
+  },
+  catAddBtn2: {
+    width: 44, height: 44, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
 
-  filterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', paddingHorizontal: 28 },
-  filterSheet: { borderRadius: 20, overflow: 'hidden' },
-  filterSheetTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', padding: 20, paddingBottom: 12 },
-  filterSheetItem: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 14,
+  // Add/Edit modal
+  input: {
+    height: 48, borderRadius: 12,
+    paddingHorizontal: 14, fontSize: 15,
+    marginBottom: 14,
   },
-  filterSheetItemText: { fontSize: 15, fontFamily: 'Inter_500Medium' },
-  filterSheetEmpty: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', paddingVertical: 16, paddingBottom: 20 },
-
-  kavOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 12 },
-  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  deleteBtn: { padding: 8 },
-  input: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, fontFamily: 'Inter_400Regular' },
-  sheetLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-
-  courseChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: 'transparent' },
-  courseChipBorder: { borderColor: 'rgba(0,0,0,0.15)' },
-  courseChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-
-  quickDateRow: { flexDirection: 'row', gap: 8 },
-  quickDateBtn: { flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: 'center', backgroundColor: '#F3F4F6' },
-  quickDateBtnActive: { backgroundColor: C.primary },
-  quickDateText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  quickDateTextActive: { color: '#fff' },
-
-  catRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: 'transparent' },
-  catChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  catChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  catChipTextActive: { color: '#fff', fontFamily: 'Inter_700Bold' },
-
-  saveBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
-  saveBtnDisabled: { backgroundColor: '#D1D5DB' },
-  saveBtnText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+  saveBtn: {
+    height: 48, borderRadius: 12,
+    backgroundColor: C.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saveBtnOff: { opacity: 0.4 },
+  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  editHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 });
