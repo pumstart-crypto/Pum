@@ -264,12 +264,12 @@ export default function TodosScreen() {
           <Text style={[styles.dayNum, { color: numColor }]}>{day}</Text>
         </View>
 
-        {/* Today dot — always visible even when another day is selected */}
+        {/* Today dot — position:absolute so it never affects row height */}
         {isToday && !isSelected && (
           <View style={[styles.todayDot, { backgroundColor: C.primary }]} />
         )}
 
-        {/* All done checkmark */}
+        {/* All done checkmark — position:absolute */}
         {allDone && !isSelected && (
           <View style={styles.doneMark}>
             <Feather name="check" size={7} color={C.primary} />
@@ -353,10 +353,8 @@ export default function TodosScreen() {
               onPress={() => setSelectedDate(null)}
               style={styles.selDateRow}
             >
-              <Text style={[styles.selDateText, { color: C.primary }]}>
-                {selectedDate.slice(5).replace('-', '/')} 할일
-              </Text>
-              <Feather name="x" size={13} color={C.primary} />
+              <Feather name="x" size={12} color="#fff" />
+              <Text style={styles.selDateText}>삭제</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -635,8 +633,9 @@ const styles = StyleSheet.create({
   dayGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayCell: {
     width: `${100 / 7}%`,
+    height: 48,
     alignItems: 'center',
-    paddingVertical: 5,
+    justifyContent: 'center',
     position: 'relative',
   },
   dayCircle: {
@@ -648,17 +647,19 @@ const styles = StyleSheet.create({
   },
   dayNum: { fontSize: 13, fontWeight: '500' },
 
-  // Today dot (always visible below circle)
+  // Today dot — absolute so it never adds height to the row
   todayDot: {
+    position: 'absolute',
+    bottom: 3,
     width: 4, height: 4, borderRadius: 2,
-    marginTop: 2,
   },
 
-  // All-done mark (tiny checkmark row)
+  // All-done mark — absolute
   doneMark: {
+    position: 'absolute',
+    bottom: 2,
     width: 14, height: 14, borderRadius: 7,
     alignItems: 'center', justifyContent: 'center',
-    marginTop: 2,
   },
 
   // Incomplete badge
@@ -676,16 +677,21 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
 
-  // Selected date label
+  // Selected date deselect button
   selDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
     gap: 4,
-    paddingTop: 10,
-    paddingBottom: 2,
+    marginTop: 10,
+    marginBottom: 2,
+    backgroundColor: C.primary,
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
   },
-  selDateText: { fontSize: 12, fontWeight: '600' },
+  selDateText: { fontSize: 12, fontWeight: '600', color: '#fff' },
 
   // Category sections
   catList: { paddingHorizontal: 16, gap: 10, marginTop: 12 },
