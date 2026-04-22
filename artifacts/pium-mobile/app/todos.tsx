@@ -67,7 +67,7 @@ export default function TodosScreen() {
   // ── Calendar state ──────────────────────────────────────────
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth()); // 0-indexed
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(TODAY);
 
   // ── Modal state ─────────────────────────────────────────────
   const [showCatMgr, setShowCatMgr] = useState(false);
@@ -507,12 +507,6 @@ export default function TodosScreen() {
           <Pressable style={styles.overlay} onPress={() => setShowAdd(false)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
             <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>{addCat} 추가</Text>
-            {selectedDate && (
-              <Text style={[styles.sheetSub, { color: C.primary }]}>
-                마감일: {selectedDate.slice(5).replace('-', '/')} 23:59
-              </Text>
-            )}
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
               value={newTitle}
@@ -724,8 +718,8 @@ const styles = StyleSheet.create({
   // Modals
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' },
   sheet: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 14,
   },
