@@ -291,12 +291,17 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // 공통 헬퍼: find-id / find-password 용 OTP 발송 (가입된 번호 전용)
-async function sendRecoveryOTP(phone: string): Promise<{ code: string }> {
+// SMS 실패 시 throw하지 않고 { code, smsError } 반환 → 라우터에서 처리
+async function sendRecoveryOTP(phone: string): Promise<{ code: string; smsError?: unknown }> {
   const code = generateOTP();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
   await db.insert(phoneVerificationsTable).values({ phone, code, expiresAt });
-  await sendOTP(phone, code);
-  return { code };
+  try {
+    await sendOTP(phone, code);
+    return { code };
+  } catch (smsError) {
+    return { code, smsError };
+  }
 }
 
 // ── 아이디 찾기 : OTP 발송 ────────────────────────────────────
@@ -310,13 +315,16 @@ router.post("/auth/find-id/send-otp", async (req, res) => {
     .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.phone, phone)));
   if (!user) { res.status(404).json({ message: "입력하신 정보와 일치하는 계정이 없습니다." }); return; }
 
-  try {
-    const { code } = await sendRecoveryOTP(phone);
-    const isDev = process.env.NODE_ENV !== "production";
-    res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
-  } catch {
-    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+  const { code, smsError } = await sendRecoveryOTP(phone);
+  const isDev = process.env.NODE_ENV !== "production";
+  if (smsError) {
+    req.log.error({ err: smsError, phone }, "find-id SMS send failed");
+    if (isDev) {
+      res.json({ message: "SMS 발송 실패 (개발모드 — 아래 코드를 사용하세요)", devCode: code }); return;
+    }
+    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." }); return;
   }
+  res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
 });
 
 // ── 아이디 찾기 : OTP 확인 + 아이디 반환 ─────────────────────
@@ -359,13 +367,16 @@ router.post("/auth/find-password/send-otp", async (req, res) => {
   ));
   if (!user) { res.status(404).json({ message: "입력하신 정보와 일치하는 계정이 없습니다." }); return; }
 
-  try {
-    const { code } = await sendRecoveryOTP(phone);
-    const isDev = process.env.NODE_ENV !== "production";
-    res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
-  } catch {
-    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+  const { code, smsError } = await sendRecoveryOTP(phone);
+  const isDev = process.env.NODE_ENV !== "production";
+  if (smsError) {
+    req.log.error({ err: smsError, phone }, "find-password SMS send failed");
+    if (isDev) {
+      res.json({ message: "SMS 발송 실패 (개발모드 — 아래 코드를 사용하세요)", devCode: code }); return;
+    }
+    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." }); return;
   }
+  res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
 });
 
 // ── 비밀번호 찾기 : OTP 확인 + 재설정 토큰 발급 ─────────────

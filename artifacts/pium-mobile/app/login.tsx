@@ -26,11 +26,11 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
   const [foundId, setFoundId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
+  const [devCode, setDevCode] = useState('');
 
   const reset = () => {
     setStep('input'); setName(''); setPhone(''); setCode('');
-    setFoundId(''); setError(''); setSent(false); setLoading(false);
+    setFoundId(''); setError(''); setDevCode(''); setLoading(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -44,7 +44,8 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '오류가 발생했습니다.'); return; }
-      setSent(true); setStep('verify');
+      if (data.devCode) setDevCode(data.devCode);
+      setStep('verify');
     } catch { setError('네트워크 오류가 발생했습니다.'); }
     finally { setLoading(false); }
   };
@@ -109,6 +110,12 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
                 <Feather name="check-circle" size={14} color="#10B981" />
                 <Text style={sheet.infoText}>{phone}으로 인증번호를 발송했습니다.</Text>
               </View>
+              {!!devCode && (
+                <View style={sheet.devBox}>
+                  <Text style={sheet.devLabel}>개발모드 인증번호</Text>
+                  <Text style={sheet.devCode}>{devCode}</Text>
+                </View>
+              )}
               <Text style={sheet.label}>인증번호 6자리</Text>
               <TextInput style={sheet.input} value={code} onChangeText={setCode}
                 placeholder="000000" placeholderTextColor="#9CA3AF"
@@ -119,7 +126,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={sheet.btnText}>확인</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={sheet.retryBtn} onPress={() => { setStep('input'); setSent(false); setCode(''); setError(''); }}>
+              <TouchableOpacity style={sheet.retryBtn} onPress={() => { setStep('input'); setDevCode(''); setCode(''); setError(''); }}>
                 <Text style={sheet.retryText}>다시 입력하기</Text>
               </TouchableOpacity>
             </>
@@ -157,11 +164,12 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [devCode, setDevCode] = useState('');
 
   const reset = () => {
     setStep('input'); setName(''); setUsername(''); setPhone(''); setCode('');
     setResetToken(''); setNewPw(''); setNewPwConfirm('');
-    setShowPw(false); setError(''); setLoading(false);
+    setShowPw(false); setError(''); setDevCode(''); setLoading(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -175,6 +183,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '오류가 발생했습니다.'); return; }
+      if (data.devCode) setDevCode(data.devCode);
       setStep('verify');
     } catch { setError('네트워크 오류가 발생했습니다.'); }
     finally { setLoading(false); }
@@ -261,6 +270,12 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
                 <Feather name="check-circle" size={14} color="#10B981" />
                 <Text style={sheet.infoText}>{phone}으로 인증번호를 발송했습니다.</Text>
               </View>
+              {!!devCode && (
+                <View style={sheet.devBox}>
+                  <Text style={sheet.devLabel}>개발모드 인증번호</Text>
+                  <Text style={sheet.devCode}>{devCode}</Text>
+                </View>
+              )}
               <Text style={sheet.label}>인증번호 6자리</Text>
               <TextInput style={sheet.input} value={code} onChangeText={setCode}
                 placeholder="000000" placeholderTextColor="#9CA3AF"
@@ -271,7 +286,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={sheet.btnText}>확인</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={sheet.retryBtn} onPress={() => { setStep('input'); setCode(''); setError(''); }}>
+              <TouchableOpacity style={sheet.retryBtn} onPress={() => { setStep('input'); setDevCode(''); setCode(''); setError(''); }}>
                 <Text style={sheet.retryText}>정보 다시 입력하기</Text>
               </TouchableOpacity>
             </>
@@ -530,4 +545,10 @@ const sheet = StyleSheet.create({
   resultSub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280' },
   pwWrap: { position: 'relative' },
   eyeBtn: { position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' },
+  devBox: {
+    backgroundColor: '#FFF7ED', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: '#FED7AA', alignItems: 'center', gap: 4,
+  },
+  devLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#9A3412', letterSpacing: 0.5 },
+  devCode: { fontSize: 28, fontFamily: 'Inter_700Bold', color: '#EA580C', letterSpacing: 4 },
 });
