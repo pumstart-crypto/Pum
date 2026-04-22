@@ -8,9 +8,23 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { WebView } from 'react-native-webview';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import WebView, { WebViewMessageEvent } from 'react-native-webview';
+import * as SecureStore from 'expo-secure-store';
 import C from '@/constants/colors';
+
+// SecureStore는 웹에서 미지원 — sessionStorage로 폴백
+const secureGet = (key: string): Promise<string | null> =>
+  Platform.OS === 'web'
+    ? Promise.resolve(sessionStorage.getItem(key))
+    : SecureStore.getItemAsync(key);
+const secureSet = (key: string, val: string): Promise<void> =>
+  Platform.OS === 'web'
+    ? (sessionStorage.setItem(key, val), Promise.resolve())
+    : SecureStore.setItemAsync(key, val);
+const secureDel = (key: string): Promise<void> =>
+  Platform.OS === 'web'
+    ? (sessionStorage.removeItem(key), Promise.resolve())
+    : SecureStore.deleteItemAsync(key);
 
 const isWeb = Platform.OS === 'web';
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
@@ -187,7 +201,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
   // WebView 자동 동기화
   const [libWebViewVisible, setLibWebViewVisible] = useState(false);
   const [webSyncLoading, setWebSyncLoading] = useState(false);
-  const webViewRef = useRef<any>(null);
+  const webViewRef = useRef<WebView>(null);
 
   // 페이지 로드 전에 주입 — fetch/XHR을 가로채서 seat-charges 응답을 낚아챔
   // SPA가 자체 인증으로 API를 호출하므로 우리는 인증 걱정 없이 응답만 캡처
@@ -260,7 +274,11 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
     setWebSyncLoading(onReservationPage);
   };
 
-  const handleWebMessage = async (event: { nativeEvent: { data: string } }) => {
+  const handleWebMessage = async (event: WebViewMessageEvent) => {
+    // 메시지 출처 검증 — lib.pusan.ac.kr 외 도메인 차단
+    const originUrl = event.nativeEvent.url ?? '';
+    if (!originUrl.startsWith('https://lib.pusan.ac.kr')) return;
+
     try {
       const parsed = JSON.parse(event.nativeEvent.data);
 
@@ -293,7 +311,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         setLibWebViewVisible(false);
         if (info) {
           // 기존 좌석이 있었는데 없어짐 → 반납/만료
-          await AsyncStorage.removeItem(MY_SEAT_KEY);
+          await secureDel(MY_SEAT_KEY);
           setInfo(null); setRemaining(null);
           showToast('좌석이 반납되었어요', 'info', '반납 또는 이용 종료가 확인되었습니다');
         } else {
@@ -464,7 +482,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         extensionMax,
       };
       const rem = calcRemaining(newInfo);
-      await AsyncStorage.setItem(MY_SEAT_KEY, JSON.stringify(newInfo));
+      await secureSet(MY_SEAT_KEY, JSON.stringify(newInfo));
       setInfo(newInfo);
       setRemaining(rem);
       setLibWebViewVisible(false);
@@ -475,12 +493,12 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
 
   const load = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(MY_SEAT_KEY);
+      const raw = await secureGet(MY_SEAT_KEY);
       if (!raw) return;
       const parsed: MySeatInfo = JSON.parse(raw);
-      if (!parsed.startTime) { await AsyncStorage.removeItem(MY_SEAT_KEY); return; }
+      if (!parsed.startTime) { await secureDel(MY_SEAT_KEY); return; }
       const rem = calcRemaining(parsed);
-      if (rem.expired) { await AsyncStorage.removeItem(MY_SEAT_KEY); return; }
+      if (rem.expired) { await secureDel(MY_SEAT_KEY); return; }
       setInfo(parsed); setRemaining(rem);
     } catch {}
   }, []);
@@ -492,7 +510,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
     const id = setInterval(() => {
       const rem = calcRemaining(info);
       setRemaining(rem);
-      if (rem.expired) { setInfo(null); setRemaining(null); AsyncStorage.removeItem(MY_SEAT_KEY); }
+      if (rem.expired) { setInfo(null); setRemaining(null); secureDel(MY_SEAT_KEY); }
     }, 30_000);
     return () => clearInterval(id);
   }, [info]);
@@ -504,7 +522,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
     if (!info) return;
     const rem = calcRemaining(info);
     setRemaining(rem);
-    if (rem.expired) { setInfo(null); setRemaining(null); AsyncStorage.removeItem(MY_SEAT_KEY); }
+    if (rem.expired) { setInfo(null); setRemaining(null); secureDel(MY_SEAT_KEY); }
   }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const barColor = remaining
@@ -605,10 +623,18 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
             injectedJavaScriptBeforeContentLoaded={INTERCEPTOR_SCRIPT}
             onNavigationStateChange={handleWebNavChange}
             onMessage={handleWebMessage}
-            sharedCookiesEnabled
-            thirdPartyCookiesEnabled
+            onShouldStartLoadWithRequest={(req) =>
+              req.url.startsWith('https://lib.pusan.ac.kr')
+            }
             javaScriptEnabled
             domStorageEnabled
+            sharedCookiesEnabled={false}
+            thirdPartyCookiesEnabled={false}
+            mixedContentMode="never"
+            allowFileAccess={false}
+            allowFileAccessFromFileURLs={false}
+            allowUniversalAccessFromFileURLs={false}
+            javaScriptCanOpenWindowsAutomatically={false}
             style={{ flex: 1 }}
           />
           {/* 하단 닫기 버튼 */}

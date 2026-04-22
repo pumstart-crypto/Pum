@@ -1,0 +1,76 @@
+import React, { useRef } from 'react';
+import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import * as SecureStore from 'expo-secure-store';
+
+// ... (컴포넌트 내부)
+const webViewRef = useRef<WebView>(null);
+
+// API 응답 가로채기 로직 (간략화)
+const INJECTED_JAVASCRIPT = `
+  (function() {
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+      const response = await originalFetch.apply(this, args);
+      const url = args[0];
+      if (url && url.includes('seat-charges')) {
+        const clone = response.clone();
+        clone.json().then(data => {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'SEAT_DATA',
+            payload: data
+          }));
+        }).catch(e => console.error('Parse error', e));
+      }
+      return response;
+    };
+  })();
+  true;
+`;
+
+const handleMessage = async (event: WebViewMessageEvent) => {
+  const { data, url } = event.nativeEvent;
+
+  // 1. 메시지 출처(Origin) 엄격 검증 (매우 중요)
+  if (!url.startsWith('https://lib.pusan.ac.kr')) {
+    console.warn('Untrusted message origin:', url);
+    return;
+  }
+
+  try {
+    const parsedData = JSON.parse(data);
+    if (parsedData.type === 'SEAT_DATA') {
+      // 2. 실시간 위치/예약 정보는 반드시 SecureStore에 저장
+      await SecureStore.setItemAsync('user_seat_info', JSON.stringify(parsedData.payload));
+      console.log('Seat info secured.');
+    }
+  } catch (error) {
+    console.error('Invalid message format', error);
+  }
+};
+
+return (
+  <WebView
+    ref={webViewRef}
+    source={{ uri: 'https://lib.pusan.ac.kr/facility/seat' }}
+    injectedJavaScriptBeforeContentLoaded={INJECTED_JAVASCRIPT}
+    onMessage={handleMessage}
+    
+    // 3. 네비게이션 화이트리스트 강제
+    onShouldStartLoadWithRequest={(request) => {
+      if (!request.url.startsWith('https://lib.pusan.ac.kr')) {
+        // 외부 링크는 시스템 브라우저로 넘기거나 차단
+        // Linking.openURL(request.url); 
+        return false; 
+      }
+      return true;
+    }}
+
+    // 4. 필수 보안 샌드박스 설정
+    mixedContentMode="never" // HTTPS 환경에서 HTTP 리소스 로드 차단
+    allowFileAccess={false}  // 로컬 파일 접근 차단
+    allowFileAccessFromFileURLs={false}
+    allowUniversalAccessFromFileURLs={false}
+    javaScriptCanOpenWindowsAutomatically={false} // 팝업/새창 탈취 차단
+    sharedCookiesEnabled={false} // iOS 전용 쿠키 공유 차단
+  />
+);
