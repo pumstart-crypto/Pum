@@ -7,6 +7,7 @@ import {
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/contexts/AuthContext';
 import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -593,6 +594,7 @@ function WriteSheet({
    Main Screen
 ══════════════════════════════ */
 export default function BoardScreen() {
+  const { token } = useAuth();
   const insets = useSafeAreaInsets();
   const topPad = isWeb ? 67 : insets.top;
   const [activeCategory, setActiveCategory] = useState<string>('전체');
@@ -696,9 +698,11 @@ export default function BoardScreen() {
   }, [fetchPosts]);
 
   const handleSubmit = async (data: { title: string; content: string; category: string; subCategory: string; author: string }) => {
+    if (!token) { Alert.alert('오류', '로그인 후 이용할 수 있습니다.'); return; }
     try {
       const r = await fetch(`${API}/community`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(data),
       });
       if (r.ok) {

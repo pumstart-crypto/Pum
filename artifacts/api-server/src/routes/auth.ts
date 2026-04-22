@@ -11,6 +11,11 @@ import { z } from "zod";
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// 로그에 전화번호 PII 마스킹 (예: 01012345678 → 010****5678)
+function maskPhone(phone: string): string {
+  return phone.length >= 8 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : "****";
+}
+
 // ── IP 기반 OTP 요청 제한 (기기당 하루 5회) ─────────────────────
 const OTP_LIMIT_PER_DAY = 5;
 const otpIpMap = new Map<string, { count: number; resetAt: number }>();
@@ -29,11 +34,51 @@ function checkIpOtpLimit(ip: string): { allowed: boolean; remaining: number } {
   return { allowed: true, remaining: OTP_LIMIT_PER_DAY - entry.count };
 }
 
+// ── 로그인 brute-force 방어 (IP당 15분에 10회) ───────────────────
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttemptMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = loginAttemptMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttemptMap.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= LOGIN_MAX_ATTEMPTS) return false;
+  entry.count++;
+  return true;
+}
+
+// ── OTP 검증 brute-force 방어 (번호당 15분에 5회 시도) ────────────
+const OTP_VERIFY_MAX = 5;
+const OTP_VERIFY_WINDOW_MS = 15 * 60 * 1000;
+const otpVerifyMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkOtpVerifyLimit(phone: string): boolean {
+  const now = Date.now();
+  const entry = otpVerifyMap.get(phone);
+  if (!entry || now > entry.resetAt) {
+    otpVerifyMap.set(phone, { count: 1, resetAt: now + OTP_VERIFY_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= OTP_VERIFY_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 // 오래된 항목 정리 (매 시간)
 setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of otpIpMap.entries()) {
     if (now > entry.resetAt) otpIpMap.delete(ip);
+  }
+  for (const [ip, entry] of loginAttemptMap.entries()) {
+    if (now > entry.resetAt) loginAttemptMap.delete(ip);
+  }
+  for (const [phone, entry] of otpVerifyMap.entries()) {
+    if (now > entry.resetAt) otpVerifyMap.delete(phone);
   }
 }, 60 * 60 * 1000);
 
@@ -59,27 +104,21 @@ router.post("/auth/send-otp", async (req, res) => {
     res.status(400).json({ message: "올바른 휴대폰 번호를 입력하세요." }); return;
   }
 
-  // 개발용 예외 번호 (제한 없음)
-  const EXEMPT_PHONES = ["01033126934"];
-  const isExempt = EXEMPT_PHONES.includes(phone);
+  // ① 기기(IP) 기반 하루 5회 제한
+  const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  const ipCheck = checkIpOtpLimit(clientIp);
+  if (!ipCheck.allowed) {
+    res.status(429).json({ message: "하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+  }
 
-  if (!isExempt) {
-    // ① 기기(IP) 기반 하루 5회 제한
-    const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
-    const ipCheck = checkIpOtpLimit(clientIp);
-    if (!ipCheck.allowed) {
-      res.status(429).json({ message: "하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
-    }
-
-    // ② 동일 전화번호 기준 하루 5회 제한 (DB 기반)
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [phoneCount] = await db
-      .select({ count: sql<number>`cast(count(*) as int)` })
-      .from(phoneVerificationsTable)
-      .where(and(eq(phoneVerificationsTable.phone, phone), gt(phoneVerificationsTable.createdAt, oneDayAgo)));
-    if ((phoneCount?.count ?? 0) >= OTP_LIMIT_PER_DAY) {
-      res.status(429).json({ message: "해당 번호로 하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
-    }
+  // ② 동일 전화번호 기준 하루 5회 제한 (DB 기반)
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [phoneCount] = await db
+    .select({ count: sql<number>`cast(count(*) as int)` })
+    .from(phoneVerificationsTable)
+    .where(and(eq(phoneVerificationsTable.phone, phone), gt(phoneVerificationsTable.createdAt, oneDayAgo)));
+  if ((phoneCount?.count ?? 0) >= OTP_LIMIT_PER_DAY) {
+    res.status(429).json({ message: "해당 번호로 하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
   }
 
   // ③ 이미 가입된 번호인지 확인
@@ -97,7 +136,7 @@ router.post("/auth/send-otp", async (req, res) => {
     await sendOTP(phone, code);
     res.json({ message: "인증번호를 발송했습니다." });
   } catch (err: any) {
-    req.log.error({ err, phone, errMsg: err?.message, errData: err?.data }, "SMS send failed");
+    req.log.error({ err, phone: maskPhone(phone), errMsg: err?.message }, "SMS send failed");
     const isDev = process.env.NODE_ENV !== "production";
     res.status(500).json({
       message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
@@ -113,6 +152,10 @@ router.post("/auth/verify-otp", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ message: "잘못된 요청입니다." }); return; }
 
   const phone = normalizePhone(parsed.data.phone);
+
+  if (!checkOtpVerifyLimit(phone)) {
+    res.status(429).json({ message: "인증 시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요." }); return;
+  }
   const now = new Date();
 
   const [record] = await db
@@ -235,6 +278,11 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
 
 // ── 로그인 ────────────────────────────────────────────────────
 router.post("/auth/login", async (req, res) => {
+  const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+  if (!checkLoginRateLimit(clientIp)) {
+    res.status(429).json({ message: "로그인 시도 횟수가 너무 많습니다. 15분 후 다시 시도해주세요." }); return;
+  }
+
   const schema = z.object({ username: z.string(), password: z.string() });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ message: "아이디와 비밀번호를 입력하세요." }); return; }
@@ -318,7 +366,7 @@ router.post("/auth/find-id/send-otp", async (req, res) => {
   const { code, smsError } = await sendRecoveryOTP(phone);
   const isDev = process.env.NODE_ENV !== "production";
   if (smsError) {
-    req.log.error({ err: smsError, phone }, "find-id SMS send failed");
+    req.log.error({ err: smsError, phone: maskPhone(phone) }, "find-id SMS send failed");
     if (isDev) {
       res.json({ message: "SMS 발송 실패 (개발모드 — 아래 코드를 사용하세요)", devCode: code }); return;
     }
@@ -370,7 +418,7 @@ router.post("/auth/find-password/send-otp", async (req, res) => {
   const { code, smsError } = await sendRecoveryOTP(phone);
   const isDev = process.env.NODE_ENV !== "production";
   if (smsError) {
-    req.log.error({ err: smsError, phone }, "find-password SMS send failed");
+    req.log.error({ err: smsError, phone: maskPhone(phone) }, "find-password SMS send failed");
     if (isDev) {
       res.json({ message: "SMS 발송 실패 (개발모드 — 아래 코드를 사용하세요)", devCode: code }); return;
     }

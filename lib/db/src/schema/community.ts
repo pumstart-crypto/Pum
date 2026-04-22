@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const communityPostsTable = pgTable("community_posts", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id"),
   category: text("category").notNull(),
   subCategory: text("sub_category"),
   title: text("title").notNull(),
@@ -17,6 +18,7 @@ export const communityPostsTable = pgTable("community_posts", {
 export const communityCommentsTable = pgTable("community_comments", {
   id: serial("id").primaryKey(),
   postId: integer("post_id").notNull(),
+  userId: integer("user_id"),
   content: text("content").notNull(),
   author: text("author").notNull().default("익명"),
   createdAt: timestamp("created_at").defaultNow(),

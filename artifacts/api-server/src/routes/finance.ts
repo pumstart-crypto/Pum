@@ -1,18 +1,9 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { Router, type IRouter } from "express";
 import { db, financesTable, insertFinanceSchema } from "@workspace/db";
 import { eq, and, like, sql } from "drizzle-orm";
-import { verifyToken } from "../lib/auth";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
-
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "인증이 필요합니다." }); return; }
-  const payload = verifyToken(auth.slice(7));
-  if (!payload) { res.status(401).json({ message: "유효하지 않은 토큰입니다." }); return; }
-  (req as any).userId = payload.userId;
-  next();
-}
 
 router.get("/finance/summary", requireAuth, async (req, res) => {
   try {

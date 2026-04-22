@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/contexts/AuthContext';
 import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
@@ -61,6 +62,7 @@ async function getAuthor() {
 }
 
 export default function PostDetailScreen() {
+  const { token } = useAuth();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const isWeb = Platform.OS === 'web';
@@ -89,29 +91,37 @@ export default function PostDetailScreen() {
 
   const submitComment = async () => {
     if (!commentText.trim()) return;
+    if (!token) { Alert.alert('오류', '로그인 후 댓글을 작성할 수 있습니다.'); return; }
     setSubmitting(true);
     try {
       const author = await getAuthor();
       const r = await fetch(`${API}/community/${id}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ content: commentText.trim(), author }),
       });
       if (r.ok) {
         const newComment = await r.json();
         setComments(prev => [...prev, newComment]);
         setCommentText('');
+      } else {
+        Alert.alert('오류', '댓글 작성에 실패했습니다.');
       }
     } catch { Alert.alert('오류', '댓글 작성에 실패했습니다.'); }
     finally { setSubmitting(false); }
   };
 
   const deleteComment = (cid: number) => {
+    if (!token) { Alert.alert('오류', '로그인 후 이용할 수 있습니다.'); return; }
     Alert.alert('삭제', '댓글을 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => {
-        await fetch(`${API}/community/${id}/comments/${cid}`, { method: 'DELETE' });
-        setComments(prev => prev.filter(c => c.id !== cid));
+        const r = await fetch(`${API}/community/${id}/comments/${cid}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (r.ok) setComments(prev => prev.filter(c => c.id !== cid));
+        else Alert.alert('오류', '삭제 권한이 없습니다.');
       }},
     ]);
   };

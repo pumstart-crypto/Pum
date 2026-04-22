@@ -351,7 +351,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
 
       // ── 디버그: item 전체를 로그 (임시배정 시 필드 파악용) ──
       if (isTempAssign) {
-        console.log('[MySeat] 임시배정 item:', JSON.stringify(item, null, 2));
+
       }
 
       // ── 임시배정 종료 시각 ── (다양한 필드명 시도)
@@ -390,7 +390,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
             if (/^\d{2}:\d{2}(:\d{2})?$/.test(val)) {
               if (!(`${startH}:${startM}`).startsWith(val.substring(0, 5))) {
                 tempEndTime = val.substring(0, 5);
-                console.log(`[MySeat] tempEndTime 추정 from item.${key}:`, val);
+
                 break;
               }
             }
@@ -409,13 +409,13 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
                 const candidate = `${String(td.getHours()).padStart(2,'0')}:${String(td.getMinutes()).padStart(2,'0')}`;
                 if (candidate !== `${startH}:${startM}`) {
                   tempEndTime = candidate;
-                  console.log(`[MySeat] tempEndTime from state.${key}:`, val, '→', tempEndTime);
+
                   break;
                 }
               }
             } else if (timeMatch && val.length <= 8 && val !== `${startH}:${startM}`) {
               tempEndTime = `${timeMatch[1]}:${timeMatch[2]}`;
-              console.log(`[MySeat] tempEndTime from state.${key}:`, val);
+
               break;
             }
           }
@@ -423,7 +423,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
         // 최종 폴백: 임시배정은 통상 예약 후 15분 (정확한 필드명 모를 때)
         if (!tempEndTime) {
           tempEndTime = addMins(`${startH}:${startM}`, 15);
-          console.log('[MySeat] tempEndTime 15분 폴백:', tempEndTime);
+
         }
       }
 

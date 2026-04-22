@@ -1,7 +1,11 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env["JWT_SECRET"] || "campus-life-jwt-secret-2024";
+const JWT_SECRET = process.env["JWT_SECRET"];
+if (!JWT_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("JWT_SECRET 환경변수가 설정되어야 합니다.");
+}
+const _JWT_SECRET = JWT_SECRET || "campus-life-jwt-secret-dev-only";
 const JWT_EXPIRES = "30d";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -13,12 +17,12 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function signToken(payload: { userId: number; username: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign(payload, _JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
 export function verifyToken(token: string): { userId: number; username: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: number; username: string };
+    return jwt.verify(token, _JWT_SECRET) as { userId: number; username: string };
   } catch {
     return null;
   }
