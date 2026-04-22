@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
+import { randomUUID } from "crypto";
 import { db, usersTable, phoneVerificationsTable, sessionsTable } from "@workspace/db";
 import { eq, and, gt, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword, signToken, verifyToken, generateOTP, normalizePhone } from "../lib/auth";
@@ -280,6 +281,140 @@ router.post("/auth/logout", async (req, res) => {
     await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
   }
   res.json({ message: "로그아웃 되었습니다." });
+});
+
+// ── 비밀번호 재설정 토큰 (in-memory, 10분 유효) ───────────────
+const resetTokens = new Map<string, { userId: number; expiresAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of resetTokens.entries()) { if (now > v.expiresAt) resetTokens.delete(k); }
+}, 5 * 60 * 1000);
+
+// 공통 헬퍼: find-id / find-password 용 OTP 발송 (가입된 번호 전용)
+async function sendRecoveryOTP(phone: string): Promise<{ code: string }> {
+  const code = generateOTP();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  await db.insert(phoneVerificationsTable).values({ phone, code, expiresAt });
+  await sendOTP(phone, code);
+  return { code };
+}
+
+// ── 아이디 찾기 : OTP 발송 ────────────────────────────────────
+router.post("/auth/find-id/send-otp", async (req, res) => {
+  const schema = z.object({ name: z.string().min(1), phone: z.string().min(10) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ message: "이름과 전화번호를 올바르게 입력하세요." }); return; }
+
+  const phone = normalizePhone(parsed.data.phone);
+  const [user] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.phone, phone)));
+  if (!user) { res.status(404).json({ message: "입력하신 정보와 일치하는 계정이 없습니다." }); return; }
+
+  try {
+    const { code } = await sendRecoveryOTP(phone);
+    const isDev = process.env.NODE_ENV !== "production";
+    res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
+  } catch {
+    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+  }
+});
+
+// ── 아이디 찾기 : OTP 확인 + 아이디 반환 ─────────────────────
+router.post("/auth/find-id/verify", async (req, res) => {
+  const schema = z.object({ name: z.string().min(1), phone: z.string().min(10), code: z.string().length(6) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ message: "잘못된 요청입니다." }); return; }
+
+  const phone = normalizePhone(parsed.data.phone);
+  const now = new Date();
+
+  const [record] = await db.select().from(phoneVerificationsTable).where(and(
+    eq(phoneVerificationsTable.phone, phone),
+    eq(phoneVerificationsTable.code, parsed.data.code),
+    eq(phoneVerificationsTable.verified, false),
+    gt(phoneVerificationsTable.expiresAt, now),
+  )).orderBy(phoneVerificationsTable.createdAt).limit(1);
+
+  if (!record) { res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return; }
+
+  const [user] = await db.select({ username: usersTable.username }).from(usersTable)
+    .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.phone, phone)));
+  if (!user) { res.status(404).json({ message: "일치하는 계정이 없습니다." }); return; }
+
+  await db.update(phoneVerificationsTable).set({ verified: true }).where(eq(phoneVerificationsTable.id, record.id));
+  res.json({ username: user.username });
+});
+
+// ── 비밀번호 찾기 : OTP 발송 ─────────────────────────────────
+router.post("/auth/find-password/send-otp", async (req, res) => {
+  const schema = z.object({ name: z.string().min(1), username: z.string().min(1), phone: z.string().min(10) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ message: "모든 항목을 올바르게 입력하세요." }); return; }
+
+  const phone = normalizePhone(parsed.data.phone);
+  const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(and(
+    eq(usersTable.name, parsed.data.name),
+    eq(usersTable.username, parsed.data.username),
+    eq(usersTable.phone, phone),
+  ));
+  if (!user) { res.status(404).json({ message: "입력하신 정보와 일치하는 계정이 없습니다." }); return; }
+
+  try {
+    const { code } = await sendRecoveryOTP(phone);
+    const isDev = process.env.NODE_ENV !== "production";
+    res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
+  } catch {
+    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+  }
+});
+
+// ── 비밀번호 찾기 : OTP 확인 + 재설정 토큰 발급 ─────────────
+router.post("/auth/find-password/verify", async (req, res) => {
+  const schema = z.object({ name: z.string().min(1), username: z.string().min(1), phone: z.string().min(10), code: z.string().length(6) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ message: "잘못된 요청입니다." }); return; }
+
+  const phone = normalizePhone(parsed.data.phone);
+  const now = new Date();
+
+  const [record] = await db.select().from(phoneVerificationsTable).where(and(
+    eq(phoneVerificationsTable.phone, phone),
+    eq(phoneVerificationsTable.code, parsed.data.code),
+    eq(phoneVerificationsTable.verified, false),
+    gt(phoneVerificationsTable.expiresAt, now),
+  )).orderBy(phoneVerificationsTable.createdAt).limit(1);
+
+  if (!record) { res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return; }
+
+  const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(and(
+    eq(usersTable.name, parsed.data.name),
+    eq(usersTable.username, parsed.data.username),
+    eq(usersTable.phone, phone),
+  ));
+  if (!user) { res.status(404).json({ message: "일치하는 계정이 없습니다." }); return; }
+
+  await db.update(phoneVerificationsTable).set({ verified: true }).where(eq(phoneVerificationsTable.id, record.id));
+
+  const resetToken = randomUUID();
+  resetTokens.set(resetToken, { userId: user.id, expiresAt: Date.now() + 10 * 60 * 1000 });
+  res.json({ resetToken });
+});
+
+// ── 비밀번호 재설정 ──────────────────────────────────────────
+router.post("/auth/reset-password", async (req, res) => {
+  const schema = z.object({ resetToken: z.string().uuid(), newPassword: z.string().min(8, "비밀번호는 8자 이상이어야 합니다.") });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ message: parsed.error.errors[0]?.message || "잘못된 요청입니다." }); return; }
+
+  const tokenData = resetTokens.get(parsed.data.resetToken);
+  if (!tokenData || Date.now() > tokenData.expiresAt) {
+    res.status(400).json({ message: "인증이 만료되었습니다. 처음부터 다시 시도해주세요." }); return;
+  }
+
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, tokenData.userId));
+  resetTokens.delete(parsed.data.resetToken);
+  res.json({ message: "비밀번호가 변경되었습니다." });
 });
 
 export default router;
