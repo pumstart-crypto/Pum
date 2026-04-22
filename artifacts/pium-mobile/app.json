@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "P:um 피움",
+    "name": "P:um",
     "slug": "pum",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -36,7 +36,7 @@
       "package": "com.pum.app"
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
