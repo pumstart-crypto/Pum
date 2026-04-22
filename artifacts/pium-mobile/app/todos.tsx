@@ -297,18 +297,19 @@ export default function TodosScreen() {
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="chevron-left" size={22} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
+        <Text style={styles.universityLabel}>부산대학교</Text>
         <View style={styles.headerTitleRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>부산대학교</Text>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>할 일</Text>
-          </View>
-          <TouchableOpacity onPress={() => setShowCatMgr(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingBottom: 4 }}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>할 일</Text>
+          <TouchableOpacity onPress={() => setShowCatMgr(true)} style={styles.menuBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Feather name="menu" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
+        <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+          {calYear}년 {calMonth + 1}월
+        </Text>
       </View>
 
       <ScrollView
@@ -592,19 +593,25 @@ const CIRCLE = 32;
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
-  // Header
+  // Header — 학사일정 스타일
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 20,
+  },
+  backBtn: { width: 36, height: 36, justifyContent: 'center', marginBottom: 4, marginLeft: -4 },
+  universityLabel: {
+    fontSize: 11, fontFamily: 'Inter_700Bold',
+    color: C.primary, letterSpacing: 2,
+    textTransform: 'uppercase', marginBottom: 6,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginTop: 2,
   },
-  headerSub: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
-  headerTitle: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
+  headerTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
+  menuBtn: { paddingBottom: 6 },
+  headerSub: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 4 },
 
   // Calendar card
   calCard: {
