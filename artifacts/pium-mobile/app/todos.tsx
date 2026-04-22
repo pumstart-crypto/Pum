@@ -297,13 +297,18 @@ export default function TodosScreen() {
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="chevron-left" size={24} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Feather name="chevron-left" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.pageTitle, { color: colors.text }]}>할 일</Text>
-        <TouchableOpacity onPress={() => setShowCatMgr(true)} style={styles.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="menu" size={21} color={colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerTitleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>부산대학교</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>할 일</Text>
+          </View>
+          <TouchableOpacity onPress={() => setShowCatMgr(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingBottom: 4 }}>
+            <Feather name="menu" size={22} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -347,16 +352,6 @@ export default function TodosScreen() {
             {calCells.map((day, idx) => renderDayCell(day, idx))}
           </View>
 
-          {/* Selected date label */}
-          {selectedDate && (
-            <TouchableOpacity
-              onPress={() => setSelectedDate(null)}
-              style={styles.selDateRow}
-            >
-              <Feather name="x" size={12} color="#fff" />
-              <Text style={styles.selDateText}>삭제</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* ── Category sections ── */}
@@ -599,14 +594,17 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
-  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  pageTitle: { fontSize: 17, fontWeight: '600', letterSpacing: -0.3 },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  headerSub: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  headerTitle: { fontSize: 34, fontWeight: '700', letterSpacing: -0.5 },
 
   // Calendar card
   calCard: {
@@ -677,21 +675,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
 
-  // Selected date deselect button
-  selDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    gap: 4,
-    marginTop: 10,
-    marginBottom: 2,
-    backgroundColor: C.primary,
-    borderRadius: 20,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-  },
-  selDateText: { fontSize: 12, fontWeight: '600', color: '#fff' },
 
   // Category sections
   catList: { paddingHorizontal: 16, gap: 10, marginTop: 12 },
