@@ -92,7 +92,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
               <Text style={sheet.label}>부산대 웹메일</Text>
               <View style={sheet.emailRow}>
                 <TextInput style={[sheet.input, sheet.emailLocalInput]} value={emailLocal}
-                  onChangeText={setEmailLocal} placeholder="학번" placeholderTextColor="#9CA3AF"
+                  onChangeText={setEmailLocal} placeholder="웹메일 주소" placeholderTextColor="#9CA3AF"
                   keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
                 <View style={sheet.emailDomain}>
                   <Text style={sheet.emailDomainText}>@pusan.ac.kr</Text>
@@ -261,7 +261,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
               <Text style={sheet.label}>부산대 웹메일</Text>
               <View style={sheet.emailRow}>
                 <TextInput style={[sheet.input, sheet.emailLocalInput]} value={emailLocal}
-                  onChangeText={setEmailLocal} placeholder="학번" placeholderTextColor="#9CA3AF"
+                  onChangeText={setEmailLocal} placeholder="웹메일 주소" placeholderTextColor="#9CA3AF"
                   keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
                 <View style={sheet.emailDomain}>
                   <Text style={sheet.emailDomainText}>@pusan.ac.kr</Text>

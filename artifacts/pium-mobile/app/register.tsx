@@ -302,7 +302,7 @@ export default function RegisterScreen() {
                 style={[styles.input, styles.emailLocalInput]}
                 value={emailLocal}
                 onChangeText={v => { setEmailLocal(v); setCodeSent(false); setEmailVerified(false); setCode(''); }}
-                placeholder="학번"
+                placeholder="웹메일 주소"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
