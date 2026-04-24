@@ -12,22 +12,20 @@ import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
-const PINNED_KEY = 'pium_community_pinned_depts';
+const TAB_ORDER_KEY = 'pium_community_tab_order';
 
 /* ── 고정 카테고리 ── */
 const FIXED_CATEGORIES = [
   { id: '전체',    label: '전체',    icon: 'grid-outline' },
-  { id: '수업Q&A', label: '수업Q&A', icon: 'help-circle-outline' },
   { id: '중고거래', label: '중고거래', icon: 'swap-horizontal-outline' },
-  { id: '동아리',  label: '동아리',  icon: 'people-outline' },
+  { id: '홍보',    label: '홍보',    icon: 'megaphone-outline' },
   { id: '분실물',  label: '분실물',  icon: 'search-outline' },
   { id: '꿀팁',    label: '꿀팁',    icon: 'bulb-outline' },
 ] as const;
 const FIXED_IDS = FIXED_CATEGORIES.map(c => c.id) as string[];
-const FIXED_ORDERABLE_IDS = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁']; // 순서 조정 가능한 고정 탭
-const DEFAULT_TAB_ORDER = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁'];
-const TAB_ORDER_KEY = 'pium_community_tab_order';
-const WRITE_CATEGORIES = ['수업Q&A', '중고거래', '동아리', '분실물', '꿀팁'];
+const FIXED_ORDERABLE_IDS = ['중고거래', '홍보', '분실물', '꿀팁'];
+const DEFAULT_TAB_ORDER = ['중고거래', '홍보', '분실물', '꿀팁'];
+const WRITE_CATEGORIES = ['중고거래', '홍보', '분실물', '꿀팁'];
 
 /* ── 타입 ── */
 interface Post {
@@ -85,7 +83,6 @@ function relTime(dateStr: string) {
   return day < 7 ? `${day}일 전` : new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
-/* ── 초성 추출 ── */
 function getInitial(str: string): string {
   const code = str.charCodeAt(0) - 0xAC00;
   if (code < 0) return str[0]?.toUpperCase() ?? '#';
@@ -126,9 +123,8 @@ const avSt = StyleSheet.create({
 
 /* ── Category Badge ── */
 const CAT_BADGE: Record<string, { bg: string; text: string }> = {
-  '수업Q&A': { bg: '#FEE2E2', text: '#DC2626' },
   '중고거래': { bg: '#EDE9FE', text: '#7C3AED' },
-  '동아리':  { bg: '#D1FAE5', text: '#059669' },
+  '홍보':    { bg: '#D1FAE5', text: '#059669' },
   '분실물':  { bg: '#FEF3C7', text: '#D97706' },
   '꿀팁':    { bg: '#DBEAFE', text: '#1D4ED8' },
   '기타':    { bg: '#F3F4F6', text: '#6B7280' },
@@ -209,12 +205,11 @@ function PostCard({ post }: { post: Post }) {
 
 /* ── Dept Browser Modal ── */
 function DeptBrowserModal({
-  visible, onClose, pinnedDepts, myDept, onPin, onUnpin, onView,
+  visible, onClose, pinnedDepts, onPin, onUnpin, onView,
 }: {
   visible: boolean;
   onClose: () => void;
   pinnedDepts: string[];
-  myDept: string;
   onPin: (dept: string) => void;
   onUnpin: (dept: string) => void;
   onView: (dept: string) => void;
@@ -239,61 +234,31 @@ function DeptBrowserModal({
 
   const isSearching = !!q.trim();
   const filtered: DeptItem[] = isSearching
-    ? (() => {
-        const q2 = q.trim();
-        const results = depts.filter(d => d.name.includes(q2) || d.college.includes(q2));
-        // 내 학과 최상단 표시
-        const mine = results.find(d => d.name === myDept);
-        return mine ? [mine, ...results.filter(d => d.name !== myDept)] : results;
-      })()
+    ? depts.filter(d => d.name.includes(q.trim()) || d.college.includes(q.trim()))
     : [];
 
-  const sections = React.useMemo(() => {
-    const base = buildSections(depts);
-    if (!myDept) return base;
-    const myItem = depts.find(d => d.name === myDept);
-    if (!myItem) return base;
-    // 내 학과 섹션 최상단 + 해당 대학 섹션에서 제거
-    const rest = base
-      .map(s => ({ ...s, data: s.data.filter(d => d.name !== myDept) }))
-      .filter(s => s.data.length > 0);
-    return [{ title: '내 학과', data: [myItem] }, ...rest];
-  }, [depts, myDept]);
-  const collegeNames = sections.map(s => s.title);
-
-  const scrollToSection = (college: string) => {
-    const idx = sections.findIndex(s => s.title === college);
-    if (idx < 0 || !sectionListRef.current) return;
-    try { sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true, viewOffset: 4 }); } catch {}
-  };
+  const sections = React.useMemo(() => buildSections(depts), [depts]);
 
   const renderDeptItem = (item: DeptItem) => {
     const isPinned = pinnedSet.has(item.name);
-    const isLocked = item.name === myDept && !!myDept; // 학생증 인증 학과 – 삭제 불가
     return (
       <TouchableOpacity
         key={item.name}
         style={styles.deptItem}
         onPress={() => { onView(item.name); onClose(); }}
-        onLongPress={() => { if (!isLocked) isPinned ? onUnpin(item.name) : onPin(item.name); }}
+        onLongPress={() => isPinned ? onUnpin(item.name) : onPin(item.name)}
         delayLongPress={400}
         activeOpacity={0.7}
       >
         <View style={styles.deptItemLeft}>
-          <Text style={[styles.deptItemName, (isPinned || isLocked) && { color: isLocked ? C.primary : '#92400E', fontFamily: 'Inter_600SemiBold' }]}>
+          <Text style={[styles.deptItemName, isPinned && { color: '#92400E', fontFamily: 'Inter_600SemiBold' }]}>
             {item.name}
           </Text>
-          {isLocked
-            ? <Text style={[styles.deptPinnedLabel, { color: C.primary }]}>내 학과 · 학생증 인증</Text>
-            : isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
+          {isPinned && <Text style={styles.deptPinnedLabel}>탭 고정됨</Text>}
         </View>
-        {isLocked ? (
-          <Ionicons name="lock-closed-outline" size={17} color={C.primary} />
-        ) : (
-          <TouchableOpacity onPress={() => isPinned ? onUnpin(item.name) : onPin(item.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name={isPinned ? 'star' : 'star-outline'} size={18} color={isPinned ? '#F59E0B' : '#D1D5DB'} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity onPress={() => isPinned ? onUnpin(item.name) : onPin(item.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name={isPinned ? 'star' : 'star-outline'} size={18} color={isPinned ? '#F59E0B' : '#D1D5DB'} />
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -306,7 +271,7 @@ function DeptBrowserModal({
           <View style={styles.sheetTitleRow}>
             <View>
               <Text style={styles.sheetTitle}>학과 게시판</Text>
-              <Text style={styles.sheetSub}>꾹 누르면 탭에 고정돼요</Text>
+              <Text style={styles.sheetSub}>별표를 눌러 탭에 고정하세요</Text>
             </View>
             <TouchableOpacity onPress={onClose}>
               <Feather name="x" size={22} color="#9CA3AF" />
@@ -328,7 +293,6 @@ function DeptBrowserModal({
           {loading ? (
             <ActivityIndicator color={C.primary} style={{ marginTop: 32 }} />
           ) : isSearching ? (
-            /* 검색 결과: 평탄 리스트 */
             <FlatList
               data={filtered}
               keyExtractor={item => item.name}
@@ -342,7 +306,6 @@ function DeptBrowserModal({
               }
             />
           ) : (
-            /* 단과대학별 섹션 + 우측 인덱스 바 */
             <View style={{ flex: 1, flexDirection: 'row' }}>
               <SectionList
                 ref={sectionListRef}
@@ -351,15 +314,11 @@ function DeptBrowserModal({
                 showsVerticalScrollIndicator={false}
                 style={{ flex: 1 }}
                 stickySectionHeadersEnabled
-                renderSectionHeader={({ section }) => {
-                  const isMySection = section.title === '내 학과';
-                  return (
-                    <View style={[styles.sectionHeader, isMySection && { backgroundColor: '#EBF5FF', borderBottomColor: '#BFDBFE' }]}>
-                      {isMySection && <Ionicons name="home-outline" size={11} color={C.primary} style={{ marginRight: 4 }} />}
-                      <Text style={[styles.sectionHeaderText, isMySection && { color: C.primary }]}>{section.title}</Text>
-                    </View>
-                  );
-                }}
+                renderSectionHeader={({ section }) => (
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionHeaderText}>{section.title}</Text>
+                  </View>
+                )}
                 renderItem={({ item }) => renderDeptItem(item)}
                 ListEmptyComponent={
                   <View style={{ alignItems: 'center', paddingVertical: 32 }}>
@@ -377,21 +336,19 @@ function DeptBrowserModal({
 
 /* ── Reorder Modal ── */
 function ReorderModal({
-  visible, onClose, tabOrder, myDept, onChange,
+  visible, onClose, tabOrder, onChange,
 }: {
   visible: boolean;
   onClose: () => void;
   tabOrder: string[];
-  myDept: string;
   onChange: (order: string[]) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [local, setLocal] = useState<string[]>([]);
 
-  // myDept는 local에서 제외 – 상단 고정 처리
   useEffect(() => {
-    if (visible) setLocal(tabOrder.filter(t => t !== myDept));
-  }, [visible, tabOrder, myDept]);
+    if (visible) setLocal([...tabOrder]);
+  }, [visible, tabOrder]);
 
   const move = (i: number, dir: -1 | 1) => {
     const next = [...local];
@@ -402,22 +359,20 @@ function ReorderModal({
   };
 
   const remove = (i: number) => {
+    const tabId = local[i];
+    if (FIXED_ORDERABLE_IDS.includes(tabId)) return;
     setLocal(prev => prev.filter((_, idx) => idx !== i));
   };
 
   const save = () => {
-    // myDept는 항상 맨 앞
-    const final = myDept ? [myDept, ...local] : local;
-    onChange(final);
+    onChange(local);
     onClose();
   };
 
   const getTabDisplay = (tabId: string) => {
-    const isMyDept = tabId === myDept && !!myDept;
     const fixedCat = FIXED_CATEGORIES.find(c => c.id === tabId);
-    if (isMyDept) return { label: `내 학과 (${tabId})`, icon: 'home-outline' as const, isFixed: false, isMyDept: true };
-    if (fixedCat) return { label: fixedCat.label, icon: fixedCat.icon as any, isFixed: true, isMyDept: false };
-    return { label: tabId, icon: 'school-outline' as const, isFixed: false, isMyDept: false };
+    if (fixedCat) return { label: fixedCat.label, icon: fixedCat.icon as any, isFixed: true };
+    return { label: tabId, icon: 'school-outline' as const, isFixed: false };
   };
 
   return (
@@ -435,36 +390,23 @@ function ReorderModal({
             </TouchableOpacity>
           </View>
 
-          {/* 고정: 전체 탭 (항상 첫 번째, 편집 불가) */}
+          {/* 고정: 전체 탭 (항상 첫 번째) */}
           <View style={[styles.reorderItem, { opacity: 0.4 }]}>
             <Ionicons name="lock-closed-outline" size={16} color="#9CA3AF" style={{ marginRight: 10 }} />
             <Ionicons name="grid-outline" size={15} color="#9CA3AF" style={{ marginRight: 6 }} />
             <Text style={[styles.reorderItemName, { color: '#9CA3AF' }]}>전체 (항상 첫 번째)</Text>
           </View>
 
-          {/* 고정: 내 학과 탭 (항상 두 번째, 편집 불가) */}
-          {!!myDept && (
-            <View style={[styles.reorderItem, { backgroundColor: '#EBF5FF', borderRadius: 10, paddingHorizontal: 10, marginBottom: 4 }]}>
-              <Ionicons name="lock-closed-outline" size={16} color={C.primary} style={{ marginRight: 10 }} />
-              <Ionicons name="home-outline" size={15} color={C.primary} style={{ marginRight: 6 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.reorderItemName, { color: C.primary }]} numberOfLines={1}>내 학과 ({myDept})</Text>
-                <Text style={{ fontSize: 10, color: C.primary, fontFamily: 'Inter_400Regular' }}>학생증 인증 · 항상 두 번째</Text>
-              </View>
-            </View>
-          )}
-
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             {local.map((tabId, i) => {
-              const { label, icon, isFixed, isMyDept } = getTabDisplay(tabId);
+              const { label, icon, isFixed } = getTabDisplay(tabId);
               return (
                 <View key={tabId} style={styles.reorderItem}>
                   <Ionicons name="menu-outline" size={18} color="#D1D5DB" style={{ marginRight: 8 }} />
-                  <Ionicons name={icon} size={15} color={isMyDept ? C.primary : isFixed ? '#6B7280' : '#F59E0B'} style={{ marginRight: 6 }} />
+                  <Ionicons name={icon} size={15} color={isFixed ? '#6B7280' : '#F59E0B'} style={{ marginRight: 6 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.reorderItemName, isMyDept && { color: C.primary }]} numberOfLines={1}>{label}</Text>
-                    {isFixed && <Text style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }}>고정 카테고리 · 삭제 불가</Text>}
-                    {isMyDept && <Text style={{ fontSize: 10, color: C.primary, fontFamily: 'Inter_400Regular' }}>학생증 인증 · 삭제 불가</Text>}
+                    <Text style={styles.reorderItemName} numberOfLines={1}>{label}</Text>
+                    {isFixed && <Text style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }}>기본 카테고리 · 삭제 불가</Text>}
                   </View>
                   <View style={styles.reorderActions}>
                     <TouchableOpacity onPress={() => move(i, -1)} disabled={i === 0} style={[styles.reorderArrow, i === 0 && { opacity: 0.25 }]} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
@@ -473,7 +415,7 @@ function ReorderModal({
                     <TouchableOpacity onPress={() => move(i, 1)} disabled={i === local.length - 1} style={[styles.reorderArrow, i === local.length - 1 && { opacity: 0.25 }]} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
                       <Ionicons name="chevron-down" size={16} color="#6B7280" />
                     </TouchableOpacity>
-                    {!isFixed && !isMyDept ? (
+                    {!isFixed ? (
                       <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
                         <Ionicons name="close-circle" size={20} color="#F87171" />
                       </TouchableOpacity>
@@ -508,7 +450,7 @@ function WriteSheet({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('수업Q&A');
+  const [category, setCategory] = useState('중고거래');
   const [identity, setIdentity] = useState<IdentityType>('anon');
   const [submitting, setSubmitting] = useState(false);
   const isTrade = category === '중고거래';
@@ -531,7 +473,7 @@ function WriteSheet({
       category, subCategory: isTrade ? price.trim() : '',
       author: buildAuthor(identity, profile),
     });
-    setTitle(''); setContent(''); setPrice(''); setCategory('수업Q&A'); setIdentity('anon');
+    setTitle(''); setContent(''); setPrice(''); setCategory('중고거래'); setIdentity('anon');
     setSubmitting(false);
     onClose();
   };
@@ -606,41 +548,32 @@ export default function BoardScreen() {
   const [showReorder, setShowReorder] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
   const [tabOrder, setTabOrder] = useState<string[]>([...DEFAULT_TAB_ORDER]);
-  const [myDept, setMyDept] = useState('');
   const [page, setPage] = useState(1);
   const PER_PAGE = 20;
 
-  // pinnedDepts: tabOrder에서 고정 카테고리 제외한 학과 탭
   const pinnedDepts = tabOrder.filter(t => !FIXED_ORDERABLE_IDS.includes(t));
 
-  // 초기 로드
   useEffect(() => {
-    AsyncStorage.multiGet(['campus_life_profile', TAB_ORDER_KEY, PINNED_KEY]).then(pairs => {
+    AsyncStorage.multiGet(['campus_life_profile', TAB_ORDER_KEY]).then(pairs => {
       const profileRaw = pairs.find(p => p[0] === 'campus_life_profile')?.[1];
       const orderRaw = pairs.find(p => p[0] === TAB_ORDER_KEY)?.[1];
-      const legacyRaw = pairs.find(p => p[0] === PINNED_KEY)?.[1];
 
-      let dept = '';
-      if (profileRaw) { try { const pr = JSON.parse(profileRaw); dept = pr.major ?? pr.department ?? ''; setProfile(pr); } catch {} }
-      setMyDept(dept);
-
-      let order: string[];
-      if (orderRaw) {
-        try { order = JSON.parse(orderRaw); } catch { order = [...DEFAULT_TAB_ORDER]; }
-      } else if (legacyRaw) {
-        // 이전 버전 데이터 마이그레이션
-        try { const pinned: string[] = JSON.parse(legacyRaw); order = [...DEFAULT_TAB_ORDER, ...pinned]; }
-        catch { order = [...DEFAULT_TAB_ORDER]; }
-      } else {
-        order = [...DEFAULT_TAB_ORDER];
+      if (profileRaw) {
+        try { const pr = JSON.parse(profileRaw); setProfile(pr); } catch {}
       }
 
-      // 구버전에서 '내 학과' 문자열이 탭 ID로 저장된 경우 제거
-      order = order.filter(t => t !== '내 학과');
-
-      // 인증된 학과: 항상 첫 번째 위치 보장 (이미 있어도 앞으로 이동)
-      if (dept) {
-        order = [dept, ...order.filter(t => t !== dept)];
+      let order: string[] = [...DEFAULT_TAB_ORDER];
+      if (orderRaw) {
+        try {
+          const saved: string[] = JSON.parse(orderRaw);
+          // 마이그레이션: 기존 '수업Q&A', '동아리' → 업데이트된 기본값으로 정규화
+          const migrated = saved
+            .filter(t => t !== '수업Q&A' && t !== '내 학과')
+            .map(t => t === '동아리' ? '홍보' : t);
+          // 기본 카테고리 누락분 앞에 추가
+          const missingDefaults = DEFAULT_TAB_ORDER.filter(d => !migrated.includes(d));
+          order = [...missingDefaults, ...migrated];
+        } catch {}
       }
 
       setTabOrder(order);
@@ -649,14 +582,12 @@ export default function BoardScreen() {
   }, []);
 
   const saveTabOrder = useCallback((order: string[]) => {
-    // myDept는 항상 첫 번째 위치 보장
-    const normalized = myDept
-      ? [myDept, ...order.filter(t => t !== myDept)]
-      : order;
-    setTabOrder(normalized);
-    AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(normalized));
-    if (!normalized.includes(activeCategory)) setActiveCategory('전체');
-  }, [activeCategory, myDept]);
+    setTabOrder(order);
+    AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
+    if (!order.includes(activeCategory) && !FIXED_CATEGORIES.find(c => c.id === activeCategory && activeCategory === '전체')) {
+      setActiveCategory('전체');
+    }
+  }, [activeCategory]);
 
   const pinDept = useCallback((dept: string) => {
     setTabOrder(prev => {
@@ -668,14 +599,13 @@ export default function BoardScreen() {
   }, []);
 
   const unpinDept = useCallback((dept: string) => {
-    if (dept === myDept) return; // 내 학과(학생증 인증)는 삭제 불가
     setTabOrder(prev => {
       const next = prev.filter(d => d !== dept);
       AsyncStorage.setItem(TAB_ORDER_KEY, JSON.stringify(next));
       if (activeCategory === dept) setActiveCategory('전체');
       return next;
     });
-  }, [activeCategory, myDept]);
+  }, [activeCategory]);
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -716,12 +646,7 @@ export default function BoardScreen() {
   const paged = filtered.slice(0, page * PER_PAGE);
   const hasMore = paged.length < filtered.length;
 
-  // 활성 카테고리가 학과 탭인지
   const isDepTabActive = !FIXED_IDS.includes(activeCategory);
-  const activeIsMyDept = isDepTabActive && activeCategory === myDept;
-  const activeLabel = isDepTabActive
-    ? (activeIsMyDept ? `내 학과 · ${activeCategory}` : activeCategory)
-    : FIXED_CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory;
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
@@ -754,7 +679,6 @@ export default function BoardScreen() {
           {/* tabOrder 순서대로 탭 렌더링 */}
           {tabOrder.map(tabId => {
             const active = activeCategory === tabId;
-            const isMyDeptTab = tabId === myDept && !!myDept;
             const fixedCat = FIXED_CATEGORIES.find(c => c.id === tabId);
 
             if (fixedCat) {
@@ -767,17 +691,6 @@ export default function BoardScreen() {
             }
 
             // 학과 탭
-            if (isMyDeptTab) {
-              return (
-                <TouchableOpacity key={tabId} style={[styles.catChipBar, styles.catChipBarMyDept, active && styles.catChipBarMyDeptActive]} onPress={() => setActiveCategory(tabId)} activeOpacity={0.8}>
-                  <Ionicons name="home-outline" size={13} color={active ? '#fff' : C.primary} />
-                  <View>
-                    <Text style={[styles.catChipBarText, { color: active ? '#fff' : C.primary, fontFamily: 'Inter_700Bold' }]}>내 학과</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            }
-
             return (
               <TouchableOpacity key={tabId} style={[styles.catChipBar, styles.catChipBarDept, active && styles.catChipBarDeptActive]} onPress={() => setActiveCategory(tabId)} activeOpacity={0.8}>
                 <Ionicons name="school-outline" size={13} color={active ? '#fff' : '#F59E0B'} />
@@ -802,13 +715,11 @@ export default function BoardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
       >
-        {/* 내 학과 탭 안내 배너 */}
+        {/* 학과 탭 안내 배너 */}
         {isDepTabActive && (
-          <View style={[styles.deptTabBanner, activeIsMyDept && styles.deptTabBannerMyDept]}>
-            <Ionicons name={activeIsMyDept ? 'home-outline' : 'school-outline'} size={14} color={activeIsMyDept ? C.primary : '#92400E'} />
-            <Text style={[styles.deptTabBannerText, activeIsMyDept && { color: C.primary }]}>
-              {activeIsMyDept ? `내 학과 · ${activeCategory} 게시판` : `${activeCategory} 게시판`}
-            </Text>
+          <View style={styles.deptTabBanner}>
+            <Ionicons name="school-outline" size={14} color="#92400E" />
+            <Text style={styles.deptTabBannerText}>{activeCategory} 게시판</Text>
           </View>
         )}
 
@@ -846,7 +757,6 @@ export default function BoardScreen() {
         visible={showDeptBrowser}
         onClose={() => setShowDeptBrowser(false)}
         pinnedDepts={pinnedDepts}
-        myDept={myDept}
         onPin={pinDept}
         onUnpin={unpinDept}
         onView={(dept) => setActiveCategory(dept)}
@@ -856,7 +766,6 @@ export default function BoardScreen() {
         visible={showReorder}
         onClose={() => setShowReorder(false)}
         tabOrder={tabOrder}
-        myDept={myDept}
         onChange={saveTabOrder}
       />
     </View>
@@ -881,8 +790,6 @@ const styles = StyleSheet.create({
   catChipBarTextActive: { color: '#fff' },
   catChipBarDept: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' },
   catChipBarDeptActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
-  catChipBarMyDept: { backgroundColor: '#EBF5FF', borderWidth: 1.5, borderColor: C.primary },
-  catChipBarMyDeptActive: { backgroundColor: C.primary, borderColor: C.primary },
   catChipBarPlus: {
     width: 32, height: 32, borderRadius: 999,
     borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed',
@@ -891,10 +798,7 @@ const styles = StyleSheet.create({
 
   feed: { paddingHorizontal: 12, paddingTop: 10 },
 
-  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF4FF', borderRadius: 12, padding: 12, marginBottom: 10 },
-  infoText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: C.primary },
   deptTabBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFBEB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: '#FDE68A' },
-  deptTabBannerMyDept: { backgroundColor: '#EBF5FF', borderColor: '#BFDBFE' },
   deptTabBannerText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#92400E' },
 
   card: { backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
@@ -944,12 +848,8 @@ const styles = StyleSheet.create({
   deptItemName: { fontSize: 15, fontFamily: 'Inter_500Medium', color: '#111827' },
   deptPinnedLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#F59E0B', marginTop: 2 },
 
-  // Section index
   sectionHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', paddingHorizontal: 4, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   sectionHeaderText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1 },
-  indexBar: { width: 22, justifyContent: 'center', alignItems: 'center', paddingVertical: 4, gap: 1 },
-  indexItem: { paddingVertical: 2, paddingHorizontal: 2, alignItems: 'center' },
-  indexText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: C.primary, lineHeight: 14 },
 
   // Reorder
   reorderItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
@@ -968,13 +868,15 @@ const styles = StyleSheet.create({
   identityLabelSel: { color: C.primary },
   identitySub: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF', textAlign: 'center', marginTop: 2 },
   identityCheck: { position: 'absolute', top: 6, right: 6 },
-  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#F3F4F6' },
-  catChipSel: { backgroundColor: C.primary },
-  catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  catChipTextSel: { color: '#fff' },
-  inputField: { backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15, fontFamily: 'Inter_400Regular', color: '#111827', marginBottom: 10 },
-  inputMultiline: { minHeight: 90, textAlignVertical: 'top' },
-  submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
-  submitBtnDisabled: { backgroundColor: '#D1D5DB' },
+
+  catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
+  catChipSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
+  catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+  catChipTextSel: { color: C.primary },
+
+  inputField: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Inter_400Regular', color: '#111827', marginBottom: 10 },
+  inputMultiline: { height: 100, textAlignVertical: 'top' },
+  submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
+  submitBtnDisabled: { opacity: 0.4 },
   submitBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
 });
