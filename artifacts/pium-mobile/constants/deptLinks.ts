@@ -119,3 +119,15 @@ export function getDeptList(): Array<{ name: string; college: string }> {
     .map(([name, info]) => ({ name, college: info.college }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko', { sensitivity: 'base' }));
 }
+
+export function getCollegeOrder(): string[] {
+  const seen = new Set<string>();
+  const order: string[] = [];
+  for (const info of Object.values(DEPT_LINKS)) {
+    if (!seen.has(info.college)) {
+      seen.add(info.college);
+      order.push(info.college);
+    }
+  }
+  return order;
+}

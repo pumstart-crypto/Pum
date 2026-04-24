@@ -11,7 +11,7 @@ import { loadProfileAsync } from '@/hooks/useProfile';
 import C from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getDeptList } from '@/constants/deptLinks';
+import { getDeptList, getCollegeOrder } from '@/constants/deptLinks';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const PAGE_SIZE = 10;
@@ -39,6 +39,7 @@ interface DeptNotice {
 
 interface DeptInfo {
   name: string;
+  college: string;
   hasNotice: boolean;
   hasJobs: boolean;
 }
@@ -185,14 +186,6 @@ function SchoolNotices({ search, scrollRef }: { search: string; scrollRef: React
   );
 }
 
-/* ── 초성 추출 ── */
-function getInitial(str: string): string {
-  const code = str.charCodeAt(0) - 0xAC00;
-  if (code < 0) return str[0]?.toUpperCase() ?? '#';
-  const initials = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-  return initials[Math.floor(code / 588)] ?? '#';
-}
-
 /* ── Dept Picker Modal ── */
 function DeptPickerModal({
   visible, depts, selected, myMajor, onSelect, onClose,
@@ -208,53 +201,37 @@ function DeptPickerModal({
   const [q, setQ] = useState('');
   const sectionListRef = useRef<SectionList>(null);
 
-  const allNames = React.useMemo(() => {
-    const supported = depts.map(d => d.name);
-    if (myMajor && !supported.includes(myMajor)) {
-      return [myMajor, ...supported];
-    }
-    return supported;
-  }, [depts, myMajor]);
-
   const isSupported = (name: string) => depts.some(d => d.name === name);
 
-  /* 검색 중: 평탄 결과 */
+  /* 검색 중: 평탄 결과 (전체 학과명에서 검색) */
+  const allNames = React.useMemo(() => depts.map(d => d.name), [depts]);
   const filtered = React.useMemo(
     () => q.trim() ? allNames.filter(n => n.includes(q.trim())) : [],
     [allNames, q],
   );
 
-  /* 초성별 섹션 */
+  /* 단과대별 섹션 (deptLinks.ts 순서 유지, 내 학과 ★ 최상단) */
   const sections = React.useMemo(() => {
-    const sectionMap = new Map<string, string[]>();
-    const others = myMajor ? allNames.filter(n => n !== myMajor) : allNames;
-    for (const name of others) {
-      const c = getInitial(name);
-      if (!sectionMap.has(c)) sectionMap.set(c, []);
-      sectionMap.get(c)!.push(name);
+    const collegeOrder = getCollegeOrder();
+    const grouped = new Map<string, string[]>();
+    for (const d of depts) {
+      if (d.name === myMajor) continue;
+      if (!grouped.has(d.college)) grouped.set(d.college, []);
+      grouped.get(d.college)!.push(d.name);
+    }
+    for (const names of grouped.values()) {
+      names.sort((a, b) => a.localeCompare(b, 'ko', { sensitivity: 'base' }));
     }
     const result: { title: string; data: string[] }[] = [];
     if (myMajor && allNames.includes(myMajor)) {
       result.push({ title: '★', data: [myMajor] });
     }
-    for (const [title, data] of sectionMap.entries()) {
-      result.push({ title, data });
+    for (const college of collegeOrder) {
+      const names = grouped.get(college);
+      if (names && names.length > 0) result.push({ title: college, data: names });
     }
     return result;
-  }, [allNames, myMajor]);
-
-  const indexConsonants = React.useMemo(
-    () => sections.filter(s => s.title !== '★').map(s => s.title),
-    [sections],
-  );
-
-  const scrollToSection = (consonant: string) => {
-    const idx = sections.findIndex(s => s.title === consonant);
-    if (idx < 0 || !sectionListRef.current) return;
-    try {
-      sectionListRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true, viewOffset: 4 });
-    } catch {}
-  };
+  }, [depts, myMajor, allNames]);
 
   const renderDeptItem = (item: string) => {
     const sup = isSupported(item);
@@ -291,11 +268,9 @@ function DeptPickerModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={pickerStyles.overlay} onPress={onClose} />
       <View style={[pickerStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        {/* Handle */}
         <View style={pickerStyles.handle} />
         <Text style={pickerStyles.title}>학과 선택</Text>
 
-        {/* Search */}
         <View style={pickerStyles.searchBox}>
           <Feather name="search" size={14} color="#9CA3AF" />
           <TextInput
@@ -308,9 +283,8 @@ function DeptPickerModal({
           {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={14} color="#9CA3AF" /></TouchableOpacity>}
         </View>
 
-        <View style={{ flexDirection: 'row', flex: 1, maxHeight: 400 }}>
+        <View style={{ flex: 1, maxHeight: 400 }}>
           {isSearching ? (
-            /* 검색 결과: 평탄 리스트 */
             <FlatList
               data={filtered}
               keyExtractor={item => item}
@@ -324,43 +298,25 @@ function DeptPickerModal({
               }
             />
           ) : (
-            /* 초성별 섹션 + 우측 인덱스 바 */
-            <>
-              <SectionList
-                ref={sectionListRef}
-                sections={sections}
-                keyExtractor={(item, index) => item + index}
-                showsVerticalScrollIndicator={false}
-                style={{ flex: 1 }}
-                stickySectionHeadersEnabled
-                renderSectionHeader={({ section }) => (
-                  <View style={pickerStyles.sectionHeader}>
-                    <Text style={pickerStyles.sectionHeaderText}>{section.title}</Text>
-                  </View>
-                )}
-                renderItem={({ item }) => renderDeptItem(item)}
-                ListEmptyComponent={
-                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                    <Text style={{ color: '#9CA3AF', fontSize: 14 }}>학과 목록이 없습니다</Text>
-                  </View>
-                }
-              />
-              {/* 우측 초성 인덱스 바 */}
-              {indexConsonants.length > 0 && (
-                <View style={pickerStyles.indexBar}>
-                  {indexConsonants.map(c => (
-                    <TouchableOpacity
-                      key={c}
-                      style={pickerStyles.indexItem}
-                      onPress={() => scrollToSection(c)}
-                      hitSlop={{ top: 2, bottom: 2, left: 6, right: 6 }}
-                    >
-                      <Text style={pickerStyles.indexText}>{c}</Text>
-                    </TouchableOpacity>
-                  ))}
+            <SectionList
+              ref={sectionListRef}
+              sections={sections}
+              keyExtractor={(item, index) => item + index}
+              showsVerticalScrollIndicator={false}
+              style={{ flex: 1 }}
+              stickySectionHeadersEnabled
+              renderSectionHeader={({ section }) => (
+                <View style={pickerStyles.sectionHeader}>
+                  <Text style={pickerStyles.sectionHeaderText}>{section.title}</Text>
                 </View>
               )}
-            </>
+              renderItem={({ item }) => renderDeptItem(item)}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14 }}>학과 목록이 없습니다</Text>
+                </View>
+              }
+            />
           )}
         </View>
       </View>
@@ -671,9 +627,9 @@ export default function NoticesScreen() {
   // deptLinks.ts 정적 데이터 기준 picker 목록 (hasNotice/hasJobs는 API 결과로 오버레이)
   const pickerDepts = React.useMemo<DeptInfo[]>(() => {
     const supportedMap = new Map(supportedDepts.map(d => [d.name, d]));
-    return getDeptList().map(({ name }) => {
+    return getDeptList().map(({ name, college }) => {
       const sup = supportedMap.get(name);
-      return { name, hasNotice: sup?.hasNotice ?? false, hasJobs: sup?.hasJobs ?? false };
+      return { name, college, hasNotice: sup?.hasNotice ?? false, hasJobs: sup?.hasJobs ?? false };
     });
   }, [supportedDepts]);
 
