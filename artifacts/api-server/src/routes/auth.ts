@@ -1,40 +1,57 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { randomUUID } from "crypto";
-import { db, usersTable, phoneVerificationsTable, sessionsTable } from "@workspace/db";
-import { eq, and, gt, sql } from "drizzle-orm";
-import { hashPassword, verifyPassword, signToken, verifyToken, generateOTP, normalizePhone } from "../lib/auth";
-import { sendOTP } from "../lib/sms";
+import { db, usersTable, sessionsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { hashPassword, verifyPassword, signToken, verifyToken, generateOTP } from "../lib/auth";
+import { sendVerificationEmail } from "../lib/email";
 import { extractStudentIdInfo } from "../lib/ocr";
 import { z } from "zod";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-// 로그에 전화번호 PII 마스킹 (예: 01012345678 → 010****5678)
-function maskPhone(phone: string): string {
-  return phone.length >= 8 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : "****";
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***";
+  const masked = local.length > 3 ? `${local.slice(0, 2)}***${local.slice(-1)}` : "***";
+  return `${masked}@${domain}`;
 }
 
-// ── IP 기반 OTP 요청 제한 (기기당 하루 5회) ─────────────────────
-const OTP_LIMIT_PER_DAY = 5;
-const otpIpMap = new Map<string, { count: number; resetAt: number }>();
+// ── 인메모리 이메일 인증 저장소 ────────────────────────────────
+// 회원가입용: email → { code, expiresAt, verified }
+const emailVerifStore = new Map<string, { code: string; expiresAt: number; verified: boolean }>();
+// 복구용 (아이디/비밀번호 찾기): email → { code, expiresAt }
+const recoveryStore = new Map<string, { code: string; expiresAt: number }>();
 
-function checkIpOtpLimit(ip: string): { allowed: boolean; remaining: number } {
+// 비밀번호 재설정 토큰 (10분 유효)
+const resetTokens = new Map<string, { userId: number; expiresAt: number }>();
+
+// 주기적 정리 (매 시간)
+setInterval(() => {
   const now = Date.now();
-  const entry = otpIpMap.get(ip);
+  for (const [k, v] of emailVerifStore.entries()) { if (now > v.expiresAt) emailVerifStore.delete(k); }
+  for (const [k, v] of recoveryStore.entries()) { if (now > v.expiresAt) recoveryStore.delete(k); }
+  for (const [k, v] of resetTokens.entries()) { if (now > v.expiresAt) resetTokens.delete(k); }
+}, 60 * 60 * 1000);
+
+// ── IP 기반 이메일 발송 제한 (IP당 하루 5회) ─────────────────
+const SEND_LIMIT_PER_DAY = 5;
+const sendIpMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkIpSendLimit(ip: string): { allowed: boolean } {
+  const now = Date.now();
+  const entry = sendIpMap.get(ip);
   if (!entry || now > entry.resetAt) {
-    otpIpMap.set(ip, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
-    return { allowed: true, remaining: OTP_LIMIT_PER_DAY - 1 };
+    sendIpMap.set(ip, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
+    return { allowed: true };
   }
-  if (entry.count >= OTP_LIMIT_PER_DAY) {
-    return { allowed: false, remaining: 0 };
-  }
+  if (entry.count >= SEND_LIMIT_PER_DAY) return { allowed: false };
   entry.count++;
-  return { allowed: true, remaining: OTP_LIMIT_PER_DAY - entry.count };
+  return { allowed: true };
 }
 
-// ── 로그인 brute-force 방어 (IP당 15분에 10회) ───────────────────
+// ── 로그인 brute-force 방어 (IP당 15분에 10회) ───────────────
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 const loginAttemptMap = new Map<string, { count: number; resetAt: number }>();
@@ -51,36 +68,22 @@ function checkLoginRateLimit(ip: string): boolean {
   return true;
 }
 
-// ── OTP 검증 brute-force 방어 (번호당 15분에 5회 시도) ────────────
-const OTP_VERIFY_MAX = 5;
-const OTP_VERIFY_WINDOW_MS = 15 * 60 * 1000;
-const otpVerifyMap = new Map<string, { count: number; resetAt: number }>();
+// ── 인증번호 검증 brute-force 방어 (이메일당 15분에 5회) ─────
+const VERIFY_MAX = 5;
+const VERIFY_WINDOW_MS = 15 * 60 * 1000;
+const verifyAttemptMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkOtpVerifyLimit(phone: string): boolean {
+function checkVerifyLimit(email: string): boolean {
   const now = Date.now();
-  const entry = otpVerifyMap.get(phone);
+  const entry = verifyAttemptMap.get(email);
   if (!entry || now > entry.resetAt) {
-    otpVerifyMap.set(phone, { count: 1, resetAt: now + OTP_VERIFY_WINDOW_MS });
+    verifyAttemptMap.set(email, { count: 1, resetAt: now + VERIFY_WINDOW_MS });
     return true;
   }
-  if (entry.count >= OTP_VERIFY_MAX) return false;
+  if (entry.count >= VERIFY_MAX) return false;
   entry.count++;
   return true;
 }
-
-// 오래된 항목 정리 (매 시간)
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of otpIpMap.entries()) {
-    if (now > entry.resetAt) otpIpMap.delete(ip);
-  }
-  for (const [ip, entry] of loginAttemptMap.entries()) {
-    if (now > entry.resetAt) loginAttemptMap.delete(ip);
-  }
-  for (const [phone, entry] of otpVerifyMap.entries()) {
-    if (now > entry.resetAt) otpVerifyMap.delete(phone);
-  }
-}, 60 * 60 * 1000);
 
 // ── 아이디 중복 확인 ──────────────────────────────────────────
 router.get("/auth/check-username", async (req, res) => {
@@ -93,98 +96,75 @@ router.get("/auth/check-username", async (req, res) => {
   res.json({ available: !existing });
 });
 
-// ── SMS OTP 발송 ──────────────────────────────────────────────
-router.post("/auth/send-otp", async (req, res) => {
-  const schema = z.object({ phone: z.string().min(10) });
+// ── 웹메일 인증번호 발송 (회원가입) ──────────────────────────
+router.post("/auth/send-verification", async (req, res) => {
+  const schema = z.object({ email: z.string().email() });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ message: "전화번호를 올바르게 입력하세요." }); return; }
+  if (!parsed.success) { res.status(400).json({ message: "올바른 이메일 주소를 입력하세요." }); return; }
 
-  const phone = normalizePhone(parsed.data.phone);
-  if (phone.length < 10 || phone.length > 11) {
-    res.status(400).json({ message: "올바른 휴대폰 번호를 입력하세요." }); return;
+  const email = parsed.data.email.toLowerCase().trim();
+  if (!email.endsWith("@pusan.ac.kr")) {
+    res.status(400).json({ message: "부산대학교 웹메일(@pusan.ac.kr)만 사용할 수 있습니다." }); return;
   }
 
-  // ① 기기(IP) 기반 하루 5회 제한
   const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
-  const ipCheck = checkIpOtpLimit(clientIp);
-  if (!ipCheck.allowed) {
-    res.status(429).json({ message: "하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
+  if (!checkIpSendLimit(clientIp).allowed) {
+    res.status(429).json({ message: "하루 최대 5회까지 인증 메일을 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
   }
 
-  // ② 동일 전화번호 기준 하루 5회 제한 (DB 기반)
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [phoneCount] = await db
-    .select({ count: sql<number>`cast(count(*) as int)` })
-    .from(phoneVerificationsTable)
-    .where(and(eq(phoneVerificationsTable.phone, phone), gt(phoneVerificationsTable.createdAt, oneDayAgo)));
-  if ((phoneCount?.count ?? 0) >= OTP_LIMIT_PER_DAY) {
-    res.status(429).json({ message: "해당 번호로 하루 최대 5회까지 인증번호를 요청할 수 있습니다. 24시간 후 다시 시도해주세요." }); return;
-  }
-
-  // ③ 이미 가입된 번호인지 확인
-  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, phone));
+  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
   if (existing) {
-    res.status(409).json({ message: "이미 가입된 번호입니다. 해당 번호로는 계정을 하나만 만들 수 있습니다." }); return;
+    res.status(409).json({ message: "이미 가입된 이메일입니다." }); return;
   }
 
   const code = generateOTP();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5분
+  emailVerifStore.set(email, { code, expiresAt: Date.now() + 5 * 60 * 1000, verified: false });
 
-  await db.insert(phoneVerificationsTable).values({ phone, code, expiresAt });
-
+  const isDev = process.env.NODE_ENV !== "production";
   try {
-    await sendOTP(phone, code);
-    res.json({ message: "인증번호를 발송했습니다." });
+    await sendVerificationEmail(email, code);
+    res.json({
+      message: "인증번호를 발송했습니다. 메일함을 확인해주세요.",
+      ...(isDev && { devCode: code }),
+    });
   } catch (err: any) {
-    req.log.error({ err, phone: maskPhone(phone), errMsg: err?.message }, "SMS send failed");
-    const isDev = process.env.NODE_ENV !== "production";
+    req.log.error({ err: { message: err?.message, code: err?.code }, email: maskEmail(email) }, "Email send failed");
     res.status(500).json({
-      message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      message: "메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
       ...(isDev && { devCode: code, devError: err?.message }),
     });
   }
 });
 
-// ── OTP 확인 ──────────────────────────────────────────────────
-router.post("/auth/verify-otp", async (req, res) => {
-  const schema = z.object({ phone: z.string(), code: z.string().length(6) });
+// ── 인증번호 확인 (회원가입) ──────────────────────────────────
+router.post("/auth/verify-code", async (req, res) => {
+  const schema = z.object({ email: z.string().email(), code: z.string().length(6) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ message: "잘못된 요청입니다." }); return; }
 
-  const phone = normalizePhone(parsed.data.phone);
+  const email = parsed.data.email.toLowerCase().trim();
 
-  if (!checkOtpVerifyLimit(phone)) {
+  if (!checkVerifyLimit(email)) {
     res.status(429).json({ message: "인증 시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요." }); return;
   }
-  const now = new Date();
 
-  const [record] = await db
-    .select()
-    .from(phoneVerificationsTable)
-    .where(and(
-      eq(phoneVerificationsTable.phone, phone),
-      eq(phoneVerificationsTable.code, parsed.data.code),
-      eq(phoneVerificationsTable.verified, false),
-      gt(phoneVerificationsTable.expiresAt, now),
-    ))
-    .orderBy(phoneVerificationsTable.createdAt)
-    .limit(1);
-
-  if (!record) {
-    res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return;
+  const record = emailVerifStore.get(email);
+  if (!record || Date.now() > record.expiresAt) {
+    res.status(400).json({ message: "인증번호가 만료되었습니다. 다시 발송해주세요." }); return;
+  }
+  if (record.code !== parsed.data.code) {
+    res.status(400).json({ message: "인증번호가 올바르지 않습니다." }); return;
   }
 
-  await db.update(phoneVerificationsTable).set({ verified: true }).where(eq(phoneVerificationsTable.id, record.id));
+  emailVerifStore.set(email, { ...record, verified: true });
   res.json({ message: "인증 완료", verified: true });
 });
 
 // ── 학생증 OCR ────────────────────────────────────────────────
 router.post("/auth/verify-student-id", upload.single("image"), async (req, res) => {
   if (!req.file) { res.status(400).json({ message: "이미지를 업로드하세요." }); return; }
-
   const base64 = req.file.buffer.toString("base64");
   const mimeType = req.file.mimetype || "image/jpeg";
-
   try {
     const info = await extractStudentIdInfo(base64, mimeType);
     if (!info.isValid) {
@@ -199,7 +179,6 @@ router.post("/auth/verify-student-id", upload.single("image"), async (req, res) 
 
 // ── 회원가입 ──────────────────────────────────────────────────
 router.post("/auth/register", upload.single("studentIdImage"), async (req, res) => {
-  // 학생증 이미지 필수
   if (!req.file) {
     res.status(400).json({ message: "학생증 사진을 첨부해주세요." }); return;
   }
@@ -207,7 +186,7 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
   const schema = z.object({
     username: z.string().regex(/^[a-zA-Z0-9_]{4,20}$/, "아이디는 영문·숫자·밑줄 4-20자"),
     password: z.string().min(8, "비밀번호는 8자 이상"),
-    phone: z.string(),
+    email: z.string().email(),
     name: z.string().min(1),
     studentId: z.string().min(1),
     major: z.string().min(1),
@@ -219,25 +198,25 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
   }
 
   const { username, password, name, studentId, major } = parsed.data;
-  const phone = normalizePhone(parsed.data.phone);
+  const email = parsed.data.email.toLowerCase().trim();
 
-  // 아이디 중복
+  if (!email.endsWith("@pusan.ac.kr")) {
+    res.status(400).json({ message: "부산대학교 웹메일(@pusan.ac.kr)만 사용할 수 있습니다." }); return;
+  }
+
   const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
   if (existingUser) { res.status(409).json({ message: "이미 사용 중인 아이디입니다." }); return; }
 
-  // 번호 중복
-  const [existingPhone] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, phone));
-  if (existingPhone) { res.status(409).json({ message: "이미 가입된 번호입니다." }); return; }
+  const [existingEmail] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+  if (existingEmail) { res.status(409).json({ message: "이미 가입된 이메일입니다." }); return; }
 
-  // 전화번호 인증 확인
-  const [verifiedPhone] = await db
-    .select()
-    .from(phoneVerificationsTable)
-    .where(and(eq(phoneVerificationsTable.phone, phone), eq(phoneVerificationsTable.verified, true)))
-    .limit(1);
-  if (!verifiedPhone) { res.status(400).json({ message: "전화번호 인증을 먼저 완료해주세요." }); return; }
+  // 이메일 인증 확인
+  const verif = emailVerifStore.get(email);
+  if (!verif?.verified) {
+    res.status(400).json({ message: "이메일 인증을 먼저 완료해주세요." }); return;
+  }
 
-  // 학생증 OCR 인증
+  // 학생증 OCR
   let ocrCollege = "";
   try {
     const base64 = req.file.buffer.toString("base64");
@@ -256,7 +235,7 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
   const [user] = await db.insert(usersTable).values({
     username,
     passwordHash,
-    phone,
+    email,
     name,
     studentId,
     major,
@@ -264,6 +243,8 @@ router.post("/auth/register", upload.single("studentIdImage"), async (req, res) 
     isVerified: true,
     studentIdImageUrl: "verified",
   }).returning();
+
+  emailVerifStore.delete(email);
 
   const token = signToken({ userId: user.id, username: user.username });
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -303,7 +284,7 @@ router.post("/auth/login", async (req, res) => {
   });
 });
 
-// ── 내 정보 조회 (토큰) ───────────────────────────────────────
+// ── 내 정보 조회 ──────────────────────────────────────────────
 router.get("/auth/me", async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "인증이 필요합니다." }); return; }
@@ -314,7 +295,7 @@ router.get("/auth/me", async (req, res) => {
   const [user] = await db.select({
     id: usersTable.id, username: usersTable.username,
     name: usersTable.name, studentId: usersTable.studentId,
-    major: usersTable.major, college: usersTable.college, phone: usersTable.phone,
+    major: usersTable.major, college: usersTable.college, email: usersTable.email,
   }).from(usersTable).where(eq(usersTable.id, payload.userId));
 
   if (!user) { res.status(401).json({ message: "사용자를 찾을 수 없습니다." }); return; }
@@ -331,129 +312,103 @@ router.post("/auth/logout", async (req, res) => {
   res.json({ message: "로그아웃 되었습니다." });
 });
 
-// ── 비밀번호 재설정 토큰 (in-memory, 10분 유효) ───────────────
-const resetTokens = new Map<string, { userId: number; expiresAt: number }>();
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of resetTokens.entries()) { if (now > v.expiresAt) resetTokens.delete(k); }
-}, 5 * 60 * 1000);
-
-// 공통 헬퍼: find-id / find-password 용 OTP 발송 (가입된 번호 전용)
-// SMS 실패 시 throw하지 않고 { code, smsError } 반환 → 라우터에서 처리
-async function sendRecoveryOTP(phone: string): Promise<{ code: string; smsError?: unknown }> {
+// ── 복구용 이메일 발송 헬퍼 ──────────────────────────────────
+async function sendRecoveryCode(email: string): Promise<{ code: string; emailError?: unknown }> {
   const code = generateOTP();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-  await db.insert(phoneVerificationsTable).values({ phone, code, expiresAt });
+  recoveryStore.set(email, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
   try {
-    await sendOTP(phone, code);
+    await sendVerificationEmail(email, code, true);
     return { code };
-  } catch (smsError) {
-    return { code, smsError };
+  } catch (emailError) {
+    return { code, emailError };
   }
 }
 
-// ── 아이디 찾기 : OTP 발송 ────────────────────────────────────
-router.post("/auth/find-id/send-otp", async (req, res) => {
-  const schema = z.object({ name: z.string().min(1), phone: z.string().min(10) });
+// ── 아이디 찾기: 인증 메일 발송 ──────────────────────────────
+router.post("/auth/find-id/send-verification", async (req, res) => {
+  const schema = z.object({ name: z.string().min(1), email: z.string().email() });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ message: "이름과 전화번호를 올바르게 입력하세요." }); return; }
+  if (!parsed.success) { res.status(400).json({ message: "이름과 이메일을 올바르게 입력하세요." }); return; }
 
-  const phone = normalizePhone(parsed.data.phone);
+  const email = parsed.data.email.toLowerCase().trim();
   const [user] = await db.select({ id: usersTable.id }).from(usersTable)
-    .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.phone, phone)));
+    .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.email, email)));
   if (!user) { res.status(404).json({ message: "입력하신 정보와 일치하는 계정이 없습니다." }); return; }
 
-  const { code, smsError } = await sendRecoveryOTP(phone);
+  const { code, emailError } = await sendRecoveryCode(email);
   const isDev = process.env.NODE_ENV !== "production";
-  if (smsError) {
-    req.log.error({ err: smsError, phone: maskPhone(phone) }, "find-id SMS send failed");
-    if (isDev) {
-      res.json({ message: "SMS 발송 실패 (개발모드 — 아래 코드를 사용하세요)", devCode: code }); return;
-    }
-    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." }); return;
+  if (emailError) {
+    req.log.error({ err: emailError, email: maskEmail(email) }, "find-id email failed");
+    if (isDev) { res.json({ message: "메일 발송 실패 (개발모드)", devCode: code }); return; }
+    res.status(500).json({ message: "메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요." }); return;
   }
   res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
 });
 
-// ── 아이디 찾기 : OTP 확인 + 아이디 반환 ─────────────────────
+// ── 아이디 찾기: 코드 확인 + 아이디 반환 ─────────────────────
 router.post("/auth/find-id/verify", async (req, res) => {
-  const schema = z.object({ name: z.string().min(1), phone: z.string().min(10), code: z.string().length(6) });
+  const schema = z.object({ name: z.string().min(1), email: z.string().email(), code: z.string().length(6) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ message: "잘못된 요청입니다." }); return; }
 
-  const phone = normalizePhone(parsed.data.phone);
-  const now = new Date();
-
-  const [record] = await db.select().from(phoneVerificationsTable).where(and(
-    eq(phoneVerificationsTable.phone, phone),
-    eq(phoneVerificationsTable.code, parsed.data.code),
-    eq(phoneVerificationsTable.verified, false),
-    gt(phoneVerificationsTable.expiresAt, now),
-  )).orderBy(phoneVerificationsTable.createdAt).limit(1);
-
-  if (!record) { res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return; }
+  const email = parsed.data.email.toLowerCase().trim();
+  const record = recoveryStore.get(email);
+  if (!record || Date.now() > record.expiresAt || record.code !== parsed.data.code) {
+    res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return;
+  }
 
   const [user] = await db.select({ username: usersTable.username }).from(usersTable)
-    .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.phone, phone)));
+    .where(and(eq(usersTable.name, parsed.data.name), eq(usersTable.email, email)));
   if (!user) { res.status(404).json({ message: "일치하는 계정이 없습니다." }); return; }
 
-  await db.update(phoneVerificationsTable).set({ verified: true }).where(eq(phoneVerificationsTable.id, record.id));
+  recoveryStore.delete(email);
   res.json({ username: user.username });
 });
 
-// ── 비밀번호 찾기 : OTP 발송 ─────────────────────────────────
-router.post("/auth/find-password/send-otp", async (req, res) => {
-  const schema = z.object({ name: z.string().min(1), username: z.string().min(1), phone: z.string().min(10) });
+// ── 비밀번호 찾기: 인증 메일 발송 ───────────────────────────
+router.post("/auth/find-password/send-verification", async (req, res) => {
+  const schema = z.object({ name: z.string().min(1), username: z.string().min(1), email: z.string().email() });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ message: "모든 항목을 올바르게 입력하세요." }); return; }
 
-  const phone = normalizePhone(parsed.data.phone);
+  const email = parsed.data.email.toLowerCase().trim();
   const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(and(
     eq(usersTable.name, parsed.data.name),
     eq(usersTable.username, parsed.data.username),
-    eq(usersTable.phone, phone),
+    eq(usersTable.email, email),
   ));
   if (!user) { res.status(404).json({ message: "입력하신 정보와 일치하는 계정이 없습니다." }); return; }
 
-  const { code, smsError } = await sendRecoveryOTP(phone);
+  const { code, emailError } = await sendRecoveryCode(email);
   const isDev = process.env.NODE_ENV !== "production";
-  if (smsError) {
-    req.log.error({ err: smsError, phone: maskPhone(phone) }, "find-password SMS send failed");
-    if (isDev) {
-      res.json({ message: "SMS 발송 실패 (개발모드 — 아래 코드를 사용하세요)", devCode: code }); return;
-    }
-    res.status(500).json({ message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." }); return;
+  if (emailError) {
+    req.log.error({ err: emailError, email: maskEmail(email) }, "find-password email failed");
+    if (isDev) { res.json({ message: "메일 발송 실패 (개발모드)", devCode: code }); return; }
+    res.status(500).json({ message: "메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요." }); return;
   }
   res.json({ message: "인증번호를 발송했습니다.", ...(isDev && { devCode: code }) });
 });
 
-// ── 비밀번호 찾기 : OTP 확인 + 재설정 토큰 발급 ─────────────
+// ── 비밀번호 찾기: 코드 확인 + 재설정 토큰 발급 ─────────────
 router.post("/auth/find-password/verify", async (req, res) => {
-  const schema = z.object({ name: z.string().min(1), username: z.string().min(1), phone: z.string().min(10), code: z.string().length(6) });
+  const schema = z.object({ name: z.string().min(1), username: z.string().min(1), email: z.string().email(), code: z.string().length(6) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ message: "잘못된 요청입니다." }); return; }
 
-  const phone = normalizePhone(parsed.data.phone);
-  const now = new Date();
-
-  const [record] = await db.select().from(phoneVerificationsTable).where(and(
-    eq(phoneVerificationsTable.phone, phone),
-    eq(phoneVerificationsTable.code, parsed.data.code),
-    eq(phoneVerificationsTable.verified, false),
-    gt(phoneVerificationsTable.expiresAt, now),
-  )).orderBy(phoneVerificationsTable.createdAt).limit(1);
-
-  if (!record) { res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return; }
+  const email = parsed.data.email.toLowerCase().trim();
+  const record = recoveryStore.get(email);
+  if (!record || Date.now() > record.expiresAt || record.code !== parsed.data.code) {
+    res.status(400).json({ message: "인증번호가 올바르지 않거나 만료되었습니다." }); return;
+  }
 
   const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(and(
     eq(usersTable.name, parsed.data.name),
     eq(usersTable.username, parsed.data.username),
-    eq(usersTable.phone, phone),
+    eq(usersTable.email, email),
   ));
   if (!user) { res.status(404).json({ message: "일치하는 계정이 없습니다." }); return; }
 
-  await db.update(phoneVerificationsTable).set({ verified: true }).where(eq(phoneVerificationsTable.id, record.id));
-
+  recoveryStore.delete(email);
   const resetToken = randomUUID();
   resetTokens.set(resetToken, { userId: user.id, expiresAt: Date.now() + 10 * 60 * 1000 });
   res.json({ resetToken });

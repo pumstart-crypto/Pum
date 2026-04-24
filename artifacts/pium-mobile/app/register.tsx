@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Platform, Alert, Modal, FlatList, KeyboardAvoidingView,
@@ -23,9 +23,9 @@ Notifications.setNotificationHandler({
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
-type Step = 'account' | 'phone' | 'studentid' | 'done';
-const STEPS: Step[] = ['account', 'phone', 'studentid', 'done'];
-const STEP_LABELS = ['계정', '전화', '학생증', '완료'];
+type Step = 'account' | 'email' | 'studentid' | 'done';
+const STEPS: Step[] = ['account', 'email', 'studentid', 'done'];
+const STEP_LABELS = ['계정', '이메일', '학생증', '완료'];
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -44,11 +44,11 @@ export default function RegisterScreen() {
   const [usernameChecked, setUsernameChecked] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState(false);
 
-  // Phone step
-  const [phone, setPhone] = useState('');
+  // Email step
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
 
   // Student ID step
   const [name, setName] = useState('');
@@ -62,7 +62,6 @@ export default function RegisterScreen() {
 
   useEffect(() => {
     if (step === 'studentid') {
-      // 알림 권한 미리 요청
       Notifications.requestPermissionsAsync().catch(() => {});
       if (departments.length === 0) {
         setDeptLoading(true);
@@ -80,6 +79,7 @@ export default function RegisterScreen() {
   const pwOk = password.length >= 8;
   const pwMatch = password === passwordConfirm;
   const usernameOk = /^[a-zA-Z0-9_]{4,20}$/.test(username);
+  const emailOk = email.toLowerCase().trim().endsWith('@pusan.ac.kr');
 
   const handleUsernameChange = (text: string) => {
     setUsername(text);
@@ -103,44 +103,49 @@ export default function RegisterScreen() {
     }
   };
 
-  const handleSendCode = async () => {
-    const digits = phone.replace(/-/g, '');
-    if (digits.length < 10) { setError('올바른 번호를 입력하세요.'); return; }
+  const handleSendVerification = async () => {
+    const trimmed = email.toLowerCase().trim();
+    if (!trimmed.endsWith('@pusan.ac.kr')) {
+      setError('부산대학교 웹메일(@pusan.ac.kr)만 사용할 수 있습니다.');
+      return;
+    }
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${API}/auth/send-otp`, {
+      const r = await fetch(`${API}/auth/send-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: digits }),
+        body: JSON.stringify({ email: trimmed }),
       });
       const data = await r.json();
       if (!r.ok) {
         if (data.devCode) {
-          // 개발 환경: SMS 실패해도 코드 표시
           setCodeSent(true);
           setCode(data.devCode);
-          Alert.alert('개발 모드 인증코드', `SMS 발송 실패 - 테스트 코드: ${data.devCode}\n\n오류: ${data.devError || '알 수 없음'}`);
+          Alert.alert('개발 모드 인증코드', `메일 발송 실패 - 테스트 코드: ${data.devCode}`);
         } else {
           throw new Error(data.message || '발송 실패');
         }
       } else {
         setCodeSent(true);
+        if (data.devCode) {
+          setCode(data.devCode);
+          Alert.alert('개발 모드 인증코드', `테스트 코드: ${data.devCode}`);
+        }
       }
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
 
   const handleVerifyCode = async () => {
-    const digits = phone.replace(/-/g, '');
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${API}/auth/verify-otp`, {
+      const r = await fetch(`${API}/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: digits, code }),
+        body: JSON.stringify({ email: email.toLowerCase().trim(), code }),
       });
       if (!r.ok) throw new Error((await r.json()).message || '인증 실패');
-      setPhoneVerified(true);
+      setEmailVerified(true);
       setStep('studentid');
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
@@ -163,7 +168,7 @@ export default function RegisterScreen() {
       const formData = new FormData();
       formData.append('username', username);
       formData.append('password', password);
-      formData.append('phone', phone.replace(/-/g, ''));
+      formData.append('email', email.toLowerCase().trim());
       formData.append('name', name);
       formData.append('studentId', studentId);
       formData.append('major', major);
@@ -188,14 +193,13 @@ export default function RegisterScreen() {
       if (data.token) {
         setAuth(data.token, data.user);
       }
-      // 인증 완료 알림 발송
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '학생증 인증 완료 ✓',
           body: `${name}님, P:um 가입이 완료되었습니다. 환영합니다!`,
           sound: true,
         },
-        trigger: null, // 즉시 발송
+        trigger: null,
       }).catch(() => {});
       setStep('done');
     } catch (e: any) { setError(e.message); }
@@ -282,32 +286,70 @@ export default function RegisterScreen() {
             <TouchableOpacity
               style={[styles.btn, (!usernameOk || !usernameChecked || !usernameAvailable || !pwOk || !pwMatch) && styles.btnDisabled]}
               disabled={!usernameOk || !usernameChecked || !usernameAvailable || !pwOk || !pwMatch}
-              onPress={() => { setError(''); setStep('phone'); }}
+              onPress={() => { setError(''); setStep('email'); }}
             >
               <Text style={styles.btnText}>다음</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Phone Step */}
-        {step === 'phone' && (
+        {/* Email Step */}
+        {step === 'email' && (
           <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>전화번호 인증</Text>
+            <Text style={styles.stepTitle}>웹메일 인증</Text>
+            <View style={styles.infoCard}>
+              <Feather name="mail" size={16} color={C.primary} />
+              <Text style={styles.infoCardText}>부산대학교 웹메일(@pusan.ac.kr)로{'\n'}인증번호를 발송합니다.</Text>
+            </View>
             <View style={styles.rowInput}>
-              <TextInput style={[styles.input, { flex: 1 }]} value={phone} onChangeText={setPhone}
-                placeholder="01012345678" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" />
-              <TouchableOpacity style={styles.sendBtn} onPress={handleSendCode} disabled={loading}>
-                {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.sendBtnText}>{codeSent ? '재발송' : '발송'}</Text>}
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                value={email}
+                onChangeText={v => { setEmail(v); setCodeSent(false); setEmailVerified(false); setCode(''); }}
+                placeholder="학번@pusan.ac.kr"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={[styles.sendBtn, (!emailOk || loading) && styles.btnDisabled]}
+                onPress={handleSendVerification}
+                disabled={!emailOk || loading}
+              >
+                {loading && !codeSent
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.sendBtnText}>{codeSent ? '재발송' : '발송'}</Text>}
               </TouchableOpacity>
             </View>
-            {codeSent && (
-              <TextInput style={styles.input} value={code} onChangeText={setCode}
-                placeholder="인증번호 6자리" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
+            {email.length > 0 && !emailOk && (
+              <Text style={styles.hint}>@pusan.ac.kr 이메일만 사용할 수 있습니다</Text>
             )}
             {codeSent && (
-              <TouchableOpacity style={[styles.btn, !code && styles.btnDisabled]} disabled={!code || loading} onPress={handleVerifyCode}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>인증 확인</Text>}
-              </TouchableOpacity>
+              <>
+                <View style={styles.sentInfo}>
+                  <Feather name="check-circle" size={14} color="#10B981" />
+                  <Text style={styles.sentInfoText}>{email}으로 인증번호를 발송했습니다.</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="인증번호 6자리"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  style={[styles.btn, (code.length !== 6 || loading) && styles.btnDisabled]}
+                  disabled={code.length !== 6 || loading}
+                  onPress={handleVerifyCode}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.btnText}>인증 확인</Text>}
+                </TouchableOpacity>
+              </>
             )}
           </View>
         )}
@@ -408,48 +450,48 @@ export default function RegisterScreen() {
       {/* 전공 선택 모달 */}
       <Modal visible={showDeptPicker} animationType="slide" transparent onRequestClose={() => setShowDeptPicker(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.deptModal, { paddingBottom: insets.bottom + 16 }]}>
-            <View style={styles.deptModalHeader}>
-              <Text style={styles.deptModalTitle}>전공 선택</Text>
-              <TouchableOpacity onPress={() => setShowDeptPicker(false)}>
-                <Feather name="x" size={22} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.deptSearch}>
-              <Feather name="search" size={16} color="#9CA3AF" />
-              <TextInput
-                style={styles.deptSearchInput}
-                value={deptSearch}
-                onChangeText={setDeptSearch}
-                placeholder="학과 검색..."
-                placeholderTextColor="#9CA3AF"
-                autoFocus
+          <View style={styles.modalOverlay}>
+            <View style={[styles.deptModal, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.deptModalHeader}>
+                <Text style={styles.deptModalTitle}>전공 선택</Text>
+                <TouchableOpacity onPress={() => setShowDeptPicker(false)}>
+                  <Feather name="x" size={22} color="#374151" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.deptSearch}>
+                <Feather name="search" size={16} color="#9CA3AF" />
+                <TextInput
+                  style={styles.deptSearchInput}
+                  value={deptSearch}
+                  onChangeText={setDeptSearch}
+                  placeholder="학과 검색..."
+                  placeholderTextColor="#9CA3AF"
+                  autoFocus
+                />
+              </View>
+              <FlatList
+                data={departments.filter(d => d.includes(deptSearch))}
+                keyExtractor={item => item}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.deptItem, item === major && styles.deptItemActive]}
+                    onPress={() => { setMajor(item); setShowDeptPicker(false); }}
+                  >
+                    <Text style={[styles.deptItemText, item === major && styles.deptItemTextActive]}>{item}</Text>
+                    {item === major && <Feather name="check" size={16} color={C.primary} />}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={{ alignItems: 'center', paddingTop: 32 }}>
+                    <Text style={{ color: '#9CA3AF', fontSize: 14 }}>
+                      {deptLoading ? '불러오는 중...' : '검색 결과가 없습니다'}
+                    </Text>
+                  </View>
+                }
               />
             </View>
-            <FlatList
-              data={departments.filter(d => d.includes(deptSearch))}
-              keyExtractor={item => item}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.deptItem, item === major && styles.deptItemActive]}
-                  onPress={() => { setMajor(item); setShowDeptPicker(false); }}
-                >
-                  <Text style={[styles.deptItemText, item === major && styles.deptItemTextActive]}>{item}</Text>
-                  {item === major && <Feather name="check" size={16} color={C.primary} />}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={{ alignItems: 'center', paddingTop: 32 }}>
-                  <Text style={{ color: '#9CA3AF', fontSize: 14 }}>
-                    {deptLoading ? '불러오는 중...' : '검색 결과가 없습니다'}
-                  </Text>
-                </View>
-              }
-            />
           </View>
-        </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -505,12 +547,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
   },
   sendBtnText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+  infoCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#EEF4FF', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderWidth: 1, borderColor: '#C7D7F5',
+  },
+  infoCardText: { fontSize: 13, color: C.primary, fontFamily: 'Inter_500Medium', flex: 1, lineHeight: 20 },
+  sentInfo: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F0FDF4', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: '#BBF7D0',
+  },
+  sentInfoText: { fontSize: 13, color: '#15803D', flex: 1, fontFamily: 'Inter_400Regular' },
   imagePickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#EEF4FF', borderRadius: 16, paddingHorizontal: 20, paddingVertical: 16,
     borderWidth: 1.5, borderColor: `${C.primary}40`, borderStyle: 'dashed',
   },
+  imagePickerBtnDone: { borderStyle: 'solid', borderColor: C.primary, backgroundColor: '#EEF4FF' },
   imagePickerText: { fontSize: 14, color: C.primary, fontFamily: 'Inter_500Medium' },
+  validationBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#FFFBEB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  validationText: { fontSize: 12, color: '#92400E', flex: 1, fontFamily: 'Inter_400Regular' },
+  requiredNote: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginTop: -4 },
+  requiredStar: { color: '#EF4444' },
+  fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#374151', marginBottom: 6 },
+  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectBtnText: { fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular' },
   doneContent: { alignItems: 'center', paddingTop: 40, gap: 16 },
   doneIcon: {
     width: 100, height: 100, borderRadius: 50, backgroundColor: C.primary,
@@ -522,30 +590,24 @@ const styles = StyleSheet.create({
   loginRow: { flexDirection: 'row', justifyContent: 'center', paddingTop: 24 },
   loginHint: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular' },
   loginLink: { fontSize: 14, fontFamily: 'Inter_700Bold', color: C.primary },
-  imagePickerBtnDone: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
-  loadingOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 },
-  loadingCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
-  loadingCardTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center', marginBottom: 10 },
-  loadingCardSub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280', textAlign: 'center', lineHeight: 22 },
-  requiredNote: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular', marginBottom: 4 },
-  requiredStar: { color: '#EF4444', fontFamily: 'Inter_600SemiBold' },
-  fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#374151', marginBottom: 6, marginLeft: 2 },
-  validationBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#FFFBEB', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#FCD34D',
+  loadingOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
   },
-  validationText: { fontSize: 13, color: '#92400E', flex: 1, fontFamily: 'Inter_400Regular' },
-  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  selectBtnText: { fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular', flex: 1 },
+  loadingCard: {
+    backgroundColor: '#fff', borderRadius: 24, padding: 32,
+    alignItems: 'center', gap: 8, width: '100%', maxWidth: 320,
+  },
+  loadingCardTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center' },
+  loadingCardSub: { fontSize: 13, color: '#6B7280', fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  deptModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
-  deptModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
-  deptModalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#111827' },
-  deptSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginHorizontal: 16, marginBottom: 8 },
+  deptModal: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '80%' },
+  deptModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
+  deptModalTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
+  deptSearch: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F9FAFB', marginHorizontal: 16, borderRadius: 14, marginBottom: 8 },
   deptSearchInput: { flex: 1, fontSize: 15, color: '#111827', fontFamily: 'Inter_400Regular' },
-  deptItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
+  deptItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F3F4F6' },
   deptItemActive: { backgroundColor: '#EEF4FF' },
-  deptItemText: { fontSize: 15, color: '#374151', fontFamily: 'Inter_400Regular', flex: 1 },
+  deptItemText: { fontSize: 15, color: '#374151', fontFamily: 'Inter_400Regular' },
   deptItemTextActive: { color: C.primary, fontFamily: 'Inter_600SemiBold' },
 });

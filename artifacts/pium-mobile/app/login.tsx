@@ -12,35 +12,33 @@ import C from '@/constants/colors';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
-function normalizePhone(v: string) {
-  return v.replace(/\D/g, '');
-}
-
 // ── 아이디 찾기 모달 ──────────────────────────────────────────
 function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'input' | 'verify' | 'result'>('input');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [foundId, setFoundId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devCode, setDevCode] = useState('');
 
+  const emailOk = email.toLowerCase().trim().endsWith('@pusan.ac.kr');
+
   const reset = () => {
-    setStep('input'); setName(''); setPhone(''); setCode('');
+    setStep('input'); setName(''); setEmail(''); setCode('');
     setFoundId(''); setError(''); setDevCode(''); setLoading(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
 
-  const sendOtp = async () => {
+  const sendVerification = async () => {
     setError(''); setLoading(true);
     try {
-      const r = await fetch(`${API}/auth/find-id/send-otp`, {
+      const r = await fetch(`${API}/auth/find-id/send-verification`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: normalizePhone(phone) }),
+        body: JSON.stringify({ name: name.trim(), email: email.toLowerCase().trim() }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '오류가 발생했습니다.'); return; }
@@ -50,12 +48,12 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
     finally { setLoading(false); }
   };
 
-  const verifyOtp = async () => {
+  const verifyCode = async () => {
     setError(''); setLoading(true);
     try {
       const r = await fetch(`${API}/auth/find-id/verify`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: normalizePhone(phone), code }),
+        body: JSON.stringify({ name: name.trim(), email: email.toLowerCase().trim(), code }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '인증에 실패했습니다.'); return; }
@@ -90,14 +88,14 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
               <Text style={sheet.label}>이름</Text>
               <TextInput style={sheet.input} value={name} onChangeText={setName}
                 placeholder="실명을 입력하세요" placeholderTextColor="#9CA3AF" />
-              <Text style={sheet.label}>전화번호</Text>
-              <TextInput style={sheet.input} value={phone} onChangeText={setPhone}
-                placeholder="010-0000-0000" placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad" />
+              <Text style={sheet.label}>부산대 웹메일</Text>
+              <TextInput style={sheet.input} value={email} onChangeText={setEmail}
+                placeholder="학번@pusan.ac.kr" placeholderTextColor="#9CA3AF"
+                keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
               <TouchableOpacity
-                style={[sheet.btn, (!name.trim() || phone.replace(/\D/g,'').length < 10 || loading) && sheet.btnDisabled]}
-                onPress={sendOtp}
-                disabled={!name.trim() || normalizePhone(phone).length < 10 || loading}
+                style={[sheet.btn, (!name.trim() || !emailOk || loading) && sheet.btnDisabled]}
+                onPress={sendVerification}
+                disabled={!name.trim() || !emailOk || loading}
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={sheet.btnText}>인증번호 받기</Text>}
               </TouchableOpacity>
@@ -108,7 +106,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
             <>
               <View style={sheet.infoBox}>
                 <Feather name="check-circle" size={14} color="#10B981" />
-                <Text style={sheet.infoText}>{phone}으로 인증번호를 발송했습니다.</Text>
+                <Text style={sheet.infoText}>{email}으로 인증번호를 발송했습니다.</Text>
               </View>
               {!!devCode && (
                 <View style={sheet.devBox}>
@@ -122,7 +120,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
                 keyboardType="number-pad" maxLength={6} />
               <TouchableOpacity
                 style={[sheet.btn, (code.length !== 6 || loading) && sheet.btnDisabled]}
-                onPress={verifyOtp} disabled={code.length !== 6 || loading}
+                onPress={verifyCode} disabled={code.length !== 6 || loading}
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={sheet.btnText}>확인</Text>}
               </TouchableOpacity>
@@ -156,7 +154,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
   const [step, setStep] = useState<'input' | 'verify' | 'reset' | 'done'>('input');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -166,20 +164,22 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
   const [error, setError] = useState('');
   const [devCode, setDevCode] = useState('');
 
+  const emailOk = email.toLowerCase().trim().endsWith('@pusan.ac.kr');
+
   const reset = () => {
-    setStep('input'); setName(''); setUsername(''); setPhone(''); setCode('');
+    setStep('input'); setName(''); setUsername(''); setEmail(''); setCode('');
     setResetToken(''); setNewPw(''); setNewPwConfirm('');
     setShowPw(false); setError(''); setDevCode(''); setLoading(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
 
-  const sendOtp = async () => {
+  const sendVerification = async () => {
     setError(''); setLoading(true);
     try {
-      const r = await fetch(`${API}/auth/find-password/send-otp`, {
+      const r = await fetch(`${API}/auth/find-password/send-verification`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), username: username.trim(), phone: normalizePhone(phone) }),
+        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: email.toLowerCase().trim() }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '오류가 발생했습니다.'); return; }
@@ -189,12 +189,12 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
     finally { setLoading(false); }
   };
 
-  const verifyOtp = async () => {
+  const verifyCode = async () => {
     setError(''); setLoading(true);
     try {
       const r = await fetch(`${API}/auth/find-password/verify`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), username: username.trim(), phone: normalizePhone(phone), code }),
+        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: email.toLowerCase().trim(), code }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '인증에 실패했습니다.'); return; }
@@ -219,7 +219,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
     finally { setLoading(false); }
   };
 
-  const canSendOtp = name.trim() && username.trim() && normalizePhone(phone).length >= 10 && !loading;
+  const canSendVerification = name.trim() && username.trim() && emailOk && !loading;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
@@ -251,13 +251,13 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
               <TextInput style={sheet.input} value={username} onChangeText={setUsername}
                 placeholder="아이디를 입력하세요" placeholderTextColor="#9CA3AF"
                 autoCapitalize="none" autoCorrect={false} />
-              <Text style={sheet.label}>전화번호</Text>
-              <TextInput style={sheet.input} value={phone} onChangeText={setPhone}
-                placeholder="010-0000-0000" placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad" />
+              <Text style={sheet.label}>부산대 웹메일</Text>
+              <TextInput style={sheet.input} value={email} onChangeText={setEmail}
+                placeholder="학번@pusan.ac.kr" placeholderTextColor="#9CA3AF"
+                keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
               <TouchableOpacity
-                style={[sheet.btn, (!canSendOtp) && sheet.btnDisabled]}
-                onPress={sendOtp} disabled={!canSendOtp}
+                style={[sheet.btn, (!canSendVerification) && sheet.btnDisabled]}
+                onPress={sendVerification} disabled={!canSendVerification}
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={sheet.btnText}>인증번호 받기</Text>}
               </TouchableOpacity>
@@ -268,7 +268,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
             <>
               <View style={sheet.infoBox}>
                 <Feather name="check-circle" size={14} color="#10B981" />
-                <Text style={sheet.infoText}>{phone}으로 인증번호를 발송했습니다.</Text>
+                <Text style={sheet.infoText}>{email}으로 인증번호를 발송했습니다.</Text>
               </View>
               {!!devCode && (
                 <View style={sheet.devBox}>
@@ -282,7 +282,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
                 keyboardType="number-pad" maxLength={6} />
               <TouchableOpacity
                 style={[sheet.btn, (code.length !== 6 || loading) && sheet.btnDisabled]}
-                onPress={verifyOtp} disabled={code.length !== 6 || loading}
+                onPress={verifyCode} disabled={code.length !== 6 || loading}
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={sheet.btnText}>확인</Text>}
               </TouchableOpacity>
