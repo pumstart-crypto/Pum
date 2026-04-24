@@ -9,9 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { loadProfileAsync } from '@/hooks/useProfile';
 import C from '@/constants/colors';
-import { getNow } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getDeptList } from '@/constants/deptLinks';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const PAGE_SIZE = 10;
@@ -638,7 +638,6 @@ export default function NoticesScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [supportedDepts, setSupportedDepts] = useState<DeptInfo[]>([]);
-  const [allDeptNames, setAllDeptNames] = useState<string[]>([]);
   const [myMajor, setMyMajor] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [showPicker, setShowPicker] = useState(false);
@@ -646,22 +645,11 @@ export default function NoticesScreen() {
   const spinAnim = useRef(new Animated.Value(0)).current;
   const spinningRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // 지원 학과 목록 불러오기
+  // 공지/채용 지원 학과 목록 불러오기 (hasNotice/hasJobs 판단용)
   useEffect(() => {
     fetch(`${API}/dept-list`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => setSupportedDepts(data.depts ?? []))
-      .catch(() => {});
-  }, []);
-
-  // 전체 학과 목록 (수강편람 기준)
-  useEffect(() => {
-    const now = getNow();
-    const sem = (now.getMonth() + 1) >= 8 ? '2' : '1';
-    const year = now.getFullYear();
-    fetch(`${API}/courses/departments?catalogYear=${year}&catalogSemester=${sem}`)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => { if (Array.isArray(data)) setAllDeptNames(data); })
       .catch(() => {});
   }, []);
 
@@ -680,23 +668,14 @@ export default function NoticesScreen() {
     }
   }, [user]);
 
-  // 지원 학과 + 수강편람 전체 학과 병합 (중복 제거, 내 학과 상단)
+  // deptLinks.ts 정적 데이터 기준 picker 목록 (hasNotice/hasJobs는 API 결과로 오버레이)
   const pickerDepts = React.useMemo<DeptInfo[]>(() => {
     const supportedMap = new Map(supportedDepts.map(d => [d.name, d]));
-    const merged = new Map<string, DeptInfo>(supportedMap);
-    for (const name of allDeptNames) {
-      if (!merged.has(name)) merged.set(name, { name, hasNotice: false, hasJobs: false });
-    }
-    return Array.from(merged.values()).sort((a, b) => {
-      if (a.name === myMajor) return -1;
-      if (b.name === myMajor) return 1;
-      const aEng = /^[A-Za-z]/.test(a.name);
-      const bEng = /^[A-Za-z]/.test(b.name);
-      if (aEng && !bEng) return -1;
-      if (!aEng && bEng) return 1;
-      return a.name.localeCompare(b.name, aEng ? 'en' : 'ko');
+    return getDeptList().map(({ name }) => {
+      const sup = supportedMap.get(name);
+      return { name, hasNotice: sup?.hasNotice ?? false, hasJobs: sup?.hasJobs ?? false };
     });
-  }, [supportedDepts, allDeptNames, myMajor]);
+  }, [supportedDepts]);
 
   const startSpin = useCallback(() => {
     spinAnim.setValue(0);
