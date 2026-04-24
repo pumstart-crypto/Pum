@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36, backgroundColor: '#F3F4F6',
     justifyContent: 'center', alignItems: 'center', marginBottom: 4,
   },
-  emptyTodoTitle: { fontSize: 15, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  emptyTodoTitle: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   emptyTodoDesc: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
   emptyTodoBtn: {
     marginTop: 8, paddingHorizontal: 20, paddingVertical: 10,
