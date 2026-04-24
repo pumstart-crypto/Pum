@@ -33,14 +33,12 @@ const NOTIFICATION_SETTINGS = [
     section: '커뮤니티',
     items: [
       { key: 'community_comment', label: '댓글 알림', desc: '내 게시글에 댓글 시 알림' },
-      { key: 'community_hot', label: '인기 게시글', desc: '인기 게시글 주간 요약' },
     ],
   },
   {
-    section: '식단',
+    section: '학사일정',
     items: [
-      { key: 'meal_morning', label: '아침 식단 알림', desc: '매일 오전 7시 30분' },
-      { key: 'meal_lunch', label: '점심 식단 알림', desc: '매일 오전 11시 30분' },
+      { key: 'academic_favorite', label: '즐겨찾기한 학사일정 알림', desc: '즐겨찾기한 일정 하루 전 알림' },
     ],
   },
 ];
@@ -57,9 +55,7 @@ export default function NotificationSettingsScreen() {
     todo_daily: false,
     class_before: true,
     community_comment: true,
-    community_hot: false,
-    meal_morning: false,
-    meal_lunch: false,
+    academic_favorite: true,
   });
 
   const toggle = (key: string) => {
