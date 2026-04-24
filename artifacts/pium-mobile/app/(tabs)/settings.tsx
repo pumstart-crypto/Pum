@@ -48,7 +48,7 @@ export default function SettingsScreen() {
   const displayName = isAdmin ? (user?.name || '관리자') : (profile.name || user?.name || '부산대학교 학생');
   const displaySub = isAdmin
     ? (user?.major || '시스템 관리')
-    : [profile.department, GRADE_LABEL[profile.grade]].filter(Boolean).join(' · ');
+    : [profile.department, user?.major, GRADE_LABEL[profile.grade]].filter(Boolean).join(' · ');
   useEffect(() => {
     loadProfileAsync().then(setProfile);
   }, []);
