@@ -55,7 +55,8 @@ async function getAuthor() {
     if (!raw) return '익명';
     const p = JSON.parse(raw);
     const parts = ['익명'];
-    if (p.department) parts.push(p.department);
+    const dept = p.major || p.department;
+    if (dept) parts.push(dept);
     if (p.studentId) parts.push(`${String(p.studentId).substring(2, 4)}학번`);
     return parts.join('.');
   } catch { return '익명'; }

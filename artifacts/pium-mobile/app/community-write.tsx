@@ -15,16 +15,15 @@ import C from '@/constants/colors';
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
 
-interface Profile { department?: string; studentId?: string | number; }
+interface Profile { department?: string; major?: string; studentId?: string | number; }
 
 function buildAuthor(profile: Profile): string {
-  if (!profile.department) return '익명';
+  const dept = profile.major || profile.department;
+  if (!dept) return '익명';
   const yr = profile.studentId
     ? String(profile.studentId).substring(2, 4) + '학번'
     : '';
-  return yr
-    ? `익명.${profile.department}.${yr}`
-    : `익명.${profile.department}`;
+  return yr ? `익명.${dept}.${yr}` : `익명.${dept}`;
 }
 
 async function pickImages(max: number): Promise<string[]> {

@@ -51,8 +51,7 @@ function relTime(dateStr: string) {
 }
 
 export function filterPostsByCategory(posts: Post[], categoryId: string): Post[] {
-  if (FIXED_IDS.includes(categoryId)) return posts.filter(p => p.category === categoryId);
-  return posts.filter(p => p.author.includes(categoryId));
+  return posts.filter(p => p.category === categoryId);
 }
 
 /* ── Dept Browser Modal ── */
