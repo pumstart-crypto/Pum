@@ -1148,6 +1148,52 @@ export default function ReadingRoomsScreen() {
               domStorageEnabled
               sharedCookiesEnabled
               thirdPartyCookiesEnabled
+              injectedJavaScript={`
+                (function() {
+                  var css = \`
+                    /* 하단 네비게이션 바 (MY / 1:1문의 / 홈 / 이용증 / 전체메뉴) */
+                    .btm-area, .bottom-nav, .btm-nav, .gnb-btm, .nav-bottom,
+                    #bottomNav, #bottom-nav, #btmNav, #gnbBottom,
+                    .tab-bar, .tabbar, .app-footer, footer, #footer,
+                    [class*="btm-menu"], [class*="bottom-menu"],
+                    [class*="bottom-tab"], [class*="gnb-bottom"] {
+                      display: none !important;
+                    }
+
+                    /* 상단 페이지 타이틀 (← 새벽누리-열람존열람실 예약) */
+                    .page-tit, .page-title, .sub-title-bar, .sub-header,
+                    .list-header, .view-title, .pop-hd, .layer-hd,
+                    [class*="page-tit"], [class*="sub-tit"],
+                    [class*="list-hd"], [class*="view-hd"] {
+                      display: none !important;
+                    }
+
+                    /* 페이지 상단 여백 보정 */
+                    body, #app, #wrap, .wrap, .content, #content,
+                    .cont-area, .cont-wrap {
+                      padding-bottom: 0 !important;
+                      margin-bottom: 0 !important;
+                    }
+                  \`;
+
+                  function injectStyle() {
+                    if (!document.head) return;
+                    var existing = document.getElementById('__pium_hide__');
+                    if (existing) return;
+                    var el = document.createElement('style');
+                    el.id = '__pium_hide__';
+                    el.textContent = css;
+                    document.head.appendChild(el);
+                  }
+
+                  injectStyle();
+
+                  /* SPA 라우팅 후에도 계속 적용 */
+                  var obs = new MutationObserver(injectStyle);
+                  obs.observe(document.documentElement, { childList: true, subtree: true });
+                  true;
+                })();
+              `}
             />
           )}
         </View>
