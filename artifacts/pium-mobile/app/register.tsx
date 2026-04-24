@@ -318,7 +318,7 @@ export default function RegisterScreen() {
             <Text style={styles.stepTitle}>웹메일 인증</Text>
             <View style={styles.infoCard}>
               <Feather name="mail" size={16} color={C.primary} />
-              <Text style={styles.infoCardText}>부산대학교 웹메일(@pusan.ac.kr)로{'\n'}인증번호를 발송합니다.</Text>
+              <Text style={styles.infoCardText} numberOfLines={1} adjustsFontSizeToFit>부산대학교 웹메일(@pusan.ac.kr)로 인증번호를 발송합니다.</Text>
             </View>
             <View style={styles.emailRow}>
               <TextInput
