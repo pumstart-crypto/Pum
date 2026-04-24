@@ -1148,6 +1148,7 @@ export default function ReadingRoomsScreen() {
               domStorageEnabled
               sharedCookiesEnabled
               thirdPartyCookiesEnabled
+              scalesPageToFit={false}
               onMessage={(e) => {
                 try {
                   const d = JSON.parse(e.nativeEvent.data);
@@ -1158,24 +1159,96 @@ export default function ReadingRoomsScreen() {
               injectedJavaScript={`
                 (function() {
                   try {
-                    /* Angular Material Pyxis 시스템 전용 클래스 직접 타겟 */
+
+                    /* ═══════════════════════════════════════════════════
+                       1. 헤더 / 푸터 숨기기 (Angular Material Pyxis)
+                    ═══════════════════════════════════════════════════ */
                     function hide() {
-                      /* 상단 헤더 툴바 (← 뒤로가기 + 페이지 타이틀) */
                       var header = document.querySelector('.ikc-header-toolbar');
                       if (header) {
                         header.style.setProperty('display', 'none', 'important');
-                        /* 헤더가 fixed 60px 이었으므로 콘텐츠 상단 여백 제거 */
                         var content = document.querySelector('.mat-sidenav-content, .mat-drawer-content');
                         if (content) content.style.setProperty('margin-top', '0', 'important');
                       }
-                      /* 하단 푸터 툴바 (MY / 문의 / 홈 / 이용증 / 전체메뉴) */
                       var footer = document.querySelector('.ikc-footer-toolbar');
                       if (footer) footer.style.setProperty('display', 'none', 'important');
                     }
-
                     hide();
                     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
                     for (var i = 1; i <= 15; i++) setTimeout(hide, i * 300);
+
+                    /* ═══════════════════════════════════════════════════
+                       2. 핀치 줌 → 확대/축소 슬라이더 연동
+                    ═══════════════════════════════════════════════════ */
+
+                    /* 2-1. 네이티브 핀치줌 비활성화 */
+                    var vp = document.querySelector('meta[name="viewport"]');
+                    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0');
+
+                    /* 2-2. 슬라이더 입력 요소 탐색 */
+                    function getSliderInput() {
+                      return document.querySelector('mat-slider input') ||
+                             document.querySelector('input[type="range"]') ||
+                             document.querySelector('.mat-slider-thumb-container input');
+                    }
+
+                    /* 2-3. Angular change detection을 통한 슬라이더 값 변경 */
+                    function setSliderValue(newVal) {
+                      var inp = getSliderInput();
+                      if (!inp) return;
+                      var min = parseFloat(inp.min !== '' ? inp.min : '0');
+                      var max = parseFloat(inp.max !== '' ? inp.max : '1');
+                      var clamped = Math.max(min, Math.min(max, newVal));
+
+                      /* Angular는 네이티브 setter를 통해야 변경 감지 */
+                      var desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                      if (desc && desc.set) desc.set.call(inp, String(clamped));
+                      else inp.value = String(clamped);
+
+                      inp.dispatchEvent(new Event('input',  { bubbles: true }));
+                      inp.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+
+                    /* 2-4. 두 손가락 거리 계산 */
+                    function pinchDist(e) {
+                      var dx = e.touches[0].clientX - e.touches[1].clientX;
+                      var dy = e.touches[0].clientY - e.touches[1].clientY;
+                      return Math.sqrt(dx * dx + dy * dy);
+                    }
+
+                    var startDist = null;
+                    var startVal  = null;
+                    var SENSITIVITY = 1.5; /* 민감도 조절: 값이 클수록 빠르게 변함 */
+
+                    document.addEventListener('touchstart', function(e) {
+                      if (e.touches.length === 2) {
+                        startDist = pinchDist(e);
+                        var inp = getSliderInput();
+                        startVal = inp ? parseFloat(inp.value) : null;
+                      } else {
+                        startDist = null; startVal = null;
+                      }
+                    }, { passive: true });
+
+                    document.addEventListener('touchmove', function(e) {
+                      if (e.touches.length !== 2 || startDist === null || startVal === null) return;
+                      e.preventDefault(); /* 페이지 스크롤 막고 핀치만 처리 */
+
+                      var curDist = pinchDist(e);
+                      var ratio   = (curDist - startDist) / startDist; /* 양수=확대, 음수=축소 */
+
+                      var inp = getSliderInput();
+                      if (!inp) return;
+                      var min   = parseFloat(inp.min !== '' ? inp.min : '0');
+                      var max   = parseFloat(inp.max !== '' ? inp.max : '1');
+                      var range = max - min;
+
+                      setSliderValue(startVal + ratio * range * SENSITIVITY);
+                    }, { passive: false });
+
+                    document.addEventListener('touchend', function(e) {
+                      if (e.touches.length < 2) { startDist = null; startVal = null; }
+                    }, { passive: true });
 
                   } catch(e) {
                     if (window.ReactNativeWebView) {
