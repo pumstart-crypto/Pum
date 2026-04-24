@@ -168,7 +168,7 @@ export default function HomeScreen() {
     <View style={[styles.root, { paddingBottom: bottomPad, backgroundColor: colors.background }]}>
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }, scrolled && styles.headerScrolled]}>
-        <View style={{ width: 40 }} />
+        <Text style={styles.universityLabel}>P:um 피움</Text>
         <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
           <Feather name="bell" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -183,7 +183,6 @@ export default function HomeScreen() {
       >
         {/* Date */}
         <View style={styles.dateSection}>
-          <Text style={styles.universityLabel}>P:um 피움</Text>
           <View style={styles.dateRow}>
             <Text style={[styles.dateText, { color: colors.text }]}>
               {today.getMonth() + 1}월 {today.getDate()}일{' '}
