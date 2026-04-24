@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, RefreshControl, Modal, ActivityIndicator,
-  Platform, Alert, Pressable, Image,
+  RefreshControl, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@/contexts/AuthContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
 import C from '@/constants/colors';
 import { FIXED_COMMUNITIES, FIXED_IDS, filterPostsByCategory, type Post } from './(tabs)/board';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
-const WRITE_CATEGORIES = ['중고거래', '홍보', '분실물', '학교 생활'];
 
 const CAT_BADGE: Record<string, { bg: string; text: string }> = {
   '중고거래':  { bg: '#EBF3FA', text: C.primary },
@@ -25,14 +20,6 @@ const CAT_BADGE: Record<string, { bg: string; text: string }> = {
   '학교 생활': { bg: '#EBF3FA', text: C.primary },
   '기타':     { bg: '#F3F4F6', text: '#6B7280' },
 };
-
-const IDENTITY_STYLE = {
-  anon: { avatarBg: '#C5D3E3', avatarText: '#1B3A5C' },
-  dept: { avatarBg: '#9FE1CB', avatarText: '#0A4D3A' },
-  year: { avatarBg: '#CECBF6', avatarText: '#3C3489' },
-} as const;
-type IdentityType = keyof typeof IDENTITY_STYLE;
-interface Profile { department?: string; studentId?: string | number; }
 
 function relTime(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -67,33 +54,6 @@ function parseAuthorDisplay(author: string): { dept: string; year: string } {
   }
 
   return { dept: author, year: '' };
-}
-
-function buildAuthor(identity: IdentityType, profile: Profile): string {
-  if (identity === 'anon' || !profile.department) return '익명';
-  if (identity === 'dept') return `익명.${profile.department}`;
-  const yr = profile.studentId ? String(profile.studentId).substring(2, 4) + '학번' : '';
-  return yr ? `익명.${profile.department}.${yr}` : `익명.${profile.department}`;
-}
-
-/* ── Image Picker Helper ── */
-async function pickImages(max: number): Promise<string[]> {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.');
-    return [];
-  }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsMultipleSelection: max > 1,
-    selectionLimit: max,
-    quality: 0.6,
-    base64: true,
-  });
-  if (result.canceled) return [];
-  return result.assets
-    .filter(a => a.base64)
-    .map(a => `data:image/jpeg;base64,${a.base64}`);
 }
 
 /* ── Post Card ── */
@@ -178,199 +138,6 @@ function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
   );
 }
 
-/* ── Write Sheet ── */
-function WriteSheet({
-  visible, onClose, onSubmit, profile, defaultCategory,
-}: {
-  visible: boolean; onClose: () => void;
-  onSubmit: (data: { title: string; content: string; category: string; subCategory: string; author: string; images?: string[] }) => Promise<void>;
-  profile: Profile; defaultCategory: string;
-}) {
-  const insets = useSafeAreaInsets();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [price, setPrice] = useState('');
-  const [category, setCategory] = useState(defaultCategory);
-  const [identity, setIdentity] = useState<IdentityType>('anon');
-  const [submitting, setSubmitting] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
-  const [lostType, setLostType] = useState<'분실물' | '습득물'>('분실물');
-
-  const isTrade = category === '중고거래';
-  const isLost = category === '분실물';
-  const showImagePicker = isTrade || isLost;
-
-  useEffect(() => {
-    if (visible) { setCategory(defaultCategory); setImages([]); setLostType('분실물'); }
-  }, [visible, defaultCategory]);
-
-  const hasDept = !!profile.department;
-  const hasYear = hasDept && !!profile.studentId;
-  const identityOptions: { type: IdentityType; label: string; sub: string }[] = [
-    { type: 'anon', label: '익명', sub: '비공개' },
-    ...(hasDept ? [{ type: 'dept' as IdentityType, label: profile.department!, sub: '학과 표시' }] : []),
-    ...(hasYear ? [{ type: 'year' as IdentityType, label: `${String(profile.studentId).substring(2, 4)}학번`, sub: '학번 표시' }] : []),
-  ];
-
-  const canSubmit = title.trim() && content.trim() && !submitting;
-
-  const handlePickImages = async () => {
-    const max = isLost ? 3 : 5;
-    const remaining = max - images.length;
-    if (remaining <= 0) { Alert.alert('사진 제한', `최대 ${max}장까지 첨부 가능합니다.`); return; }
-    const picked = await pickImages(remaining);
-    setImages(prev => [...prev, ...picked].slice(0, max));
-  };
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    const subCat = isTrade ? price.trim() : isLost ? lostType : '';
-    await onSubmit({
-      title: title.trim(), content: content.trim(), category,
-      subCategory: subCat,
-      author: buildAuthor(identity, profile),
-      images: images.length > 0 ? images : undefined,
-    });
-    setTitle(''); setContent(''); setPrice(''); setIdentity('anon'); setImages([]); setLostType('분실물');
-    setSubmitting(false);
-    onClose();
-  };
-
-  const catList = FIXED_IDS.includes(defaultCategory) ? [defaultCategory] : WRITE_CATEGORIES;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        <Pressable style={[styles.sheetContent, { paddingBottom: (isWeb ? 16 : insets.bottom) + 16 }]} onPress={() => {}}>
-          <View style={styles.sheetHandle} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={styles.sheetTitle}>글 작성</Text>
-            <TouchableOpacity onPress={onClose}><Feather name="x" size={22} color="#9CA3AF" /></TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* 작성자 */}
-            <Text style={styles.fieldLabel}>작성자 표시</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-              {identityOptions.map(opt => {
-                const sel = identity === opt.type;
-                const s = IDENTITY_STYLE[opt.type];
-                return (
-                  <TouchableOpacity key={opt.type} style={[styles.identityCard, sel && styles.identityCardSel]} onPress={() => setIdentity(opt.type)} activeOpacity={0.8}>
-                    <View style={[styles.identityAvatar, { backgroundColor: s.avatarBg }]}>
-                      <Text style={[styles.identityAvatarText, { color: s.avatarText }]}>{opt.type === 'anon' ? '익' : opt.label.slice(0, 2)}</Text>
-                    </View>
-                    <Text style={[styles.identityLabel, sel && { color: C.primary }]} numberOfLines={1}>{opt.label}</Text>
-                    <Text style={styles.identitySub}>{opt.sub}</Text>
-                    {sel && <View style={{ position: 'absolute', top: 6, right: 6 }}><Ionicons name="checkmark-circle" size={14} color={C.primary} /></View>}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* 카테고리 */}
-            {catList.length > 1 && (
-              <>
-                <Text style={styles.fieldLabel}>카테고리</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {catList.map(cat => (
-                      <TouchableOpacity key={cat} style={[styles.catChip, category === cat && styles.catChipSel]} onPress={() => setCategory(cat)}>
-                        <Text style={[styles.catChipText, category === cat && { color: C.primary }]}>{cat}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-              </>
-            )}
-
-            {/* 분실물/습득물 토글 */}
-            {isLost && (
-              <>
-                <Text style={styles.fieldLabel}>유형</Text>
-                <View style={styles.lostTypeRow}>
-                  {(['분실물', '습득물'] as const).map(t => (
-                    <TouchableOpacity
-                      key={t}
-                      style={[styles.lostTypeBtn, lostType === t && (t === '분실물' ? styles.lostTypeBtnLost : styles.lostTypeBtnFound)]}
-                      onPress={() => setLostType(t)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name={t === '분실물' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
-                        size={16}
-                        color={lostType === t ? (t === '분실물' ? '#B45309' : '#065F46') : '#9CA3AF'}
-                      />
-                      <Text style={[styles.lostTypeBtnText, lostType === t && { color: t === '분실물' ? '#B45309' : '#065F46', fontFamily: 'Inter_700Bold' }]}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
-
-            {/* 입력 필드 */}
-            <TextInput
-              style={styles.inputField}
-              value={title}
-              onChangeText={setTitle}
-              placeholder={isTrade ? '물품 이름' : isLost ? (lostType === '분실물' ? '분실물 이름 (예: 에어팟 프로)' : '습득한 물건') : '제목'}
-              placeholderTextColor="#9CA3AF"
-            />
-            {isTrade && (
-              <TextInput style={styles.inputField} value={price} onChangeText={setPrice} placeholder="가격 (예: 12,000원)" placeholderTextColor="#9CA3AF" />
-            )}
-            <TextInput
-              style={[styles.inputField, { height: 100 }]}
-              value={content}
-              onChangeText={setContent}
-              placeholder={
-                isTrade ? '거래 장소 및 상태 설명' :
-                isLost && lostType === '분실물' ? '분실 시각, 장소, 특징 등을 적어주세요' :
-                isLost ? '습득 장소, 물건 특징 등을 적어주세요' :
-                '내용을 입력하세요'
-              }
-              placeholderTextColor="#9CA3AF"
-              multiline
-              textAlignVertical="top"
-            />
-
-            {/* 사진 첨부 (중고거래 / 분실물) */}
-            {showImagePicker && (
-              <>
-                <Text style={styles.fieldLabel}>사진 첨부 <Text style={{ fontFamily: 'Inter_400Regular', color: '#9CA3AF', textTransform: 'none', fontSize: 11 }}>(선택, 최대 {isLost ? 3 : 5}장)</Text></Text>
-                <View style={styles.imageRow}>
-                  {images.map((uri, i) => (
-                    <View key={i} style={styles.imageThumbnailWrap}>
-                      <Image source={{ uri }} style={styles.imageThumbnail} />
-                      <TouchableOpacity
-                        style={styles.imageRemoveBtn}
-                        onPress={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
-                      >
-                        <Ionicons name="close-circle" size={18} color="#374151" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {images.length < (isLost ? 3 : 5) && (
-                    <TouchableOpacity style={styles.imageAddBtn} onPress={handlePickImages} activeOpacity={0.8}>
-                      <Ionicons name="camera-outline" size={22} color="#9CA3AF" />
-                      <Text style={styles.imageAddText}>{images.length}/{isLost ? 3 : 5}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )}
-
-            <TouchableOpacity style={[styles.submitBtn, !canSubmit && { opacity: 0.4 }]} onPress={handleSubmit} disabled={!canSubmit}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>게시하기</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
 /* ══════════════════════════════
    Community Detail Screen
 ══════════════════════════════ */
@@ -381,7 +148,6 @@ export default function CommunityDetailScreen() {
   const { category, label } = useLocalSearchParams<{ category: string; label: string }>();
   const insets = useSafeAreaInsets();
   const topPad = isWeb ? 67 : insets.top;
-  const { token } = useAuth();
 
   const isDeptBoard = !FIXED_IDS.includes(category);
   const isLostBoard = category === '분실물';
@@ -394,16 +160,8 @@ export default function CommunityDetailScreen() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showWrite, setShowWrite] = useState(false);
-  const [profile, setProfile] = useState<Profile>({});
   const [page, setPage] = useState(1);
   const [lostTab, setLostTab] = useState<LostTab>('전체');
-
-  useEffect(() => {
-    AsyncStorage.getItem('campus_life_profile').then(raw => {
-      if (raw) { try { setProfile(JSON.parse(raw)); } catch {} }
-    });
-  }, []);
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -439,21 +197,6 @@ export default function CommunityDetailScreen() {
     return posts.filter(p => p.subCategory === tab).length;
   };
 
-  const handleSubmit = async (data: { title: string; content: string; category: string; subCategory: string; author: string; images?: string[] }) => {
-    if (!token) { Alert.alert('오류', '로그인 후 이용할 수 있습니다.'); return; }
-    try {
-      const r = await fetch(`${API}/community`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      });
-      if (r.ok) {
-        const newPost = await r.json();
-        setPosts(prev => [newPost, ...prev]);
-      } else { Alert.alert('오류', '게시글 작성에 실패했습니다.'); }
-    } catch { Alert.alert('오류', '게시글 작성에 실패했습니다.'); }
-  };
-
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
       {/* Header */}
@@ -465,8 +208,6 @@ export default function CommunityDetailScreen() {
           <Ionicons name={communityIcon as any} size={14} color={communityColor} />
         </View>
         <Text style={styles.detailHeaderTitle}>{label}</Text>
-        <View style={{ flex: 1 }} />
-        <Text style={styles.postCount}>{posts.length}개</Text>
       </View>
 
       {/* 분실물 탭 바 */}
@@ -527,19 +268,11 @@ export default function CommunityDetailScreen() {
       {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, { bottom: isWeb ? 28 : insets.bottom + 28 }]}
-        onPress={() => setShowWrite(true)}
+        onPress={() => router.push({ pathname: '/community-write', params: { category: defaultWriteCategory, label } })}
         activeOpacity={0.9}
       >
         <Feather name="edit-2" size={20} color="#fff" />
       </TouchableOpacity>
-
-      <WriteSheet
-        visible={showWrite}
-        onClose={() => setShowWrite(false)}
-        onSubmit={handleSubmit}
-        profile={profile}
-        defaultCategory={defaultWriteCategory}
-      />
     </View>
   );
 }
@@ -551,8 +284,6 @@ const styles = StyleSheet.create({
   backBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'flex-start' },
   headerIconWrap: { width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   detailHeaderTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
-  postCount: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-
   // 분실물 탭 바
   lostTabBar: { flexDirection: 'row', backgroundColor: '#F5F7FA', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 8 },
   lostTabBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
@@ -591,41 +322,4 @@ const styles = StyleSheet.create({
 
   // FAB
   fab: { position: 'absolute', right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
-
-  // Sheet
-  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheetContent: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '92%' },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
-  fieldLabel: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#6B7280', marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' },
-
-  identityCard: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB', position: 'relative' },
-  identityCardSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
-  identityAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  identityAvatarText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  identityLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#374151', textAlign: 'center' },
-  identitySub: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF', textAlign: 'center', marginTop: 2 },
-
-  catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
-  catChipSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
-  catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-
-  // 분실물 유형 토글
-  lostTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  lostTypeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 14, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
-  lostTypeBtnLost: { borderColor: '#B45309', backgroundColor: '#FEF3C7' },
-  lostTypeBtnFound: { borderColor: '#065F46', backgroundColor: '#D1FAE5' },
-  lostTypeBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-
-  // 이미지 첨부
-  imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  imageThumbnailWrap: { position: 'relative' },
-  imageThumbnail: { width: 72, height: 72, borderRadius: 10, backgroundColor: '#F3F4F6' },
-  imageRemoveBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: '#fff', borderRadius: 9 },
-  imageAddBtn: { width: 72, height: 72, borderRadius: 10, borderWidth: 1.5, borderColor: '#E5E7EB', borderStyle: 'dashed', backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  imageAddText: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
-
-  inputField: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Inter_400Regular', color: '#111827', marginBottom: 10 },
-  submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 15, alignItems: 'center', marginTop: 4, marginBottom: 8 },
-  submitBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
 });
