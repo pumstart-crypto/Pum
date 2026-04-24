@@ -189,6 +189,8 @@ function calcRemaining(info: MySeatInfo): {
 }
 
 
+const LIB_CONSENT_KEY = 'pium_lib_consent_v1';
+
 // ── MySeatCard ─────────────────────────────────────────────────
 function MySeatCard({ refreshTrigger = 0, showToast }: {
   refreshTrigger?: number;
@@ -197,6 +199,16 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
   const [info, setInfo] = useState<MySeatInfo | null>(null);
   const [remaining, setRemaining] = useState<ReturnType<typeof calcRemaining> | null>(null);
   const insets = useSafeAreaInsets();
+
+  // 개인정보 제3자 제공 동의
+  const [consentGiven, setConsentGiven] = useState<boolean | null>(null); // null = 로딩 중
+  const [showConsentModal, setShowConsentModal] = useState(false);
+
+  useEffect(() => {
+    secureGet(LIB_CONSENT_KEY).then(val => {
+      setConsentGiven(val === 'true');
+    });
+  }, []);
 
   // WebView 자동 동기화
   const [libWebViewVisible, setLibWebViewVisible] = useState(false);
@@ -261,6 +273,26 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
   const openLibWebView = () => {
     setWebSyncLoading(false);
     setLibWebViewVisible(true);
+  };
+
+  // 동의 확인 후 WebView 열기
+  const handleSeatCardPress = () => {
+    if (consentGiven) {
+      openLibWebView();
+    } else {
+      setShowConsentModal(true);
+    }
+  };
+
+  const handleConsentAgree = async () => {
+    await secureSet(LIB_CONSENT_KEY, 'true');
+    setConsentGiven(true);
+    setShowConsentModal(false);
+    openLibWebView();
+  };
+
+  const handleConsentDecline = () => {
+    setShowConsentModal(false);
   };
 
   const closeLibWebView = () => {
@@ -531,9 +563,41 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
 
   return (
     <>
+      {/* ── 개인정보 제3자 제공 동의 모달 ── */}
+      <Modal visible={showConsentModal} transparent animationType="fade" onRequestClose={handleConsentDecline}>
+        <View style={seatStyles.consentOverlay}>
+          <View style={seatStyles.consentBox}>
+            <View style={seatStyles.consentIconRow}>
+              <Ionicons name="shield-checkmark-outline" size={32} color={C.primary} />
+            </View>
+            <Text style={seatStyles.consentTitle}>개인정보 제3자 제공 동의</Text>
+            <Text style={seatStyles.consentBody}>
+              원활한 서비스 제공을 위해 부산대학교 도서관 시스템에 세션 토큰을 제공하는 것에 동의하십니까?
+            </Text>
+            <View style={seatStyles.consentDetail}>
+              <Text style={seatStyles.consentDetailText}>· 제공받는 자: 부산대학교 도서관 시스템</Text>
+              <Text style={seatStyles.consentDetailText}>· 제공 항목: 도서관 웹사이트 세션 정보</Text>
+              <Text style={seatStyles.consentDetailText}>· 제공 목적: 좌석 예약 현황 조회</Text>
+              <Text style={seatStyles.consentDetailText}>· 보유 기간: 세션 종료 시 즉시 삭제</Text>
+            </View>
+            <Text style={seatStyles.consentNote}>
+              동의하지 않아도 서비스 이용은 가능하나, 내 자리 자동 불러오기 기능을 사용할 수 없습니다.
+            </Text>
+            <View style={seatStyles.consentBtnRow}>
+              <TouchableOpacity style={seatStyles.consentDeclineBtn} onPress={handleConsentDecline} activeOpacity={0.8}>
+                <Text style={seatStyles.consentDeclineText}>거부</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={seatStyles.consentAgreeBtn} onPress={handleConsentAgree} activeOpacity={0.8}>
+                <Text style={seatStyles.consentAgreeText}>동의</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── 등록된 카드 ── */}
       {info && remaining ? (
-        <TouchableOpacity style={seatStyles.card} onPress={openLibWebView} activeOpacity={0.85}>
+        <TouchableOpacity style={seatStyles.card} onPress={handleSeatCardPress} activeOpacity={0.85}>
           <View style={seatStyles.cardHeader}>
             <View style={seatStyles.cardTitleRow}>
               <Ionicons name="library-outline" size={15} color={C.primary} />
@@ -583,7 +647,7 @@ function MySeatCard({ refreshTrigger = 0, showToast }: {
           </View>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={seatStyles.emptyCard} onPress={openLibWebView} activeOpacity={0.85}>
+        <TouchableOpacity style={seatStyles.emptyCard} onPress={handleSeatCardPress} activeOpacity={0.85}>
           <View style={seatStyles.emptyTopRow}>
             <Ionicons name="library-outline" size={15} color={C.primary} />
             <Text style={seatStyles.emptyText}>내 자리</Text>
@@ -1250,4 +1314,46 @@ const seatStyles = StyleSheet.create({
   },
   wvBannerText: { flex: 1, fontSize: 11, color: C.primary, fontFamily: 'Inter_400Regular', lineHeight: 16 },
 
+  // ── 개인정보 제3자 제공 동의 모달 ──
+  consentOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24,
+  },
+  consentBox: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 24,
+    width: '100%', maxWidth: 380,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 10,
+  },
+  consentIconRow: { alignItems: 'center', marginBottom: 14 },
+  consentTitle: {
+    fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827',
+    textAlign: 'center', marginBottom: 12,
+  },
+  consentBody: {
+    fontSize: 14, fontFamily: 'Inter_400Regular', color: '#374151',
+    lineHeight: 22, textAlign: 'center', marginBottom: 16,
+  },
+  consentDetail: {
+    backgroundColor: '#F8FAFF', borderRadius: 12,
+    borderWidth: 1, borderColor: `${C.primary}20`,
+    padding: 12, marginBottom: 12, gap: 5,
+  },
+  consentDetailText: {
+    fontSize: 12, fontFamily: 'Inter_400Regular', color: '#4B5563', lineHeight: 18,
+  },
+  consentNote: {
+    fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF',
+    lineHeight: 17, textAlign: 'center', marginBottom: 20,
+  },
+  consentBtnRow: { flexDirection: 'row', gap: 10 },
+  consentDeclineBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: '#F3F4F6', alignItems: 'center',
+  },
+  consentDeclineText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  consentAgreeBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: C.primary, alignItems: 'center',
+  },
+  consentAgreeText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
 });
