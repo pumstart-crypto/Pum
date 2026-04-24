@@ -606,7 +606,7 @@ const pickerStyles = StyleSheet.create({
   },
   indexBar: {
     width: 22,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingVertical: 4,
     gap: 1,
