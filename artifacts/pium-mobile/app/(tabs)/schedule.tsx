@@ -8,7 +8,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGetSchedules } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import C from '@/constants/colors';
@@ -264,7 +263,23 @@ export default function ScheduleScreen() {
   const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
 
   const [tab, setTab] = useState<Tab>('timetable');
-  const { data: schedules = [], refetch, isLoading } = useGetSchedules();
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const refetch = useCallback(async () => {
+    if (!token) return;
+    setIsLoading(true);
+    try {
+      const r = await fetch(`${API}/schedule`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) setSchedules(await r.json());
+    } catch {}
+    finally { setIsLoading(false); }
+  }, [token]);
+
+  useEffect(() => { refetch(); }, [refetch]);
+
   const [grades, setGrades] = useState<Grade[]>([]);
   const [gradesLoading, setGradesLoading] = useState(false);
   const [gradesFetched, setGradesFetched] = useState(false);
@@ -1896,13 +1911,13 @@ const styles = StyleSheet.create({
 
   ttHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
   ttTitleRow: { flexDirection: 'row', alignItems: 'center' },
-  ttTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
+  ttTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', letterSpacing: -0.5, lineHeight: 28 },
   ttHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   addCircleBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center' },
 
   gradeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
-  gradeTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
+  gradeTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', letterSpacing: -0.5, lineHeight: 28 },
   settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
 
   segWrapper: { paddingHorizontal: 20, paddingBottom: 12 },
