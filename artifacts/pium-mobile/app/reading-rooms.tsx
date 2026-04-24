@@ -1158,94 +1158,24 @@ export default function ReadingRoomsScreen() {
               injectedJavaScript={`
                 (function() {
                   try {
-                    var navHidden = false;
-                    var titleHidden = false;
-
+                    /* Angular Material Pyxis 시스템 전용 클래스 직접 타겟 */
                     function hide() {
-                      if (!document.body) return;
-                      var wh = window.innerHeight;
-                      var ww = window.innerWidth;
-
-                      /* ── 하단 네비게이션: position:fixed 이고 화면 하단에 붙은 요소만 숨김 ── */
-                      if (!navHidden) {
-                        var all = Array.prototype.slice.call(document.querySelectorAll('*'));
-                        for (var i = 0; i < all.length; i++) {
-                          var el = all[i];
-                          if (el === document.body || el === document.documentElement) continue;
-                          var st = window.getComputedStyle(el);
-                          if (st.position !== 'fixed' && st.position !== 'sticky') continue;
-                          var r = el.getBoundingClientRect();
-                          /* 너비 60% 이상, 하단 85% 이하 위치, 높이 10~15% 사이 */
-                          if (r.width > ww * 0.6 && r.bottom >= wh * 0.82 && r.height > 10 && r.height < wh * 0.18) {
-                            el.style.setProperty('display', 'none', 'important');
-                            navHidden = true;
-                            break;
-                          }
-                        }
+                      /* 상단 헤더 툴바 (← 뒤로가기 + 페이지 타이틀) */
+                      var header = document.querySelector('.ikc-header-toolbar');
+                      if (header) {
+                        header.style.setProperty('display', 'none', 'important');
+                        /* 헤더가 fixed 60px 이었으므로 콘텐츠 상단 여백 제거 */
+                        var content = document.querySelector('.mat-sidenav-content, .mat-drawer-content');
+                        if (content) content.style.setProperty('margin-top', '0', 'important');
                       }
-
-                      /* ── 상단 페이지 타이틀: '예약' 포함 + 25자 미만 + 화면 상단 25% 이내 ── */
-                      if (!titleHidden) {
-                        var candidates = Array.prototype.slice.call(
-                          document.querySelectorAll('h1,h2,h3,h4,p,div,span,a')
-                        );
-                        for (var j = 0; j < candidates.length; j++) {
-                          var h = candidates[j];
-                          /* 자식 요소가 3개 초과면 컨테이너일 가능성 높음 — 스킵 */
-                          if (h.children.length > 3) continue;
-                          var ht = (h.innerText || '').trim();
-                          if (ht.length < 4 || ht.length > 25) continue;
-                          if (ht.indexOf('예약') === -1) continue;
-                          /* 화면 상단 25% 안에 위치해야 함 */
-                          var hr = h.getBoundingClientRect();
-                          if (hr.top < 0 || hr.top > wh * 0.25) continue;
-                          /* 화살표 포함 타이틀 바 전체를 숨기기 위해 위로 최대 4레벨 탐색.
-                             각 조상의 innerText 합산이 40자 이내인 가장 높은 조상을 숨김. */
-                          var tgt = h;
-                          var up = h.parentElement;
-                          for (var k = 0; k < 4; k++) {
-                            if (!up || up === document.body || up === document.documentElement) break;
-                            var upTxt = (up.innerText || '').replace(/\s+/g, '');
-                            if (upTxt.length > 22) break;
-                            tgt = up;
-                            up = up.parentElement;
-                          }
-                          tgt.style.setProperty('display', 'none', 'important');
-                          titleHidden = true;
-                          break;
-                        }
-                      }
+                      /* 하단 푸터 툴바 (MY / 문의 / 홈 / 이용증 / 전체메뉴) */
+                      var footer = document.querySelector('.ikc-footer-toolbar');
+                      if (footer) footer.style.setProperty('display', 'none', 'important');
                     }
 
                     hide();
                     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
-                    for (var i = 1; i <= 20; i++) setTimeout(hide, i * 400);
-
-                    /* 진단: 3초 후 fixed 요소 목록 + 본문 텍스트 리포트 */
-                    setTimeout(function() {
-                      if (!window.ReactNativeWebView) return;
-                      var fixedList = [];
-                      Array.prototype.forEach.call(document.querySelectorAll('*'), function(el) {
-                        var st = window.getComputedStyle(el);
-                        if (st.position === 'fixed' || st.position === 'sticky') {
-                          var r = el.getBoundingClientRect();
-                          fixedList.push({
-                            cls: String(el.className || el.tagName).slice(0, 40),
-                            b: Math.round(r.bottom),
-                            h: Math.round(r.height),
-                            w: Math.round(r.width)
-                          });
-                        }
-                      });
-                      window.ReactNativeWebView.postMessage(JSON.stringify({
-                        t: 'DBG2',
-                        els: document.querySelectorAll('*').length,
-                        wh: Math.round(window.innerHeight),
-                        ww: Math.round(window.innerWidth),
-                        txt: (document.body ? document.body.innerText : '').slice(0, 80),
-                        fixed: fixedList.slice(0, 8)
-                      }));
-                    }, 3000);
+                    for (var i = 1; i <= 15; i++) setTimeout(hide, i * 300);
 
                   } catch(e) {
                     if (window.ReactNativeWebView) {
