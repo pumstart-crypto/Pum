@@ -1184,19 +1184,27 @@ export default function ReadingRoomsScreen() {
                         }
                       }
 
-                      /* ── 상단 페이지 타이틀: h1~h4 중 '예약' 포함 + 35자 미만 ── */
+                      /* ── 상단 페이지 타이틀: '예약' 포함 + 25자 미만 + 화면 상단 25% 이내 ── */
                       if (!titleHidden) {
-                        var heads = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4'));
-                        for (var j = 0; j < heads.length; j++) {
-                          var h = heads[j];
+                        var candidates = Array.prototype.slice.call(
+                          document.querySelectorAll('h1,h2,h3,h4,p,div,span,a')
+                        );
+                        for (var j = 0; j < candidates.length; j++) {
+                          var h = candidates[j];
+                          /* 자식 요소가 3개 초과면 컨테이너일 가능성 높음 — 스킵 */
+                          if (h.children.length > 3) continue;
                           var ht = (h.innerText || '').trim();
-                          if (ht.length > 0 && ht.length < 35 && ht.indexOf('예약') !== -1) {
-                            var par = h.parentElement;
-                            var tgt = (par && par !== document.body && par.children.length <= 2) ? par : h;
-                            tgt.style.setProperty('display', 'none', 'important');
-                            titleHidden = true;
-                            break;
-                          }
+                          if (ht.length < 4 || ht.length > 25) continue;
+                          if (ht.indexOf('예약') === -1) continue;
+                          /* 화면 상단 25% 안에 위치해야 함 */
+                          var hr = h.getBoundingClientRect();
+                          if (hr.top < 0 || hr.top > wh * 0.25) continue;
+                          /* 찾았으면 부모가 단순 래퍼(자식 1~2개)면 부모까지 숨김 */
+                          var par = h.parentElement;
+                          var tgt = (par && par !== document.body && par.children.length <= 2) ? par : h;
+                          tgt.style.setProperty('display', 'none', 'important');
+                          titleHidden = true;
+                          break;
                         }
                       }
                     }
