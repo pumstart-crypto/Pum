@@ -283,7 +283,7 @@ function DeptPickerModal({
           {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={14} color="#9CA3AF" /></TouchableOpacity>}
         </View>
 
-        <View style={{ flex: 1, maxHeight: 400 }}>
+        <View style={{ height: 400 }}>
           {isSearching ? (
             <FlatList
               data={filtered}
