@@ -1158,37 +1158,45 @@ export default function ReadingRoomsScreen() {
               injectedJavaScript={`
                 (function() {
                   try {
+                    var navHidden = false;
+                    var titleHidden = false;
 
                     function hide() {
-                      var els = Array.prototype.slice.call(document.querySelectorAll('*'));
+                      if (!document.body) return;
+                      var wh = window.innerHeight;
+                      var ww = window.innerWidth;
 
-                      /* ── 하단 네비게이션 숨기기 ──────────────────────────────────
-                         '이용증'+'전체메뉴'+'MY' 세 단어가 모두 innerText에 있고
-                         자식이 10개 이하인 가장 작은 컨테이너를 찾아 숨김           */
-                      var NAV = ['이용증', '전체메뉴', 'MY'];
-                      for (var i = 0; i < els.length; i++) {
-                        var el = els[i];
-                        if (el === document.body || el === document.documentElement) continue;
-                        var ch = el.children.length;
-                        if (ch < 2 || ch > 12) continue;
-                        var txt = (el.innerText || '').replace(/\\s+/g, '');
-                        var match = NAV.every(function(k){ return txt.indexOf(k) !== -1; });
-                        if (match) {
-                          el.style.setProperty('display', 'none', 'important');
+                      /* ── 하단 네비게이션: position:fixed 이고 화면 하단에 붙은 요소만 숨김 ── */
+                      if (!navHidden) {
+                        var all = Array.prototype.slice.call(document.querySelectorAll('*'));
+                        for (var i = 0; i < all.length; i++) {
+                          var el = all[i];
+                          if (el === document.body || el === document.documentElement) continue;
+                          var st = window.getComputedStyle(el);
+                          if (st.position !== 'fixed' && st.position !== 'sticky') continue;
+                          var r = el.getBoundingClientRect();
+                          /* 너비 60% 이상, 하단 85% 이하 위치, 높이 10~15% 사이 */
+                          if (r.width > ww * 0.6 && r.bottom >= wh * 0.82 && r.height > 10 && r.height < wh * 0.18) {
+                            el.style.setProperty('display', 'none', 'important');
+                            navHidden = true;
+                            break;
+                          }
                         }
                       }
 
-                      /* ── 상단 페이지 타이틀 숨기기 ──────────────────────────────
-                         짧은 텍스트(< 35자) 안에 '예약'이 포함된 제목 요소 + 부모  */
-                      var titleSels = 'h1,h2,h3,h4,[class*="tit"],[class*="title"],[class*="header"],[class*="subject"],[class*="page-"]';
-                      var heads = Array.prototype.slice.call(document.querySelectorAll(titleSels));
-                      for (var j = 0; j < heads.length; j++) {
-                        var h = heads[j];
-                        var ht = (h.innerText || '').trim();
-                        if (ht.indexOf('예약') !== -1 && ht.length < 35) {
-                          var par = h.parentElement;
-                          var tgt = (par && par !== document.body && par.children.length === 1) ? par : h;
-                          tgt.style.setProperty('display', 'none', 'important');
+                      /* ── 상단 페이지 타이틀: h1~h4 중 '예약' 포함 + 35자 미만 ── */
+                      if (!titleHidden) {
+                        var heads = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4'));
+                        for (var j = 0; j < heads.length; j++) {
+                          var h = heads[j];
+                          var ht = (h.innerText || '').trim();
+                          if (ht.length > 0 && ht.length < 35 && ht.indexOf('예약') !== -1) {
+                            var par = h.parentElement;
+                            var tgt = (par && par !== document.body && par.children.length <= 2) ? par : h;
+                            tgt.style.setProperty('display', 'none', 'important');
+                            titleHidden = true;
+                            break;
+                          }
                         }
                       }
                     }
@@ -1197,16 +1205,31 @@ export default function ReadingRoomsScreen() {
                     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
                     for (var i = 1; i <= 20; i++) setTimeout(hide, i * 400);
 
-                    /* 진단: 2초 후 DOM 상태 리포트 */
+                    /* 진단: 3초 후 fixed 요소 목록 + 본문 텍스트 리포트 */
                     setTimeout(function() {
-                      if (window.ReactNativeWebView) {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                          t: 'DBG',
-                          els: document.querySelectorAll('*').length,
-                          txt: (document.body ? document.body.innerText : '').slice(0, 120)
-                        }));
-                      }
-                    }, 2000);
+                      if (!window.ReactNativeWebView) return;
+                      var fixedList = [];
+                      Array.prototype.forEach.call(document.querySelectorAll('*'), function(el) {
+                        var st = window.getComputedStyle(el);
+                        if (st.position === 'fixed' || st.position === 'sticky') {
+                          var r = el.getBoundingClientRect();
+                          fixedList.push({
+                            cls: String(el.className || el.tagName).slice(0, 40),
+                            b: Math.round(r.bottom),
+                            h: Math.round(r.height),
+                            w: Math.round(r.width)
+                          });
+                        }
+                      });
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        t: 'DBG2',
+                        els: document.querySelectorAll('*').length,
+                        wh: Math.round(window.innerHeight),
+                        ww: Math.round(window.innerWidth),
+                        txt: (document.body ? document.body.innerText : '').slice(0, 80),
+                        fixed: fixedList.slice(0, 8)
+                      }));
+                    }, 3000);
 
                   } catch(e) {
                     if (window.ReactNativeWebView) {
