@@ -304,7 +304,6 @@ function DeptPickerModal({
             onChangeText={setQ}
             placeholder="학과 검색..."
             placeholderTextColor="#9CA3AF"
-            autoFocus
           />
           {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={14} color="#9CA3AF" /></TouchableOpacity>}
         </View>
