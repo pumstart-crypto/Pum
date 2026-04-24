@@ -5,7 +5,7 @@ import {
   Platform, Pressable, FlatList, SectionList,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
@@ -35,6 +35,7 @@ export interface Post {
   author: string;
   views: number;
   commentCount?: number;
+  images?: string[];
   createdAt: string;
 }
 
@@ -406,6 +407,10 @@ export default function BoardScreen() {
   }, []);
 
   useEffect(() => { setLoading(true); fetchPosts(); }, [fetchPosts]);
+
+  useFocusEffect(useCallback(() => {
+    fetchPosts();
+  }, [fetchPosts]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

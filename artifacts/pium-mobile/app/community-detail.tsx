@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Platform, Image, Linking, Alert,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
@@ -177,6 +177,10 @@ export default function CommunityDetailScreen() {
   }, [category]);
 
   useEffect(() => { setLoading(true); setPage(1); setLostTab('전체'); fetchPosts(); }, [fetchPosts]);
+
+  useFocusEffect(useCallback(() => {
+    fetchPosts();
+  }, [fetchPosts]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
