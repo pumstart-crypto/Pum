@@ -11,7 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { loadProfileAsync, saveProfileAsync, type UserProfile, DEFAULT_PROFILE } from '@/hooks/useProfile';
 import C from '@/constants/colors';
 
-const silhouette = require('../assets/images/profile-silhouette.png');
+const defaultAvatar = require('../assets/images/profile-default.png');
 
 const GRADE_OPTIONS = [
   { label: '1학년', value: '1' },
@@ -115,9 +115,7 @@ export default function ProfileEditScreen() {
           <>
             {/* Avatar */}
             <View style={styles.avatarSection}>
-              <View style={[styles.avatar, { backgroundColor: C.primary }]}>
-                <Image source={silhouette} style={styles.avatarImage} resizeMode="contain" />
-              </View>
+              <Image source={defaultAvatar} style={styles.avatar} resizeMode="cover" />
             </View>
 
             {isAdmin && (
@@ -224,8 +222,7 @@ const styles = StyleSheet.create({
   saveBtnText: { fontSize: 15, color: C.primary, fontFamily: 'Inter_700Bold' },
   content: { paddingHorizontal: 16, paddingTop: 20 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
-  avatar: { width: 90, height: 90, borderRadius: 45, justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 4 },
-  avatarImage: { width: 72, height: 72 },
+  avatar: { width: 90, height: 90, borderRadius: 45 },
   adminBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF4FF', borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: `${C.primary}30` },
   adminText: { fontSize: 12, color: C.primary, fontFamily: 'Inter_400Regular', flex: 1 },
   section: { marginBottom: 20 },

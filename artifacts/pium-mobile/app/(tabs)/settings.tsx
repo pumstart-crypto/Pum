@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Switch, Alert, Platform,
+  Switch, Alert, Platform, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { loadProfileAsync, type UserProfile, DEFAULT_PROFILE } from '@/hooks/useProfile';
 import C from '@/constants/colors';
+
+const defaultAvatar = require('../../assets/images/profile-default.png');
 
 const GRADE_LABEL: Record<string, string> = {
   '1': '1학년', '2': '2학년', '3': '3학년', '4': '4학년',
@@ -47,8 +49,6 @@ export default function SettingsScreen() {
   const displaySub = isAdmin
     ? (user?.major || '시스템 관리')
     : [profile.department, GRADE_LABEL[profile.grade]].filter(Boolean).join(' · ');
-  const initial = displayName[0] || '학';
-
   useEffect(() => {
     loadProfileAsync().then(setProfile);
   }, []);
@@ -88,9 +88,7 @@ export default function SettingsScreen() {
           onPress={() => router.push('/profile-edit')}
           activeOpacity={0.85}
         >
-          <View style={[styles.avatar, { backgroundColor: profile.avatarColor }]}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
+          <Image source={defaultAvatar} style={styles.avatar} resizeMode="cover" />
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: colors.text }]}>{displayName}</Text>
             {!!displaySub && <Text style={[styles.profileSub, { color: colors.textSecondary }]}>{displaySub}</Text>}
@@ -200,7 +198,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     shadowColor: C.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
-  avatar: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+  avatar: { width: 60, height: 60, borderRadius: 30 },
   avatarText: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#fff' },
   profileInfo: { flex: 1 },
   profileName: { fontSize: 18, fontFamily: 'Inter_700Bold' },
