@@ -17,17 +17,18 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'input' | 'verify' | 'result'>('input');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [emailLocal, setEmailLocal] = useState('');
   const [code, setCode] = useState('');
   const [foundId, setFoundId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devCode, setDevCode] = useState('');
 
-  const emailOk = email.toLowerCase().trim().endsWith('@pusan.ac.kr');
+  const emailOk = emailLocal.trim().length > 0;
+  const fullEmail = `${emailLocal.trim().toLowerCase()}@pusan.ac.kr`;
 
   const reset = () => {
-    setStep('input'); setName(''); setEmail(''); setCode('');
+    setStep('input'); setName(''); setEmailLocal(''); setCode('');
     setFoundId(''); setError(''); setDevCode(''); setLoading(false);
   };
 
@@ -38,7 +39,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
     try {
       const r = await fetch(`${API}/auth/find-id/send-verification`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.toLowerCase().trim() }),
+        body: JSON.stringify({ name: name.trim(), email: fullEmail }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '오류가 발생했습니다.'); return; }
@@ -53,7 +54,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
     try {
       const r = await fetch(`${API}/auth/find-id/verify`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.toLowerCase().trim(), code }),
+        body: JSON.stringify({ name: name.trim(), email: fullEmail, code }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '인증에 실패했습니다.'); return; }
@@ -89,9 +90,14 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
               <TextInput style={sheet.input} value={name} onChangeText={setName}
                 placeholder="실명을 입력하세요" placeholderTextColor="#9CA3AF" />
               <Text style={sheet.label}>부산대 웹메일</Text>
-              <TextInput style={sheet.input} value={email} onChangeText={setEmail}
-                placeholder="학번@pusan.ac.kr" placeholderTextColor="#9CA3AF"
-                keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+              <View style={sheet.emailRow}>
+                <TextInput style={[sheet.input, sheet.emailLocalInput]} value={emailLocal}
+                  onChangeText={setEmailLocal} placeholder="학번" placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                <View style={sheet.emailDomain}>
+                  <Text style={sheet.emailDomainText}>@pusan.ac.kr</Text>
+                </View>
+              </View>
               <TouchableOpacity
                 style={[sheet.btn, (!name.trim() || !emailOk || loading) && sheet.btnDisabled]}
                 onPress={sendVerification}
@@ -106,7 +112,7 @@ function FindIdModal({ visible, onClose }: { visible: boolean; onClose: () => vo
             <>
               <View style={sheet.infoBox}>
                 <Feather name="check-circle" size={14} color="#10B981" />
-                <Text style={sheet.infoText}>{email}으로 인증번호를 발송했습니다.</Text>
+                <Text style={sheet.infoText}>{fullEmail}으로 인증번호를 발송했습니다.</Text>
               </View>
               {!!devCode && (
                 <View style={sheet.devBox}>
@@ -154,7 +160,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
   const [step, setStep] = useState<'input' | 'verify' | 'reset' | 'done'>('input');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [emailLocal, setEmailLocal] = useState('');
   const [code, setCode] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -164,10 +170,11 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
   const [error, setError] = useState('');
   const [devCode, setDevCode] = useState('');
 
-  const emailOk = email.toLowerCase().trim().endsWith('@pusan.ac.kr');
+  const emailOk = emailLocal.trim().length > 0;
+  const fullEmail = `${emailLocal.trim().toLowerCase()}@pusan.ac.kr`;
 
   const reset = () => {
-    setStep('input'); setName(''); setUsername(''); setEmail(''); setCode('');
+    setStep('input'); setName(''); setUsername(''); setEmailLocal(''); setCode('');
     setResetToken(''); setNewPw(''); setNewPwConfirm('');
     setShowPw(false); setError(''); setDevCode(''); setLoading(false);
   };
@@ -179,7 +186,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
     try {
       const r = await fetch(`${API}/auth/find-password/send-verification`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: email.toLowerCase().trim() }),
+        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: fullEmail }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '오류가 발생했습니다.'); return; }
@@ -194,7 +201,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
     try {
       const r = await fetch(`${API}/auth/find-password/verify`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: email.toLowerCase().trim(), code }),
+        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: fullEmail, code }),
       });
       const data = await r.json();
       if (!r.ok) { setError(data.message || '인증에 실패했습니다.'); return; }
@@ -252,9 +259,14 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
                 placeholder="아이디를 입력하세요" placeholderTextColor="#9CA3AF"
                 autoCapitalize="none" autoCorrect={false} />
               <Text style={sheet.label}>부산대 웹메일</Text>
-              <TextInput style={sheet.input} value={email} onChangeText={setEmail}
-                placeholder="학번@pusan.ac.kr" placeholderTextColor="#9CA3AF"
-                keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+              <View style={sheet.emailRow}>
+                <TextInput style={[sheet.input, sheet.emailLocalInput]} value={emailLocal}
+                  onChangeText={setEmailLocal} placeholder="학번" placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                <View style={sheet.emailDomain}>
+                  <Text style={sheet.emailDomainText}>@pusan.ac.kr</Text>
+                </View>
+              </View>
               <TouchableOpacity
                 style={[sheet.btn, (!canSendVerification) && sheet.btnDisabled]}
                 onPress={sendVerification} disabled={!canSendVerification}
@@ -268,7 +280,7 @@ function FindPasswordModal({ visible, onClose }: { visible: boolean; onClose: ()
             <>
               <View style={sheet.infoBox}>
                 <Feather name="check-circle" size={14} color="#10B981" />
-                <Text style={sheet.infoText}>{email}으로 인증번호를 발송했습니다.</Text>
+                <Text style={sheet.infoText}>{fullEmail}으로 인증번호를 발송했습니다.</Text>
               </View>
               {!!devCode && (
                 <View style={sheet.devBox}>
@@ -509,6 +521,38 @@ const sheet = StyleSheet.create({
   title: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
   closeBtn: { padding: 6 },
   label: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280', marginBottom: -4 },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emailLocalInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    fontSize: 15,
+    color: '#111827',
+    fontFamily: 'Inter_400Regular',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  emailDomain: {
+    paddingHorizontal: 12,
+    paddingVertical: 15,
+    backgroundColor: '#E5E9EF',
+    borderLeftWidth: 1,
+    borderLeftColor: '#D1D5DB',
+    justifyContent: 'center',
+  },
+  emailDomainText: {
+    fontSize: 13,
+    color: '#374151',
+    fontFamily: 'Inter_600SemiBold',
+  },
   input: {
     backgroundColor: '#F3F4F6', borderRadius: 14,
     paddingHorizontal: 16, paddingVertical: 15,

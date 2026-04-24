@@ -44,8 +44,8 @@ export default function RegisterScreen() {
   const [usernameChecked, setUsernameChecked] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState(false);
 
-  // Email step
-  const [email, setEmail] = useState('');
+  // Email step (로컬 파트만 저장, @pusan.ac.kr 고정)
+  const [emailLocal, setEmailLocal] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -79,7 +79,8 @@ export default function RegisterScreen() {
   const pwOk = password.length >= 8;
   const pwMatch = password === passwordConfirm;
   const usernameOk = /^[a-zA-Z0-9_]{4,20}$/.test(username);
-  const emailOk = email.toLowerCase().trim().endsWith('@pusan.ac.kr');
+  const emailOk = emailLocal.trim().length > 0;
+  const fullEmail = `${emailLocal.trim().toLowerCase()}@pusan.ac.kr`;
 
   const handleUsernameChange = (text: string) => {
     setUsername(text);
@@ -104,17 +105,12 @@ export default function RegisterScreen() {
   };
 
   const handleSendVerification = async () => {
-    const trimmed = email.toLowerCase().trim();
-    if (!trimmed.endsWith('@pusan.ac.kr')) {
-      setError('부산대학교 웹메일(@pusan.ac.kr)만 사용할 수 있습니다.');
-      return;
-    }
     setLoading(true); setError('');
     try {
       const r = await fetch(`${API}/auth/send-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: fullEmail }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -142,7 +138,7 @@ export default function RegisterScreen() {
       const r = await fetch(`${API}/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase().trim(), code }),
+        body: JSON.stringify({ email: fullEmail, code }),
       });
       if (!r.ok) throw new Error((await r.json()).message || '인증 실패');
       setEmailVerified(true);
@@ -168,7 +164,7 @@ export default function RegisterScreen() {
       const formData = new FormData();
       formData.append('username', username);
       formData.append('password', password);
-      formData.append('email', email.toLowerCase().trim());
+      formData.append('email', fullEmail);
       formData.append('name', name);
       formData.append('studentId', studentId);
       formData.append('major', major);
@@ -301,35 +297,35 @@ export default function RegisterScreen() {
               <Feather name="mail" size={16} color={C.primary} />
               <Text style={styles.infoCardText}>부산대학교 웹메일(@pusan.ac.kr)로{'\n'}인증번호를 발송합니다.</Text>
             </View>
-            <View style={styles.rowInput}>
+            <View style={styles.emailRow}>
               <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={email}
-                onChangeText={v => { setEmail(v); setCodeSent(false); setEmailVerified(false); setCode(''); }}
-                placeholder="학번@pusan.ac.kr"
+                style={[styles.input, styles.emailLocalInput]}
+                value={emailLocal}
+                onChangeText={v => { setEmailLocal(v); setCodeSent(false); setEmailVerified(false); setCode(''); }}
+                placeholder="학번"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <TouchableOpacity
-                style={[styles.sendBtn, (!emailOk || loading) && styles.btnDisabled]}
-                onPress={handleSendVerification}
-                disabled={!emailOk || loading}
-              >
-                {loading && !codeSent
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.sendBtnText}>{codeSent ? '재발송' : '발송'}</Text>}
-              </TouchableOpacity>
+              <View style={styles.emailDomain}>
+                <Text style={styles.emailDomainText}>@pusan.ac.kr</Text>
+              </View>
             </View>
-            {email.length > 0 && !emailOk && (
-              <Text style={styles.hint}>@pusan.ac.kr 이메일만 사용할 수 있습니다</Text>
-            )}
+            <TouchableOpacity
+              style={[styles.btn, (!emailOk || loading) && styles.btnDisabled]}
+              onPress={handleSendVerification}
+              disabled={!emailOk || loading}
+            >
+              {loading && !codeSent
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.btnText}>{codeSent ? '인증번호 재발송' : '인증번호 받기'}</Text>}
+            </TouchableOpacity>
             {codeSent && (
               <>
                 <View style={styles.sentInfo}>
                   <Feather name="check-circle" size={14} color="#10B981" />
-                  <Text style={styles.sentInfoText}>{email}으로 인증번호를 발송했습니다.</Text>
+                  <Text style={styles.sentInfoText}>{fullEmail}으로 인증번호를 발송했습니다.</Text>
                 </View>
                 <TextInput
                   style={styles.input}
@@ -561,6 +557,34 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#BBF7D0',
   },
   sentInfoText: { fontSize: 13, color: '#15803D', flex: 1, fontFamily: 'Inter_400Regular' },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  emailLocalInput: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    fontSize: 15,
+    color: '#111827',
+    fontFamily: 'Inter_400Regular',
+  },
+  emailDomain: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    backgroundColor: '#E5E9EF',
+    borderLeftWidth: 1,
+    borderLeftColor: '#D1D5DB',
+    justifyContent: 'center',
+  },
+  emailDomainText: {
+    fontSize: 13,
+    color: '#374151',
+    fontFamily: 'Inter_600SemiBold',
+  },
   imagePickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#EEF4FF', borderRadius: 16, paddingHorizontal: 20, paddingVertical: 16,
