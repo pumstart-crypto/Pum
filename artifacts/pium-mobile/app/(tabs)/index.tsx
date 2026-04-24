@@ -225,7 +225,7 @@ export default function HomeScreen() {
             <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.emptyState}>
                 <Feather name="calendar" size={32} color={colors.textTertiary} />
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>오늘 수업이 없어요</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>오늘 수업이 없어요.</Text>
               </View>
             </View>
           ) : (
@@ -282,7 +282,7 @@ export default function HomeScreen() {
                 <View style={styles.emptyTodoIcon}>
                   <Feather name="check-circle" size={36} color={C.primary} />
                 </View>
-                <Text style={[styles.emptyTodoTitle, { color: colors.text }]}>
+                <Text style={[styles.emptyTodoTitle, { color: colors.textSecondary }]}>
                   모든 할 일을 완료했습니다.
                 </Text>
               </View>
