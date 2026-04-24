@@ -45,18 +45,28 @@ function relTime(dateStr: string) {
   return day < 7 ? `${day}일 전` : new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
-function parseAuthor(author: string) {
-  if (!author || author === '익명') return { type: 'anon' as IdentityType, label: '익명', avatarText: '익' };
-  const parts = author.split('.');
-  if (parts.length >= 3 && parts[2]?.endsWith('학번')) {
-    const yr = parts[2]; const dept = parts[1] ?? '';
-    return { type: 'year' as IdentityType, label: `${dept.slice(0, 5)} ${yr}`, avatarText: yr.slice(0, 2) };
+function parseAuthorDisplay(author: string): { dept: string; year: string } {
+  if (!author || author === '익명') return { dept: '', year: '' };
+
+  if (author.startsWith('익명.')) {
+    const parts = author.split('.');
+    const dept = parts[1] ?? '';
+    const year = parts[2]?.endsWith('학번') ? parts[2] : '';
+    return { dept, year };
   }
-  if (parts.length >= 2 && parts[1]) {
-    const dept = parts[1];
-    return { type: 'dept' as IdentityType, label: dept.length > 10 ? dept.slice(0, 8) + '..' : dept, avatarText: dept.slice(0, 2) };
+
+  const spaced = author.split(' ');
+  const last = spaced[spaced.length - 1] ?? '';
+  if (last.endsWith('학번') && spaced.length >= 2) {
+    return { dept: spaced.slice(0, -1).join(' '), year: last };
   }
-  return { type: 'anon' as IdentityType, label: '익명', avatarText: '익' };
+
+  const lastWord = spaced[0] ?? '';
+  if (['신입생', '대학원생', '교환학생'].includes(lastWord) && spaced.length >= 2) {
+    return { dept: spaced.slice(1).join(' '), year: lastWord };
+  }
+
+  return { dept: author, year: '' };
 }
 
 function buildAuthor(identity: IdentityType, profile: Profile): string {
@@ -64,16 +74,6 @@ function buildAuthor(identity: IdentityType, profile: Profile): string {
   if (identity === 'dept') return `익명.${profile.department}`;
   const yr = profile.studentId ? String(profile.studentId).substring(2, 4) + '학번' : '';
   return yr ? `익명.${profile.department}.${yr}` : `익명.${profile.department}`;
-}
-
-/* ── Avatar ── */
-function Avatar({ text, type, size = 36 }: { text: string; type: IdentityType; size?: number }) {
-  const s = IDENTITY_STYLE[type];
-  return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: s.avatarBg, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: s.avatarText, fontSize: size * 0.29, fontFamily: 'Inter_700Bold' }} numberOfLines={1}>{text}</Text>
-    </View>
-  );
 }
 
 /* ── Image Picker Helper ── */
@@ -105,7 +105,7 @@ function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
   const isLost = post.category === '분실물';
   const hasImage = (post.images?.length ?? 0) > 0;
   const showImageLayout = (isTrade || isLost) && hasImage;
-  const { type, label, avatarText } = parseAuthor(post.author);
+  const { dept, year } = parseAuthorDisplay(post.author);
   const badgeStyle = CAT_BADGE[post.category] ?? { bg: '#F3F4F6', text: '#6B7280' };
 
   const lostSubBadge = isLost && post.subCategory
@@ -115,10 +115,11 @@ function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85}>
       <View style={styles.cardHeader}>
-        <Avatar text={avatarText} type={type} />
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <Text style={styles.authorLabel}>{label}</Text>
+            {!!dept && <Text style={styles.authorDept}>{dept}</Text>}
+            {!!dept && !!year && <Text style={styles.authorDot}>·</Text>}
+            {!!year && <Text style={styles.authorYear}>{year}</Text>}
             {isLost && lostSubBadge && post.subCategory && (
               <View style={[styles.catBadge, { backgroundColor: lostSubBadge.bg }]}>
                 <Text style={[styles.catBadgeText, { color: lostSubBadge.text }]}>{post.subCategory}</Text>
@@ -579,7 +580,9 @@ const styles = StyleSheet.create({
   // Post Card
   card: { backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   cardHeader: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
-  authorLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
+  authorDept: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a' },
+  authorDot: { fontSize: 13, color: '#D1D5DB', fontFamily: 'Inter_400Regular' },
+  authorYear: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280' },
   timeText: { fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
   catBadge: { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start' },
   catBadgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
