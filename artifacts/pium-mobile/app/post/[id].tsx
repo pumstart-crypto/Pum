@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image, Modal,
+  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image, Modal, Dimensions,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -234,15 +234,26 @@ export default function PostDetailScreen() {
           <Text style={styles.postContent}>{post.content}</Text>
 
           {/* 이미지 */}
-          {images.length > 0 && (
-            <View style={styles.imageGrid}>
-              {images.map((uri, i) => (
-                <TouchableOpacity key={i} onPress={() => setImageViewIdx(i)} activeOpacity={0.9}>
-                  <Image source={{ uri }} style={[styles.postImage, images.length === 1 && styles.postImageFull]} resizeMode="cover" />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {images.length > 0 && (() => {
+            const CONTENT_W = Dimensions.get('window').width - 64;
+            const GAP = 8;
+            const cols = images.length === 1 ? 1 : images.length === 2 ? 2 : 3;
+            const imgW = cols === 1 ? CONTENT_W : (CONTENT_W - GAP * (cols - 1)) / cols;
+            const imgH = cols === 1 ? 220 : imgW;
+            return (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP, marginTop: 14 }}>
+                {images.map((uri, i) => (
+                  <TouchableOpacity key={i} onPress={() => setImageViewIdx(i)} activeOpacity={0.9}>
+                    <Image
+                      source={{ uri }}
+                      style={{ width: imgW, height: imgH, borderRadius: 12, backgroundColor: '#F3F4F6' }}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            );
+          })()}
 
           {/* 공감 / 스크랩 */}
           <View style={styles.reactionRow}>
@@ -372,9 +383,6 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 14 },
   postContent: { fontSize: 15, color: '#374151', lineHeight: 24, fontFamily: 'Inter_400Regular', marginBottom: 4 },
 
-  imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  postImage: { width: 100, height: 100, borderRadius: 12, backgroundColor: '#F3F4F6' },
-  postImageFull: { width: '100%', height: 220, borderRadius: 14 },
 
   reactionRow: { flexDirection: 'row', gap: 10, marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   reactionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 99, backgroundColor: '#F9FAFB', borderWidth: 1.5, borderColor: '#E5E7EB' },
