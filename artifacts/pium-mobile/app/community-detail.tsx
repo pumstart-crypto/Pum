@@ -104,7 +104,6 @@ function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
   const isTrade = post.category === '중고거래';
   const isLost = post.category === '분실물';
   const hasImage = (post.images?.length ?? 0) > 0;
-  const showImageLayout = (isTrade || isLost) && hasImage;
   const { dept, year } = parseAuthorDisplay(post.author);
   const badgeStyle = CAT_BADGE[post.category] ?? { bg: '#F3F4F6', text: '#6B7280' };
 
@@ -138,24 +137,19 @@ function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
         </TouchableOpacity>
       </View>
 
-      {showImageLayout ? (
+      {(isTrade || isLost) ? (
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 2 }}>
-          <Image source={{ uri: post.images![0] }} style={styles.thumbnailImage} resizeMode="cover" />
+          {hasImage ? (
+            <Image source={{ uri: post.images![0] }} style={styles.thumbnailImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.tradeImageBox}>
+              <Ionicons name={isLost ? 'search-outline' : 'cube-outline'} size={26} color="#C4C9D4" />
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
             {isTrade && post.subCategory && <Text style={styles.tradePrice}>{post.subCategory}</Text>}
-            <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }} numberOfLines={1}>{post.content}</Text>
-          </View>
-        </View>
-      ) : isTrade ? (
-        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 2 }}>
-          <View style={styles.tradeImageBox}>
-            <Ionicons name="cube-outline" size={26} color="#C4C9D4" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
-            {post.subCategory && <Text style={styles.tradePrice}>{post.subCategory}</Text>}
-            <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }} numberOfLines={1}>{post.content}</Text>
+            <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }} numberOfLines={2}>{post.content}</Text>
           </View>
         </View>
       ) : (
