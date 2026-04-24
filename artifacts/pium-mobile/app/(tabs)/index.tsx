@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Platform, Linking, RefreshControl, ActivityIndicator,
+  Platform, Linking, RefreshControl, ActivityIndicator, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -169,10 +169,11 @@ export default function HomeScreen() {
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }, scrolled && styles.headerScrolled]}>
         <View style={styles.logoRow}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoP}>P</Text>
-            <Text style={styles.logoUm}>:um</Text>
-          </View>
+          <Image
+            source={require('../../assets/images/pium-logo-appstore.png')}
+            style={styles.logoImg}
+            resizeMode="contain"
+          />
         </View>
         <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
           <Feather name="bell" size={20} color={colors.text} />
@@ -384,6 +385,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 4,
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoImg: { width: 36, height: 36, borderRadius: 8 },
   logoBox: {
     width: 36, height: 36, borderRadius: 10, backgroundColor: C.primary,
     justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
