@@ -136,19 +136,20 @@ function getInitial(str: string): string {
   const idx = Math.floor(code / (21 * 28));
   return INITIALS[Math.min(idx, INITIALS.length - 1)];
 }
-interface DeptSection { title: string; data: string[] }
-function buildDeptSections(list: string[], query: string): DeptSection[] {
-  const filtered = query ? list.filter(d => d.includes(query)) : list;
+interface DeptItem { college: string; dept: string }
+interface DeptSection { title: string; data: DeptItem[] }
+function buildDeptSections(list: DeptItem[], query: string): DeptSection[] {
+  const filtered = query
+    ? list.filter(d => d.dept.includes(query) || d.college.includes(query))
+    : list;
   if (query) return [{ title: '검색 결과', data: filtered }];
-  const map = new Map<string, string[]>();
+  const map = new Map<string, DeptItem[]>();
   for (const d of filtered) {
-    const init = getInitial(d);
-    if (!map.has(init)) map.set(init, []);
-    map.get(init)!.push(d);
+    const key = d.college || '기타';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(d);
   }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => INITIALS.indexOf(a) - INITIALS.indexOf(b))
-    .map(([title, data]) => ({ title, data }));
+  return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
 }
 
 // ── 시간 충돌 감지 ────────────────────────────────────────────────
@@ -400,9 +401,9 @@ export default function ScheduleScreen() {
   const [csLoading, setCsLoading] = useState(false);
   const [csSelected, setCsSelected] = useState<any[]>([]);
   const [showDeptPicker, setShowDeptPicker] = useState(false);
-  const [deptList, setDeptList] = useState<string[]>([]);
+  const [deptList, setDeptList] = useState<DeptItem[]>([]);
   const [deptsLoading, setDeptsLoading] = useState(false);
-  const deptSectionListRef = useRef<SectionList<string>>(null);
+  const deptSectionListRef = useRef<SectionList<DeptItem>>(null);
 
   // Grade form
   const [gSubject, setGSubject] = useState('');
@@ -1582,13 +1583,12 @@ export default function ScheduleScreen() {
                 <ActivityIndicator color={C.primary} style={{ marginTop: 20 }} />
               ) : (() => {
                 const sections = buildDeptSections(deptList, csDeptSearch);
-                const sectionInitials = sections.map(s => s.title);
                 return (
-                  <View style={{ height: 380, flexDirection: 'row' }}>
+                  <View style={{ height: 380 }}>
                     <SectionList
                       ref={deptSectionListRef}
                       sections={sections}
-                      keyExtractor={(item, i) => item + i}
+                      keyExtractor={(item, i) => item.dept + i}
                       style={{ flex: 1 }}
                       showsVerticalScrollIndicator={false}
                       keyboardShouldPersistTaps="handled"
@@ -1600,11 +1600,11 @@ export default function ScheduleScreen() {
                       )}
                       renderItem={({ item }) => (
                         <TouchableOpacity
-                          style={[styles.deptRow, csDept === item && styles.deptRowActive]}
-                          onPress={() => { setCsDept(item); setCsDeptSearch(''); setShowDeptPicker(false); }}
+                          style={[styles.deptRow, csDept === item.dept && styles.deptRowActive]}
+                          onPress={() => { setCsDept(item.dept); setCsDeptSearch(''); setShowDeptPicker(false); }}
                         >
-                          <Text style={[styles.deptText, csDept === item && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>{item}</Text>
-                          {csDept === item && <Feather name="check" size={16} color={C.primary} />}
+                          <Text style={[styles.deptText, csDept === item.dept && { color: C.primary, fontFamily: 'Inter_600SemiBold' }]}>{item.dept}</Text>
+                          {csDept === item.dept && <Feather name="check" size={16} color={C.primary} />}
                         </TouchableOpacity>
                       )}
                       ListEmptyComponent={
@@ -1614,27 +1614,6 @@ export default function ScheduleScreen() {
                         </View>
                       }
                     />
-                    {/* 우측 초성 인덱스 바 */}
-                    {!csDeptSearch && (
-                      <View style={styles.indexBar}>
-                        {sectionInitials.map((initial, si) => (
-                          <TouchableOpacity
-                            key={initial}
-                            style={styles.indexBarItem}
-                            onPress={() => {
-                              deptSectionListRef.current?.scrollToLocation({
-                                sectionIndex: si,
-                                itemIndex: 0,
-                                animated: true,
-                                viewOffset: 0,
-                              });
-                            }}
-                          >
-                            <Text style={styles.indexBarText}>{initial}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
                   </View>
                 );
               })()}

@@ -103,7 +103,9 @@ function parseTimeSlots(timeRoom: string, subject: string, professor: string): P
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-async function fetchDepartments(catalogYear: number, catalogSemester: string): Promise<string[]> {
+interface DeptItem { college: string; dept: string }
+
+async function fetchDepartments(catalogYear: number, catalogSemester: string): Promise<DeptItem[]> {
   const params = new URLSearchParams({ catalogYear: String(catalogYear), catalogSemester });
   const res = await fetch(`${BASE}/api/courses/departments?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch departments");
@@ -724,7 +726,7 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
   const queryClient = useQueryClient();
   const { colorTheme } = useTheme();
   const catalogYear = catalogYearFor(year, semester);
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<DeptItem[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
   const [selectedYear, setSelectedYear] = useState("전체");
   const [selectedCategory, setSelectedCategory] = useState("전체");
@@ -903,7 +905,7 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
   };
 
   const filteredDepts = deptSearch
-    ? departments.filter(d => d.includes(deptSearch))
+    ? departments.filter(d => d.dept.includes(deptSearch) || d.college.includes(deptSearch))
     : departments;
 
   const selectedCount = selected.size;
@@ -969,13 +971,14 @@ function CourseBrowserDialog({ year, semester, curriculum, existingSchedules, on
                       >
                         전체 학과
                       </button>
-                      {filteredDepts.map(dept => (
+                      {filteredDepts.map(d => (
                         <button
-                          key={dept}
-                          onClick={() => { setSelectedDept(dept); setShowDeptDropdown(false); setDeptSearch(""); }}
-                          className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors", selectedDept === dept && "text-primary font-semibold bg-primary/5")}
+                          key={d.college + '/' + d.dept}
+                          onClick={() => { setSelectedDept(d.dept); setShowDeptDropdown(false); setDeptSearch(""); }}
+                          className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors", selectedDept === d.dept && "text-primary font-semibold bg-primary/5")}
                         >
-                          {dept}
+                          <span>{d.dept}</span>
+                          {d.college && <span className="ml-1.5 text-xs text-muted-foreground">{d.college}</span>}
                         </button>
                       ))}
                       {filteredDepts.length === 0 && (

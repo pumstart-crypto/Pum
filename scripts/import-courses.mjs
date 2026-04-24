@@ -93,6 +93,7 @@ const HDR = {
   timeRoom:        ['\uc2dc\uac04\ud45c', '\uac15\uc758\uc2e4'], // 시간표, 강의실
   gradeYear:       ['\ud559\ub144'],                       // 학년 (exclude 학년도)
   category:        ['\uad50\uacfc\ubaa9\uad6c\ubd84', '\uad50\uacfc\uad6c\ubd84', '\uc774\uc218\uad6c\ubd84'], // 교과목구분, 교과구분, 이수구분
+  offeringCollege: ['\uc8fc\uad00\ub300\ud559\uba85', '\ub300\ud559\uba85'], // 주관대학명, 대학명
   offeringDept:    ['\uc8fc\uad00\ud559\uacfc\uba85', '\uac1c\uc124\ud559\uacfc'], // 주관학과명, 개설학과
   credits:         ['\ud559\uc810'],                       // 학점
   isOnline:        ['\uc6d0\uaca9\uac15\uc88c\uc5ec\ubd80', '\uc6d0\uaca9\uc218\uc5c5', '\uc6d0\uaca9'], // 원격강좌여부, 원격수업, 원격
@@ -134,12 +135,15 @@ function parseRows(file, year, sem) {
     timeRoom:        find(...HDR.timeRoom),
     gradeYear:       headers.findIndex(h => h.includes(HDR.gradeYear[0]) && !h.includes('\ud559\ub144\ub3c4')), // 학년도 제외
     category:        find(...HDR.category),
+    offeringCollege: find(...HDR.offeringCollege),
     offeringDept:    find(...HDR.offeringDept),
     credits:         find(...HDR.credits),
     isOnline:        find(...HDR.isOnline),
     isForeign:       find(...HDR.isForeign),
     enrollmentLimit: find(...HDR.enrollmentLimit),
   };
+
+  console.log(`  College col index: ${col.offeringCollege} (header: "${col.offeringCollege >= 0 ? headers[col.offeringCollege] : 'NOT FOUND'}")`);
 
   const courses = [];
   for (let i = headerIdx + 1; i < rows.length; i++) {
@@ -158,6 +162,7 @@ function parseRows(file, year, sem) {
       semester:         sem,
       grade_year:       parseGradeYear(col.gradeYear >= 0 ? row[col.gradeYear] : null),
       category:         col.category >= 0 ? String(row[col.category] || '').trim() || null : null,
+      offering_college: col.offeringCollege >= 0 ? String(row[col.offeringCollege] || '').trim() || null : null,
       offering_dept:    col.offeringDept >= 0 ? String(row[col.offeringDept] || '').trim() || null : null,
       credits:          col.credits >= 0 ? (parseFloat(String(row[col.credits])) || null) : null,
       is_online:        isOnlineVal === 'Y' || isOnlineVal === 'O',
@@ -192,13 +197,13 @@ async function main() {
       const params = [];
       let p = 1;
       batch.forEach(c => {
-        vals.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+        vals.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
         params.push(c.subject_name, c.subject_code, c.section, c.professor, c.time_room,
-          c.year, c.semester, c.grade_year, c.category, c.offering_dept,
+          c.year, c.semester, c.grade_year, c.category, c.offering_college, c.offering_dept,
           c.credits, c.is_online, c.is_foreign);
       });
       await client.query(
-        `INSERT INTO courses (subject_name,subject_code,section,professor,time_room,year,semester,grade_year,category,offering_dept,credits,is_online,is_foreign) VALUES ${vals.join(',')}`,
+        `INSERT INTO courses (subject_name,subject_code,section,professor,time_room,year,semester,grade_year,category,offering_college,offering_dept,credits,is_online,is_foreign) VALUES ${vals.join(',')}`,
         params
       );
       inserted += batch.length;
@@ -213,6 +218,13 @@ async function main() {
   console.log('\n=== DB Summary ===');
   summary.rows.forEach(r => console.log(`  ${r.year}-${r.semester}: ${r.cnt}`));
   console.log(`\nTotal: ${totalInserted} courses`);
+
+  // College coverage check
+  const collegeCheck = await client.query(
+    'SELECT offering_college, COUNT(*) as cnt FROM courses WHERE offering_college IS NOT NULL GROUP BY offering_college ORDER BY cnt DESC LIMIT 20'
+  );
+  console.log('\n=== College coverage (top 20) ===');
+  collegeCheck.rows.forEach(r => console.log(`  ${r.offering_college}: ${r.cnt}`));
 
   await client.end();
   console.log('Done!');

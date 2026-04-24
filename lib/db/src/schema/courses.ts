@@ -13,6 +13,7 @@ export const coursesTable = pgTable("courses", {
   semester: text("semester"),
   gradeYear: integer("grade_year"),
   category: text("category"),
+  offeringCollege: text("offering_college"),
   offeringDept: text("offering_dept"),
   credits: real("credits"),
   isOnline: boolean("is_online").default(false),

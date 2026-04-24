@@ -4,6 +4,16 @@ import { ilike, eq, inArray, and, sql, isNotNull } from "drizzle-orm";
 
 const router: IRouter = Router();
 
+// 앱 UI의 semester 코드 → DB semester 값 매핑
+// 앱은 '여름계절'/'겨울계절'을 사용하지만 DB에는 '여름'/'겨울'로 저장됨
+const SEM_CODE_MAP: Record<string, string> = {
+  '여름계절': '여름',
+  '겨울계절': '겨울',
+};
+function normalizeSem(sem: string): string {
+  return SEM_CODE_MAP[sem] ?? sem;
+}
+
 router.get("/courses/departments", async (req, res) => {
   try {
     const catalogYear = req.query.catalogYear as string | undefined;
@@ -11,15 +21,22 @@ router.get("/courses/departments", async (req, res) => {
 
     const conditions = [isNotNull(coursesTable.offeringDept)];
     if (catalogYear) conditions.push(eq(coursesTable.year, parseInt(catalogYear)));
-    if (catalogSemester) conditions.push(eq(coursesTable.semester, catalogSemester));
+    if (catalogSemester) conditions.push(eq(coursesTable.semester, normalizeSem(catalogSemester)));
 
-    const depts = await db
-      .selectDistinct({ offeringDept: coursesTable.offeringDept })
+    const rows = await db
+      .selectDistinct({
+        offeringCollege: coursesTable.offeringCollege,
+        offeringDept: coursesTable.offeringDept,
+      })
       .from(coursesTable)
       .where(and(...conditions))
-      .orderBy(coursesTable.offeringDept);
+      .orderBy(coursesTable.offeringCollege, coursesTable.offeringDept);
 
-    res.json(depts.map(d => d.offeringDept).filter(Boolean).sort());
+    const result = rows
+      .filter(r => r.offeringDept)
+      .map(r => ({ college: r.offeringCollege ?? '', dept: r.offeringDept! }));
+
+    res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to get departments");
     res.status(500).json({ message: "Internal server error" });
@@ -45,7 +62,7 @@ router.get("/courses", async (req, res) => {
       conditions.push(eq(coursesTable.year, parseInt(catalogYear)));
     }
     if (catalogSemester) {
-      conditions.push(eq(coursesTable.semester, catalogSemester));
+      conditions.push(eq(coursesTable.semester, normalizeSem(catalogSemester)));
     }
     if (gradeYear && gradeYear !== "전체") {
       conditions.push(
