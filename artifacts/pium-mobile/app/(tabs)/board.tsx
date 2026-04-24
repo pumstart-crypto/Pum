@@ -455,7 +455,6 @@ export default function BoardScreen() {
                   label={label}
                   icon={icon}
                   posts={communityPosts}
-                  onRemove={!FIXED_IDS.includes(id) ? () => removeDept(id) : undefined}
                 />
               );
             })}
