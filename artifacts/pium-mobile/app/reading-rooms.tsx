@@ -1189,6 +1189,48 @@ export default function ReadingRoomsScreen() {
                     for (var i = 1; i <= 15; i++) setTimeout(hide, i * 300);
 
                     /* ═══════════════════════════════════════════════════
+                       3. 범례 + 슬라이더 영역 → Sticky 헤더로 고정
+                    ═══════════════════════════════════════════════════ */
+                    var stickyDone = false;
+                    function makeSticky() {
+                      if (stickyDone) return;
+
+                      /* 이용가능·이용중·이용불가·확대/축소를 모두 포함하는
+                         가장 작은 공통 조상을 찾는다 */
+                      /* 마커를 모두 포함하면서 innerText가 가장 짧은(= 가장 작은) 요소를 찾음 */
+                      var MARKERS = ['이용가능', '이용중', '이용불가', '확대'];
+                      var all = Array.prototype.slice.call(document.querySelectorAll('*'));
+                      var target = null;
+                      var targetLen = Infinity;
+                      for (var i = 0; i < all.length; i++) {
+                        var el = all[i];
+                        if (el === document.body || el === document.documentElement) continue;
+                        var t = (el.innerText || '').replace(/\s/g, '');
+                        var match = MARKERS.every(function(m) { return t.indexOf(m) !== -1; });
+                        if (match && t.length < targetLen) { target = el; targetLen = t.length; }
+                      }
+                      if (!target) return;
+
+                      /* 높이 기록 후 fixed로 전환 */
+                      var h = target.offsetHeight || 88;
+                      target.style.setProperty('position', 'fixed',   'important');
+                      target.style.setProperty('top',      '0',        'important');
+                      target.style.setProperty('left',     '0',        'important');
+                      target.style.setProperty('right',    '0',        'important');
+                      target.style.setProperty('z-index',  '8000',     'important');
+                      target.style.setProperty('background', '#ffffff','important');
+                      target.style.setProperty('box-shadow', '0 2px 6px rgba(0,0,0,0.08)', 'important');
+
+                      /* 좌석 지도가 sticky 헤더 뒤로 숨지 않게 padding-top 보정 */
+                      var content = document.querySelector('.mat-sidenav-content, .mat-drawer-content');
+                      if (content) content.style.setProperty('padding-top', h + 'px', 'important');
+
+                      stickyDone = true;
+                    }
+                    /* 슬라이더·범례는 SPA 첫 렌더 이후 등장하므로 짧은 폴링으로 대기 */
+                    for (var j = 2; j <= 20; j++) setTimeout(makeSticky, j * 300);
+
+                    /* ═══════════════════════════════════════════════════
                        2. 핀치 줌 → 확대/축소 슬라이더 연동
                     ═══════════════════════════════════════════════════ */
 
