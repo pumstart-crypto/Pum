@@ -496,8 +496,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F7FA' },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14, backgroundColor: '#F5F7FA', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-  headerLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 },
-  headerTitle: { fontSize: 30, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -0.8 },
+  headerLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
+  headerTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1, lineHeight: 42 },
   reorderBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
 
   feed: { paddingHorizontal: 14, paddingTop: 14, gap: 12 },

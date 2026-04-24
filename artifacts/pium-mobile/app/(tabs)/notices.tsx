@@ -730,7 +730,7 @@ export default function NoticesScreen() {
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.subTitle, { color: colors.textSecondary }]}>부산대학교</Text>
+            <Text style={styles.subTitle}>부산대학교</Text>
             <Text style={[styles.pageTitle, { color: colors.text }]}>
               공지 <Text style={styles.pageTitleAccent}>사항</Text>
             </Text>
@@ -869,8 +869,8 @@ const styles = StyleSheet.create({
     color: C.primary,
     flexShrink: 1,
   },
-  subTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', letterSpacing: 0, marginBottom: 2 },
-  pageTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
+  subTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
+  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
   pageTitleAccent: { color: C.primary },
   refreshBtn: {
     width: 38, height: 38, borderRadius: 19,

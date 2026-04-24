@@ -848,7 +848,7 @@ export default function ScheduleScreen() {
         <>
           <View style={[styles.ttHeader, { backgroundColor: colors.background }]}>
             <View>
-              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>부산대학교</Text>
+              <Text style={styles.envLabel}>부산대학교</Text>
               <Text style={[styles.ttTitle, { color: colors.text }]}>{formatSem(currentSem)} <Text style={{ color: C.primary }}>시간표</Text></Text>
             </View>
             <View style={styles.ttHeaderRight}>
@@ -933,7 +933,7 @@ export default function ScheduleScreen() {
         <>
           <View style={styles.gradeHeader}>
             <View>
-              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>부산대학교</Text>
+              <Text style={styles.envLabel}>부산대학교</Text>
               <Text style={[styles.gradeTitle, { color: colors.text }]}>학기별 <Text style={{ color: C.primary }}>성적 관리</Text></Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1896,13 +1896,13 @@ const styles = StyleSheet.create({
 
   ttHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
   ttTitleRow: { flexDirection: 'row', alignItems: 'center' },
-  ttTitle: { fontSize: 26, fontFamily: 'Inter_700Bold', marginTop: 2 },
+  ttTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
   ttHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   addCircleBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center' },
 
   gradeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
-  gradeTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
+  gradeTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', letterSpacing: -1, lineHeight: 42 },
   settingsBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
 
   segWrapper: { paddingHorizontal: 20, paddingBottom: 12 },
@@ -2055,7 +2055,7 @@ const styles = StyleSheet.create({
   cancelText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_500Medium' },
 
   // Header
-  envLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  envLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
 
   // Schedule list in semester modal
   scheduleListDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },

@@ -1060,7 +1060,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6,
   },
   headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1 },
+  pageTitle: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#111827', letterSpacing: -1, lineHeight: 42 },
   qrBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 4,
