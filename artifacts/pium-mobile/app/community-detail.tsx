@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Modal, ActivityIndicator,
-  Platform, Alert, Pressable,
+  Platform, Alert, Pressable, Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import C from '@/constants/colors';
 import { FIXED_COMMUNITIES, FIXED_IDS, filterPostsByCategory, type Post } from './(tabs)/board';
 
@@ -19,7 +20,8 @@ const WRITE_CATEGORIES = ['중고거래', '홍보', '분실물', '학교 생활'
 const CAT_BADGE: Record<string, { bg: string; text: string }> = {
   '중고거래':  { bg: '#EBF3FA', text: C.primary },
   '홍보':     { bg: '#EBF3FA', text: C.primary },
-  '분실물':   { bg: '#EBF3FA', text: C.primary },
+  '분실물':   { bg: '#FEF3C7', text: '#B45309' },
+  '습득물':   { bg: '#D1FAE5', text: '#065F46' },
   '학교 생활': { bg: '#EBF3FA', text: C.primary },
   '기타':     { bg: '#F3F4F6', text: '#6B7280' },
 };
@@ -74,26 +76,58 @@ function Avatar({ text, type, size = 36 }: { text: string; type: IdentityType; s
   );
 }
 
+/* ── Image Picker Helper ── */
+async function pickImages(max: number): Promise<string[]> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.');
+    return [];
+  }
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsMultipleSelection: max > 1,
+    selectionLimit: max,
+    quality: 0.6,
+    base64: true,
+  });
+  if (result.canceled) return [];
+  return result.assets
+    .filter(a => a.base64)
+    .map(a => `data:image/jpeg;base64,${a.base64}`);
+}
+
 /* ── Post Card ── */
 function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
   const [liked, setLiked] = useState(false);
   const [likeCount] = useState(Math.floor(Math.random() * 30));
   const [saved, setSaved] = useState(false);
   const isTrade = post.category === '중고거래';
+  const isLost = post.category === '분실물';
+  const hasImage = (post.images?.length ?? 0) > 0;
+  const showImageLayout = (isTrade || isLost) && hasImage;
   const { type, label, avatarText } = parseAuthor(post.author);
   const badgeStyle = CAT_BADGE[post.category] ?? { bg: '#F3F4F6', text: '#6B7280' };
+
+  const lostSubBadge = isLost && post.subCategory
+    ? (CAT_BADGE[post.subCategory] ?? { bg: '#F3F4F6', text: '#6B7280' })
+    : null;
 
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85}>
       <View style={styles.cardHeader}>
         <Avatar text={avatarText} type={type} />
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <Text style={styles.authorLabel}>{label}</Text>
+            {isLost && lostSubBadge && post.subCategory && (
+              <View style={[styles.catBadge, { backgroundColor: lostSubBadge.bg }]}>
+                <Text style={[styles.catBadgeText, { color: lostSubBadge.text }]}>{post.subCategory}</Text>
+              </View>
+            )}
             <Text style={styles.timeText}>{relTime(post.createdAt)}</Text>
           </View>
           {isDeptBoard && (
-            <View style={[styles.catBadge, { backgroundColor: badgeStyle.bg }]}>
+            <View style={[styles.catBadge, { backgroundColor: badgeStyle.bg, marginTop: 4 }]}>
               <Text style={[styles.catBadgeText, { color: badgeStyle.text }]}>{post.category}</Text>
             </View>
           )}
@@ -103,7 +137,16 @@ function PostCard({ post, isDeptBoard }: { post: Post; isDeptBoard: boolean }) {
         </TouchableOpacity>
       </View>
 
-      {isTrade ? (
+      {showImageLayout ? (
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 2 }}>
+          <Image source={{ uri: post.images![0] }} style={styles.thumbnailImage} resizeMode="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
+            {isTrade && post.subCategory && <Text style={styles.tradePrice}>{post.subCategory}</Text>}
+            <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' }} numberOfLines={1}>{post.content}</Text>
+          </View>
+        </View>
+      ) : isTrade ? (
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 2 }}>
           <View style={styles.tradeImageBox}>
             <Ionicons name="cube-outline" size={26} color="#C4C9D4" />
@@ -145,7 +188,7 @@ function WriteSheet({
   visible, onClose, onSubmit, profile, defaultCategory,
 }: {
   visible: boolean; onClose: () => void;
-  onSubmit: (data: { title: string; content: string; category: string; subCategory: string; author: string }) => Promise<void>;
+  onSubmit: (data: { title: string; content: string; category: string; subCategory: string; author: string; images?: string[] }) => Promise<void>;
   profile: Profile; defaultCategory: string;
 }) {
   const insets = useSafeAreaInsets();
@@ -155,9 +198,16 @@ function WriteSheet({
   const [category, setCategory] = useState(defaultCategory);
   const [identity, setIdentity] = useState<IdentityType>('anon');
   const [submitting, setSubmitting] = useState(false);
-  const isTrade = category === '중고거래';
+  const [images, setImages] = useState<string[]>([]);
+  const [lostType, setLostType] = useState<'분실물' | '습득물'>('분실물');
 
-  useEffect(() => { if (visible) setCategory(defaultCategory); }, [visible, defaultCategory]);
+  const isTrade = category === '중고거래';
+  const isLost = category === '분실물';
+  const showImagePicker = isTrade || isLost;
+
+  useEffect(() => {
+    if (visible) { setCategory(defaultCategory); setImages([]); setLostType('분실물'); }
+  }, [visible, defaultCategory]);
 
   const hasDept = !!profile.department;
   const hasYear = hasDept && !!profile.studentId;
@@ -169,11 +219,25 @@ function WriteSheet({
 
   const canSubmit = title.trim() && content.trim() && !submitting;
 
+  const handlePickImages = async () => {
+    const max = isLost ? 3 : 5;
+    const remaining = max - images.length;
+    if (remaining <= 0) { Alert.alert('사진 제한', `최대 ${max}장까지 첨부 가능합니다.`); return; }
+    const picked = await pickImages(remaining);
+    setImages(prev => [...prev, ...picked].slice(0, max));
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
-    await onSubmit({ title: title.trim(), content: content.trim(), category, subCategory: isTrade ? price.trim() : '', author: buildAuthor(identity, profile) });
-    setTitle(''); setContent(''); setPrice(''); setIdentity('anon');
+    const subCat = isTrade ? price.trim() : isLost ? lostType : '';
+    await onSubmit({
+      title: title.trim(), content: content.trim(), category,
+      subCategory: subCat,
+      author: buildAuthor(identity, profile),
+      images: images.length > 0 ? images : undefined,
+    });
+    setTitle(''); setContent(''); setPrice(''); setIdentity('anon'); setImages([]); setLostType('분실물');
     setSubmitting(false);
     onClose();
   };
@@ -190,46 +254,122 @@ function WriteSheet({
             <TouchableOpacity onPress={onClose}><Feather name="x" size={22} color="#9CA3AF" /></TouchableOpacity>
           </View>
 
-          <Text style={styles.fieldLabel}>작성자 표시</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-            {identityOptions.map(opt => {
-              const sel = identity === opt.type;
-              const s = IDENTITY_STYLE[opt.type];
-              return (
-                <TouchableOpacity key={opt.type} style={[styles.identityCard, sel && styles.identityCardSel]} onPress={() => setIdentity(opt.type)} activeOpacity={0.8}>
-                  <View style={[styles.identityAvatar, { backgroundColor: s.avatarBg }]}>
-                    <Text style={[styles.identityAvatarText, { color: s.avatarText }]}>{opt.type === 'anon' ? '익' : opt.label.slice(0, 2)}</Text>
-                  </View>
-                  <Text style={[styles.identityLabel, sel && { color: C.primary }]} numberOfLines={1}>{opt.label}</Text>
-                  <Text style={styles.identitySub}>{opt.sub}</Text>
-                  {sel && <View style={{ position: 'absolute', top: 6, right: 6 }}><Ionicons name="checkmark-circle" size={14} color={C.primary} /></View>}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* 작성자 */}
+            <Text style={styles.fieldLabel}>작성자 표시</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+              {identityOptions.map(opt => {
+                const sel = identity === opt.type;
+                const s = IDENTITY_STYLE[opt.type];
+                return (
+                  <TouchableOpacity key={opt.type} style={[styles.identityCard, sel && styles.identityCardSel]} onPress={() => setIdentity(opt.type)} activeOpacity={0.8}>
+                    <View style={[styles.identityAvatar, { backgroundColor: s.avatarBg }]}>
+                      <Text style={[styles.identityAvatarText, { color: s.avatarText }]}>{opt.type === 'anon' ? '익' : opt.label.slice(0, 2)}</Text>
+                    </View>
+                    <Text style={[styles.identityLabel, sel && { color: C.primary }]} numberOfLines={1}>{opt.label}</Text>
+                    <Text style={styles.identitySub}>{opt.sub}</Text>
+                    {sel && <View style={{ position: 'absolute', top: 6, right: 6 }}><Ionicons name="checkmark-circle" size={14} color={C.primary} /></View>}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-          {catList.length > 1 && (
-            <>
-              <Text style={styles.fieldLabel}>카테고리</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {catList.map(cat => (
-                    <TouchableOpacity key={cat} style={[styles.catChip, category === cat && styles.catChipSel]} onPress={() => setCategory(cat)}>
-                      <Text style={[styles.catChipText, category === cat && { color: C.primary }]}>{cat}</Text>
+            {/* 카테고리 */}
+            {catList.length > 1 && (
+              <>
+                <Text style={styles.fieldLabel}>카테고리</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {catList.map(cat => (
+                      <TouchableOpacity key={cat} style={[styles.catChip, category === cat && styles.catChipSel]} onPress={() => setCategory(cat)}>
+                        <Text style={[styles.catChipText, category === cat && { color: C.primary }]}>{cat}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+
+            {/* 분실물/습득물 토글 */}
+            {isLost && (
+              <>
+                <Text style={styles.fieldLabel}>유형</Text>
+                <View style={styles.lostTypeRow}>
+                  {(['분실물', '습득물'] as const).map(t => (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.lostTypeBtn, lostType === t && (t === '분실물' ? styles.lostTypeBtnLost : styles.lostTypeBtnFound)]}
+                      onPress={() => setLostType(t)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={t === '분실물' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+                        size={16}
+                        color={lostType === t ? (t === '분실물' ? '#B45309' : '#065F46') : '#9CA3AF'}
+                      />
+                      <Text style={[styles.lostTypeBtnText, lostType === t && { color: t === '분실물' ? '#B45309' : '#065F46', fontFamily: 'Inter_700Bold' }]}>{t}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-              </ScrollView>
-            </>
-          )}
+              </>
+            )}
 
-          <TextInput style={styles.inputField} value={title} onChangeText={setTitle} placeholder={isTrade ? '물품 이름' : '제목'} placeholderTextColor="#9CA3AF" />
-          {isTrade && <TextInput style={styles.inputField} value={price} onChangeText={setPrice} placeholder="가격 (예: 12,000원)" placeholderTextColor="#9CA3AF" />}
-          <TextInput style={[styles.inputField, { height: 100 }]} value={content} onChangeText={setContent} placeholder={isTrade ? '거래 장소 및 상태 설명' : '내용을 입력하세요'} placeholderTextColor="#9CA3AF" multiline textAlignVertical="top" />
+            {/* 입력 필드 */}
+            <TextInput
+              style={styles.inputField}
+              value={title}
+              onChangeText={setTitle}
+              placeholder={isTrade ? '물품 이름' : isLost ? (lostType === '분실물' ? '분실물 이름 (예: 에어팟 프로)' : '습득한 물건') : '제목'}
+              placeholderTextColor="#9CA3AF"
+            />
+            {isTrade && (
+              <TextInput style={styles.inputField} value={price} onChangeText={setPrice} placeholder="가격 (예: 12,000원)" placeholderTextColor="#9CA3AF" />
+            )}
+            <TextInput
+              style={[styles.inputField, { height: 100 }]}
+              value={content}
+              onChangeText={setContent}
+              placeholder={
+                isTrade ? '거래 장소 및 상태 설명' :
+                isLost && lostType === '분실물' ? '분실 시각, 장소, 특징 등을 적어주세요' :
+                isLost ? '습득 장소, 물건 특징 등을 적어주세요' :
+                '내용을 입력하세요'
+              }
+              placeholderTextColor="#9CA3AF"
+              multiline
+              textAlignVertical="top"
+            />
 
-          <TouchableOpacity style={[styles.submitBtn, !canSubmit && { opacity: 0.4 }]} onPress={handleSubmit} disabled={!canSubmit}>
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>게시하기</Text>}
-          </TouchableOpacity>
+            {/* 사진 첨부 (중고거래 / 분실물) */}
+            {showImagePicker && (
+              <>
+                <Text style={styles.fieldLabel}>사진 첨부 <Text style={{ fontFamily: 'Inter_400Regular', color: '#9CA3AF', textTransform: 'none', fontSize: 11 }}>(선택, 최대 {isLost ? 3 : 5}장)</Text></Text>
+                <View style={styles.imageRow}>
+                  {images.map((uri, i) => (
+                    <View key={i} style={styles.imageThumbnailWrap}>
+                      <Image source={{ uri }} style={styles.imageThumbnail} />
+                      <TouchableOpacity
+                        style={styles.imageRemoveBtn}
+                        onPress={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#374151" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {images.length < (isLost ? 3 : 5) && (
+                    <TouchableOpacity style={styles.imageAddBtn} onPress={handlePickImages} activeOpacity={0.8}>
+                      <Ionicons name="camera-outline" size={22} color="#9CA3AF" />
+                      <Text style={styles.imageAddText}>{images.length}/{isLost ? 3 : 5}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
+
+            <TouchableOpacity style={[styles.submitBtn, !canSubmit && { opacity: 0.4 }]} onPress={handleSubmit} disabled={!canSubmit}>
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>게시하기</Text>}
+            </TouchableOpacity>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -240,6 +380,7 @@ function WriteSheet({
    Community Detail Screen
 ══════════════════════════════ */
 const PER_PAGE = 20;
+type LostTab = '전체' | '분실물' | '습득물';
 
 export default function CommunityDetailScreen() {
   const { category, label } = useLocalSearchParams<{ category: string; label: string }>();
@@ -248,6 +389,7 @@ export default function CommunityDetailScreen() {
   const { token } = useAuth();
 
   const isDeptBoard = !FIXED_IDS.includes(category);
+  const isLostBoard = category === '분실물';
   const fixed = FIXED_COMMUNITIES.find(c => c.id === category);
   const communityColor = C.primary;
   const communityBg = '#EBF3FA';
@@ -260,6 +402,7 @@ export default function CommunityDetailScreen() {
   const [showWrite, setShowWrite] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
   const [page, setPage] = useState(1);
+  const [lostTab, setLostTab] = useState<LostTab>('전체');
 
   useEffect(() => {
     AsyncStorage.getItem('campus_life_profile').then(raw => {
@@ -279,7 +422,7 @@ export default function CommunityDetailScreen() {
     finally { setLoading(false); }
   }, [category]);
 
-  useEffect(() => { setLoading(true); setPage(1); fetchPosts(); }, [fetchPosts]);
+  useEffect(() => { setLoading(true); setPage(1); setLostTab('전체'); fetchPosts(); }, [fetchPosts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -287,11 +430,21 @@ export default function CommunityDetailScreen() {
     setRefreshing(false);
   }, [fetchPosts]);
 
-  const sorted = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const filteredPosts = isLostBoard && lostTab !== '전체'
+    ? posts.filter(p => p.subCategory === lostTab || (!p.subCategory && lostTab === '분실물'))
+    : posts;
+
+  const sorted = [...filteredPosts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const paged = sorted.slice(0, page * PER_PAGE);
   const hasMore = paged.length < sorted.length;
 
-  const handleSubmit = async (data: { title: string; content: string; category: string; subCategory: string; author: string }) => {
+  const lostCount = (tab: LostTab) => {
+    if (tab === '전체') return posts.length;
+    if (tab === '분실물') return posts.filter(p => !p.subCategory || p.subCategory === '분실물').length;
+    return posts.filter(p => p.subCategory === tab).length;
+  };
+
+  const handleSubmit = async (data: { title: string; content: string; category: string; subCategory: string; author: string; images?: string[] }) => {
     if (!token) { Alert.alert('오류', '로그인 후 이용할 수 있습니다.'); return; }
     try {
       const r = await fetch(`${API}/community`, {
@@ -321,6 +474,32 @@ export default function CommunityDetailScreen() {
         <Text style={styles.postCount}>{posts.length}개</Text>
       </View>
 
+      {/* 분실물 탭 바 */}
+      {isLostBoard && (
+        <View style={styles.lostTabBar}>
+          {(['전체', '분실물', '습득물'] as LostTab[]).map(tab => {
+            const sel = lostTab === tab;
+            const badgeCfg = tab === '분실물' ? CAT_BADGE['분실물'] : tab === '습득물' ? CAT_BADGE['습득물'] : null;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.lostTabBtn, sel && styles.lostTabBtnSel]}
+                onPress={() => { setLostTab(tab); setPage(1); }}
+                activeOpacity={0.8}
+              >
+                {tab !== '전체' && badgeCfg && (
+                  <View style={[styles.lostTabDot, { backgroundColor: badgeCfg.bg, borderColor: badgeCfg.text }]} />
+                )}
+                <Text style={[styles.lostTabText, sel && styles.lostTabTextSel]}>{tab}</Text>
+                <View style={[styles.lostTabCount, sel && styles.lostTabCountSel]}>
+                  <Text style={[styles.lostTabCountText, sel && { color: '#fff' }]}>{lostCount(tab)}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[styles.feed, { paddingBottom: isWeb ? 40 : insets.bottom + 110 }]}
@@ -331,8 +510,10 @@ export default function CommunityDetailScreen() {
           <ActivityIndicator color={C.primary} style={{ marginTop: 48 }} />
         ) : paged.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="chatbubbles-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>아직 게시글이 없어요</Text>
+            <Ionicons name={isLostBoard ? 'search-outline' : 'chatbubbles-outline'} size={48} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>
+              {isLostBoard && lostTab !== '전체' ? `${lostTab} 게시글이 없어요` : '아직 게시글이 없어요'}
+            </Text>
             <Text style={styles.emptySub}>첫 번째 글을 작성해보세요!</Text>
           </View>
         ) : (
@@ -377,6 +558,17 @@ const styles = StyleSheet.create({
   detailHeaderTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
   postCount: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
+  // 분실물 탭 바
+  lostTabBar: { flexDirection: 'row', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 8 },
+  lostTabBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
+  lostTabBtnSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
+  lostTabDot: { width: 7, height: 7, borderRadius: 3.5, borderWidth: 1 },
+  lostTabText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+  lostTabTextSel: { color: C.primary },
+  lostTabCount: { backgroundColor: '#E5E7EB', borderRadius: 99, paddingHorizontal: 6, paddingVertical: 1 },
+  lostTabCountSel: { backgroundColor: C.primary },
+  lostTabCountText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#6B7280' },
+
   feed: { paddingHorizontal: 12, paddingTop: 10 },
   emptyBox: { alignItems: 'center', paddingVertical: 80, gap: 12 },
   emptyTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#374151' },
@@ -394,6 +586,7 @@ const styles = StyleSheet.create({
   postTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1a1a1a', lineHeight: 21, marginBottom: 4 },
   postBody: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 19 },
   tradeImageBox: { width: 76, height: 76, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  thumbnailImage: { width: 76, height: 76, borderRadius: 10, flexShrink: 0, backgroundColor: '#F3F4F6' },
   tradePrice: { fontSize: 15, fontFamily: 'Inter_700Bold', color: C.primary, marginBottom: 3 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -404,20 +597,38 @@ const styles = StyleSheet.create({
 
   // Sheet
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheetContent: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12 },
+  sheetContent: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '92%' },
   sheetHandle: { width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#111827' },
   fieldLabel: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#6B7280', marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' },
+
   identityCard: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB', position: 'relative' },
   identityCardSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
   identityAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   identityAvatarText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
   identityLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#374151', textAlign: 'center' },
   identitySub: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF', textAlign: 'center', marginTop: 2 },
+
   catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
   catChipSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
   catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+
+  // 분실물 유형 토글
+  lostTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  lostTypeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 14, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
+  lostTypeBtnLost: { borderColor: '#B45309', backgroundColor: '#FEF3C7' },
+  lostTypeBtnFound: { borderColor: '#065F46', backgroundColor: '#D1FAE5' },
+  lostTypeBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
+
+  // 이미지 첨부
+  imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  imageThumbnailWrap: { position: 'relative' },
+  imageThumbnail: { width: 72, height: 72, borderRadius: 10, backgroundColor: '#F3F4F6' },
+  imageRemoveBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: '#fff', borderRadius: 9 },
+  imageAddBtn: { width: 72, height: 72, borderRadius: 10, borderWidth: 1.5, borderColor: '#E5E7EB', borderStyle: 'dashed', backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  imageAddText: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
+
   inputField: { borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Inter_400Regular', color: '#111827', marginBottom: 10 },
-  submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
+  submitBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 15, alignItems: 'center', marginTop: 4, marginBottom: 8 },
   submitBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
 });
