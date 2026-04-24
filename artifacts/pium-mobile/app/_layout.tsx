@@ -13,17 +13,22 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 
+const TOKEN_KEY = 'campus_life_token';
+
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 setAuthTokenGetter(async () => {
-  try { return await AsyncStorage.getItem('campus_life_token'); }
-  catch { return null; }
+  try {
+    if (Platform.OS === 'web') return sessionStorage.getItem(TOKEN_KEY);
+    return await SecureStore.getItemAsync(TOKEN_KEY);
+  } catch { return null; }
 });
 
 SplashScreen.preventAutoHideAsync();
