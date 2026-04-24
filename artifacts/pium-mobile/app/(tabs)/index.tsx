@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   bellBadgeText: { fontSize: 9, fontFamily: 'Inter_700Bold', color: '#fff' },
 
   dateSection: { marginBottom: 14 },
-  universityLabel: { fontSize: 26, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 0.3 },
+  universityLabel: { fontSize: 20, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 0.3 },
   dateRow: { flexDirection: 'row', alignItems: 'baseline' },
   dateText: { fontSize: 34, fontFamily: 'Inter_700Bold', letterSpacing: -0.5 },
   dayText: { fontSize: 34, fontFamily: 'Inter_400Regular', letterSpacing: -0.5 },
