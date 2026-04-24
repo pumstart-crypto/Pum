@@ -31,7 +31,3 @@ export function verifyToken(token: string): { userId: number; username: string }
 export function generateOTP(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
-
-export function normalizePhone(phone: string): string {
-  return phone.replace(/[^0-9]/g, "");
-}

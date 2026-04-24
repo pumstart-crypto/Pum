@@ -6,7 +6,6 @@ export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   username: varchar("username", { length: 20 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  phone: varchar("phone", { length: 20 }).unique(),
   email: varchar("email", { length: 100 }).unique(),
   name: text("name").notNull(),
   studentId: varchar("student_id", { length: 20 }).notNull(),
@@ -16,15 +15,6 @@ export const usersTable = pgTable("users", {
   studentIdImageUrl: text("student_id_image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const phoneVerificationsTable = pgTable("phone_verifications", {
-  id: serial("id").primaryKey(),
-  phone: varchar("phone", { length: 20 }).notNull(),
-  code: varchar("code", { length: 6 }).notNull(),
-  verified: boolean("verified").notNull().default(false),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const sessionsTable = pgTable("sessions", {
