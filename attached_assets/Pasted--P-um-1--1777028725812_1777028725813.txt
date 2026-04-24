@@ -1,0 +1,93 @@
+분석 완료했습니다. 코드베이스 전체를 기반으로 한 개인정보보호법 기술 명세입니다.
+
+P:um 개인정보 처리방침 작성을 위한 기술 명세
+1. 수집하는 개인정보 항목
+필수 수집 항목 (회원가입 시)
+항목	수집 방식	관련 코드
+아이디(username)	직접 입력	users.username
+비밀번호	직접 입력 → bcrypt 해시 저장	users.passwordHash
+이름	학생증 OCR 추출	users.name
+학번	학생증 OCR 추출	users.studentId
+학과(전공)	학생증 OCR 추출	users.major
+단과대학	학생증 OCR 추출	users.college
+부산대 이메일	직접 입력 + 인증코드 발송	users.email (@pusan.ac.kr 한정)
+휴대전화번호	직접 입력 + SMS 인증	phone_verifications 테이블
+학생증 이미지	사진 촬영·업로드	users.studentIdImageUrl
+선택 수집 항목 (프로필 설정)
+항목	수집 방식
+학년	직접 입력
+복수전공	직접 입력
+부전공	직접 입력
+프로필 아바타 색상	앱 내 선택
+기능 이용 중 수집 항목
+항목	기능	관련 테이블
+재정 내역(수입·지출·금액·날짜·메모)	가계부	finances
+강의 시간표(과목명·교수·강의실·요일·시간)	시간표	schedules
+성적(년도·학기·과목·학점·취득점수)	성적 관리	grades
+도서관 세션 토큰 (JSESSIONID)	열람실 예약 스크래핑	library_sessions
+커뮤니티 게시글·댓글	커뮤니티	community_posts, community_comments
+게시글 첨부 이미지	커뮤니티	community_posts.images (base64, DB 직접 저장)
+할 일 목록(내용·마감일·완료 여부)	투두리스트	todos
+2. 데이터 수집 목적 매칭
+수집 항목	수집 목적
+이름·학번·학과·단과대학	부산대학교 재학생 본인 인증, 학과 커뮤니티 자동 분류
+학생증 이미지	OCR 기반 재학생 인증 (인증 완료 후에도 DB 보관)
+이메일	이메일 인증, 비밀번호 재설정
+휴대전화번호	SMS OTP 인증 (CoolSMS 발송)
+비밀번호 해시	로그인 인증
+재정 내역	개인 가계부 기능 제공
+시간표	개인 강의 시간표 표시
+성적	성적 관리·분석 기능 제공
+도서관 토큰	부산대 도서관 시스템 자동 로그인 및 열람실 예약
+커뮤니티 게시글·댓글	학내 커뮤니티 서비스 제공
+할 일 목록	개인 일정 관리 기능 제공
+3. 자동 수집 장치
+수집되는 항목:
+
+항목	수집 방식	목적	관련 코드
+IP 주소	서버 요청마다 자동 수집	로그인 시도 무차별 대입 방지 (15분당 10회 제한), 전체 요청 속도 제한 (분당 150회)	artifacts/api-server/src/app.ts — rateLimit 설정
+이메일 인증코드	서버 메모리에 임시 저장	이메일 인증	auth.ts — 인메모리 Map, 1시간 주기 만료 처리
+세션 토큰	DB 저장 (sessions 테이블)	로그인 상태 유지 (30일 만료)	sessions.expiresAt
+앱 내 JWT 토큰	모바일: expo-secure-store(암호화) / 웹: sessionStorage	인증 유지	AuthContext.tsx
+수집되지 않는 항목 (코드 확인):
+
+Firebase Analytics, Google Analytics 등 제3자 분석 도구 미사용
+광고 식별자(ADID/IDFA) 미수집
+쿠키 기반 세션 미사용 (Bearer JWT 방식)
+외부 클라우드 스토리지(Firebase Storage, Supabase, S3 등) 미연동 — 이미지 포함 모든 데이터 자체 PostgreSQL DB에 저장
+외부 전송이 발생하는 서비스:
+
+서비스	전송 데이터	목적
+CoolSMS	휴대전화번호, OTP 코드	SMS 인증 발송
+이메일 서버 (SMTP)	이메일 주소, 인증코드	이메일 인증 / 비밀번호 재설정
+Google Cloud Vision API	학생증 이미지	OCR 텍스트 추출 (학생 인증용)
+부산대 도서관 시스템	JSESSIONID 토큰	열람실 예약 스크래핑
+4. 데이터 저장 및 파기
+저장 위치
+저장 위치	저장 데이터
+자체 PostgreSQL 서버	전체 사용자 정보, 게시글, 재정, 시간표, 성적, 이미지 등
+기기 로컬 (expo-secure-store)	JWT 인증 토큰 (OS 레벨 암호화)
+기기 로컬 (AsyncStorage)	이름·학년·학과 등 비민감 프로필 캐시
+서버 메모리 (In-memory Map)	이메일 인증코드, 비밀번호 재설정 토큰 (1시간 자동 만료)
+보존 기간
+항목	보존 기간	처리 방식
+세션 토큰	발급일로부터 30일	expiresAt 기준 만료
+이메일 인증코드	발급 후 1시간	서버 메모리에서 자동 삭제 (setInterval 정리)
+비밀번호 재설정 토큰	발급 후 1시간	동일
+개별 데이터 삭제
+게시글: DELETE /api/community/:id — 본인 소유 확인 후 삭제
+재정 내역: DELETE /api/finance/:id — 본인 소유 확인 후 삭제
+시간표: DELETE /api/schedule/:id — 본인 소유 확인 후 삭제
+댓글: DELETE /api/community/:postId/comments/:commentId
+계정 탈퇴 시 처리 현황
+현재 구현 상태 (⚠️ 주의):
+
+DB 스키마 상 sessions 테이블은 users에 onDelete: 'cascade' 연결 — 사용자 삭제 시 세션 자동 삭제
+그러나 서버 측 /auth/withdraw API 엔드포인트가 구현되지 않은 상태
+웹 클라이언트에서는 localStorage 키 일괄 삭제만 수행 (서버 DB 데이터는 미삭제)
+법적 요건 충족을 위해 추가 구현이 필요한 사항:
+
+DELETE /auth/withdraw API 구현 — 사용자 레코드 삭제 시 관련 게시글·댓글·재정·성적 데이터 cascade 또는 명시적 삭제
+학생증 이미지 삭제 처리 (현재 studentIdImageUrl이 DB에 영구 보관)
+탈퇴 후 일정 기간 내 완전 파기 또는 익명화 처리 로직
+이 명세를 바탕으로 개인정보 처리방침 문서를 작성하거나, 탈퇴 API를 구현하는 것도 도와드릴 수 있습니다.
