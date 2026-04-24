@@ -175,7 +175,7 @@ export default function HomeScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: 2 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: 0 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
         onScroll={e => setScrolled(e.nativeEvent.contentOffset.y > 4)}
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingBottom: 2,
+    paddingHorizontal: 20, paddingBottom: 0,
   },
   headerScrolled: {
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
