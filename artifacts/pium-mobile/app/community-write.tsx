@@ -68,7 +68,7 @@ export default function CommunityWriteScreen() {
 
   const isTrade = category === '중고거래';
   const isLost = category === '분실물';
-  const showImagePicker = isTrade || isLost;
+  const showImagePicker = true;
   const maxImages = isLost ? 3 : 5;
 
   useEffect(() => {
@@ -281,15 +281,6 @@ export default function CommunityWriteScreen() {
             </View>
           )}
 
-          {/* 작성자 정보 표시 */}
-          <View style={styles.authorInfo}>
-            <Ionicons name="person-circle-outline" size={16} color="#9CA3AF" />
-            <Text style={styles.authorInfoText}>
-              {profile.department
-                ? `${profile.department}${profile.studentId ? ` · ${String(profile.studentId).substring(2, 4)}학번` : ''} 으로 게시됩니다`
-                : '익명으로 게시됩니다'}
-            </Text>
-          </View>
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -359,10 +350,4 @@ const styles = StyleSheet.create({
   },
   imageAddText: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
 
-  authorInfo: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 14, paddingHorizontal: 16,
-    backgroundColor: '#EEF4FF', borderRadius: 12, marginTop: 4,
-  },
-  authorInfoText: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280' },
 });

@@ -449,9 +449,6 @@ export default function TodosScreen() {
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 24, backgroundColor: colors.card }]}>
             <View style={styles.sheetHandle} />
             <Text style={[styles.sheetTitle, { color: colors.text }]}>카테고리 관리</Text>
-            <Text style={[styles.sheetSub, { color: colors.textSecondary }]}>
-              기본: 과제·퀴즈·시험 | 길게 눌러 삭제
-            </Text>
 
             <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
               {categories.map(cat => (
@@ -729,8 +726,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 18,
   },
-  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 6 },
-  sheetSub: { fontSize: 12, marginBottom: 14 },
+  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
 
   // Category manager
   catMgrRow: {
@@ -743,7 +739,10 @@ const styles = StyleSheet.create({
   catMgrName: { flex: 1, fontSize: 15 },
   catAddRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   catInput: {
-    flex: 1, height: 44, borderRadius: 10,
+    flex: 1, height: 44,
+    borderTopLeftRadius: 12, borderTopRightRadius: 12,
+    borderBottomLeftRadius: 12, borderBottomRightRadius: 12,
+    borderWidth: 1.5, borderColor: '#E5E7EB',
     paddingHorizontal: 12, fontSize: 14,
   },
   catAddBtn2: {
@@ -753,7 +752,10 @@ const styles = StyleSheet.create({
 
   // Add/Edit modal
   input: {
-    height: 48, borderRadius: 12,
+    height: 48,
+    borderTopLeftRadius: 14, borderTopRightRadius: 14,
+    borderBottomLeftRadius: 14, borderBottomRightRadius: 14,
+    borderWidth: 1.5, borderColor: '#E5E7EB',
     paddingHorizontal: 14, fontSize: 15,
     marginBottom: 14,
   },
