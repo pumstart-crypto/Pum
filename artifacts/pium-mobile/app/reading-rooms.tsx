@@ -1150,47 +1150,81 @@ export default function ReadingRoomsScreen() {
               thirdPartyCookiesEnabled
               injectedJavaScript={`
                 (function() {
-                  var css = \`
-                    /* 하단 네비게이션 바 (MY / 1:1문의 / 홈 / 이용증 / 전체메뉴) */
-                    .btm-area, .bottom-nav, .btm-nav, .gnb-btm, .nav-bottom,
-                    #bottomNav, #bottom-nav, #btmNav, #gnbBottom,
-                    .tab-bar, .tabbar, .app-footer, footer, #footer,
-                    [class*="btm-menu"], [class*="bottom-menu"],
-                    [class*="bottom-tab"], [class*="gnb-bottom"] {
-                      display: none !important;
-                    }
+                  /* ── 하단 네비게이션 키워드 (5개 중 3개 이상이면 해당 컨테이너 숨김) ── */
+                  var NAV_KEYWORDS = ['MY', '1:1', '홈', '이용증', '전체메뉴'];
+                  /* ── 상단 타이틀 키워드 (텍스트에 포함 시 숨김) ── */
+                  var TITLE_KEYWORDS = ['열람실 예약', '열람존 예약', '스터디룸 예약', '좌석 예약'];
 
-                    /* 상단 페이지 타이틀 (← 새벽누리-열람존열람실 예약) */
-                    .page-tit, .page-title, .sub-title-bar, .sub-header,
-                    .list-header, .view-title, .pop-hd, .layer-hd,
-                    [class*="page-tit"], [class*="sub-tit"],
-                    [class*="list-hd"], [class*="view-hd"] {
-                      display: none !important;
+                  function findNavContainer() {
+                    /* 1) 텍스트 기반: NAV_KEYWORDS 중 3개 이상 포함하는 가장 작은 공통 조상 */
+                    var hits = [];
+                    NAV_KEYWORDS.forEach(function(kw) {
+                      document.querySelectorAll('a, button, span, li').forEach(function(el) {
+                        if (el.children.length === 0 && el.textContent.trim() === kw) hits.push(el);
+                      });
+                    });
+                    if (hits.length >= 3) {
+                      /* 공통 조상 찾기: 첫 hit 기준으로 부모를 올라가며 다른 hit들을 포함하는지 확인 */
+                      var anchor = hits[0];
+                      for (var p = anchor.parentElement; p && p !== document.body; p = p.parentElement) {
+                        var inside = hits.filter(function(h) { return p.contains(h); });
+                        if (inside.length >= 3) { return p; }
+                      }
                     }
-
-                    /* 페이지 상단 여백 보정 */
-                    body, #app, #wrap, .wrap, .content, #content,
-                    .cont-area, .cont-wrap {
-                      padding-bottom: 0 !important;
-                      margin-bottom: 0 !important;
-                    }
-                  \`;
-
-                  function injectStyle() {
-                    if (!document.head) return;
-                    var existing = document.getElementById('__pium_hide__');
-                    if (existing) return;
-                    var el = document.createElement('style');
-                    el.id = '__pium_hide__';
-                    el.textContent = css;
-                    document.head.appendChild(el);
+                    /* 2) 위치 기반: fixed/sticky 이고 화면 하단 20% 이내, 너비 70% 이상인 요소 */
+                    var wh = window.innerHeight, ww = window.innerWidth;
+                    var found = null;
+                    document.querySelectorAll('*').forEach(function(el) {
+                      if (found) return;
+                      var st = window.getComputedStyle(el);
+                      if (st.position !== 'fixed' && st.position !== 'sticky') return;
+                      var r = el.getBoundingClientRect();
+                      if (r.width > ww * 0.7 && r.bottom >= wh * 0.8 && r.height < wh * 0.2) found = el;
+                    });
+                    return found;
                   }
 
-                  injectStyle();
+                  function findTitleBar() {
+                    /* 텍스트 기반: TITLE_KEYWORDS 포함하는 요소 찾기 */
+                    var result = null;
+                    document.querySelectorAll('h1, h2, h3, [class*="tit"], [class*="title"], [class*="header"]').forEach(function(el) {
+                      if (result) return;
+                      var txt = el.textContent || '';
+                      var match = TITLE_KEYWORDS.some(function(kw) { return txt.indexOf(kw) !== -1; });
+                      if (match && txt.length < 40) result = el;
+                    });
+                    if (result) {
+                      /* 부모가 단순 래퍼라면 한 단계 위까지 숨김 */
+                      var p = result.parentElement;
+                      if (p && p.children.length === 1) return p;
+                    }
+                    return result;
+                  }
 
-                  /* SPA 라우팅 후에도 계속 적용 */
-                  var obs = new MutationObserver(injectStyle);
+                  var hidden = [];
+                  function hideAll() {
+                    var nav = findNavContainer();
+                    if (nav && !nav.__piumHidden) {
+                      nav.style.setProperty('display', 'none', 'important');
+                      nav.__piumHidden = true;
+                      hidden.push(nav);
+                    }
+                    var title = findTitleBar();
+                    if (title && !title.__piumHidden) {
+                      title.style.setProperty('display', 'none', 'important');
+                      title.__piumHidden = true;
+                      hidden.push(title);
+                    }
+                  }
+
+                  hideAll();
+
+                  var obs = new MutationObserver(hideAll);
                   obs.observe(document.documentElement, { childList: true, subtree: true });
+
+                  /* 초기 SPA 렌더링 대비 폴링 (5초) */
+                  var n = 0;
+                  var t = setInterval(function() { hideAll(); if (++n > 10) clearInterval(t); }, 500);
                   true;
                 })();
               `}
