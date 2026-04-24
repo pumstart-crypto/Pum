@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Platform, Image,
+  RefreshControl, ActivityIndicator, Platform, Image, Linking, Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import C from '@/constants/colors';
 import { FIXED_COMMUNITIES, FIXED_IDS, filterPostsByCategory, type Post } from './(tabs)/board';
+import { DEPT_LINKS } from '@/constants/deptLinks';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
@@ -197,6 +198,17 @@ export default function CommunityDetailScreen() {
     return posts.filter(p => p.subCategory === tab).length;
   };
 
+  const deptInfo = isDeptBoard ? DEPT_LINKS[category] : undefined;
+  const noticeUrl = deptInfo?.notice ?? null;
+
+  const handleNoticeLink = () => {
+    if (!noticeUrl) {
+      Alert.alert('안내', '홈페이지가 존재하지 않습니다.');
+      return;
+    }
+    Linking.openURL(noticeUrl).catch(() => Alert.alert('오류', '링크를 열 수 없습니다.'));
+  };
+
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
       {/* Header */}
@@ -208,6 +220,14 @@ export default function CommunityDetailScreen() {
           <Ionicons name={communityIcon as any} size={14} color={communityColor} />
         </View>
         <Text style={styles.detailHeaderTitle}>{label}</Text>
+        {isDeptBoard && (
+          <TouchableOpacity style={styles.noticeLinkBtn} onPress={handleNoticeLink} activeOpacity={0.75}>
+            <Ionicons name="megaphone-outline" size={12} color={noticeUrl ? C.primary : '#9CA3AF'} />
+            <Text style={[styles.noticeLinkText, !noticeUrl && { color: '#9CA3AF' }]}>
+              {noticeUrl ? '공지사항' : '홈페이지 없음'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 분실물 탭 바 */}
@@ -283,7 +303,9 @@ const styles = StyleSheet.create({
   detailHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#F5F7FA', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 10 },
   backBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'flex-start' },
   headerIconWrap: { width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  detailHeaderTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
+  detailHeaderTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
+  noticeLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#EBF3FA' },
+  noticeLinkText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: C.primary },
   // 분실물 탭 바
   lostTabBar: { flexDirection: 'row', backgroundColor: '#F5F7FA', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 8 },
   lostTabBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },

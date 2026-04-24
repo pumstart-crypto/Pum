@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import C from '@/constants/colors';
+import { getDeptList } from '@/constants/deptLinks';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
@@ -55,13 +56,18 @@ export function filterPostsByCategory(posts: Post[], categoryId: string): Post[]
 
 /* ── Dept Browser Modal ── */
 interface DeptItem { name: string; college: string; }
+function sortByName(items: DeptItem[]) {
+  return [...items].sort((a, b) => a.name.localeCompare(b.name, 'ko', { sensitivity: 'base' }));
+}
 function buildSections(depts: DeptItem[]) {
   const map = new Map<string, DeptItem[]>();
   for (const d of depts) {
     if (!map.has(d.college)) map.set(d.college, []);
     map.get(d.college)!.push(d);
   }
-  return [...map.entries()].map(([title, data]) => ({ title, data }));
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'ko', { sensitivity: 'base' }))
+    .map(([title, data]) => ({ title, data: sortByName(data) }));
 }
 
 function DeptBrowserModal({
@@ -72,25 +78,17 @@ function DeptBrowserModal({
   onPin: (d: string) => void; onUnpin: (d: string) => void; onView: (d: string) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [depts, setDepts] = useState<DeptItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const sectionListRef = useRef<SectionList>(null);
   const pinnedSet = new Set(pinnedDepts);
 
-  useEffect(() => {
-    if (!visible) return;
-    setLoading(true); setQ('');
-    fetch(`${API}/community/depts`)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => setDepts(data.depts ?? []))
-      .catch(() => setDepts([]))
-      .finally(() => setLoading(false));
-  }, [visible]);
+  const allDepts = React.useMemo(() => getDeptList(), []);
+
+  useEffect(() => { if (visible) setQ(''); }, [visible]);
 
   const isSearching = !!q.trim();
-  const filtered = isSearching ? depts.filter(d => d.name.includes(q.trim()) || d.college.includes(q.trim())) : [];
-  const sections = React.useMemo(() => buildSections(depts), [depts]);
+  const filtered = isSearching ? allDepts.filter(d => d.name.includes(q.trim()) || d.college.includes(q.trim())) : [];
+  const sections = React.useMemo(() => buildSections(allDepts), [allDepts]);
 
   const renderItem = (item: DeptItem) => {
     const isPinned = pinnedSet.has(item.name);
@@ -129,9 +127,7 @@ function DeptBrowserModal({
             <TextInput style={styles.searchInput} value={q} onChangeText={setQ} placeholder="학과 검색..." placeholderTextColor="#9CA3AF" />
             {!!q && <TouchableOpacity onPress={() => setQ('')}><Feather name="x" size={13} color="#9CA3AF" /></TouchableOpacity>}
           </View>
-          {loading ? (
-            <ActivityIndicator color={C.primary} style={{ marginTop: 32 }} />
-          ) : isSearching ? (
+          {isSearching ? (
             <FlatList
               data={filtered}
               keyExtractor={item => item.name}
