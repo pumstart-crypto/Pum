@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Platform, Linking, RefreshControl, ActivityIndicator,
+  Platform, Linking, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -114,7 +114,6 @@ export default function HomeScreen() {
 
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [todoExpanded, setTodoExpanded] = useState(false);
 
@@ -152,12 +151,6 @@ export default function HomeScreen() {
 
   useEffect(() => { fetchTodos(); }, [fetchTodos]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([fetchTodos(), refetchSchedules(), refreshUnread()]);
-    setRefreshing(false);
-  }, [fetchTodos, refetchSchedules, refreshUnread]);
-
   const toggleTodo = async (id: number, completed: boolean) => {
     setTodos(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
     await fetch(`${API}/todos/${id}`, {
@@ -183,7 +176,6 @@ export default function HomeScreen() {
 
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: 0 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
         onScroll={e => setScrolled(e.nativeEvent.contentOffset.y > 4)}
         scrollEventThrottle={16}
