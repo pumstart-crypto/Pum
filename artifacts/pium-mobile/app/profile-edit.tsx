@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Platform, Alert, ActivityIndicator,
+  TextInput, Platform, ActivityIndicator, Animated, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -11,10 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { loadProfileAsync, saveProfileAsync, type UserProfile, DEFAULT_PROFILE } from '@/hooks/useProfile';
 import C from '@/constants/colors';
 
-const AVATAR_COLORS = [
-  '#00427D', '#4F46E5', '#0891B2', '#059669', '#D97706',
-  '#DC2626', '#7C3AED', '#DB2777', '#0F766E', '#EA580C',
-];
+const silhouette = require('../assets/images/profile-silhouette.png');
 
 const GRADE_OPTIONS = [
   { label: '1학년', value: '1' },
@@ -35,6 +32,20 @@ export default function ProfileEditScreen() {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // In-app toast
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setToast(null));
+    }, 2200);
+  };
 
   // Auth-verified data (read-only)
   const authMajor = user?.major || '';
@@ -58,9 +69,10 @@ export default function ProfileEditScreen() {
     setSaving(true);
     try {
       await saveProfileAsync(profile);
-      Alert.alert('저장됨', '프로필이 저장되었습니다.', [{ text: '확인', onPress: () => router.back() }]);
+      showToast('프로필이 저장되었습니다.', 'success');
+      setTimeout(() => router.back(), 1800);
     } catch {
-      Alert.alert('오류', '저장에 실패했습니다.');
+      showToast('저장에 실패했습니다.', 'error');
     } finally {
       setSaving(false);
     }
@@ -70,10 +82,16 @@ export default function ProfileEditScreen() {
     setProfile(prev => ({ ...prev, [field]: value }));
   };
 
-  const initial = profile.name?.[0] || user?.name?.[0] || '학';
-
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }, { paddingTop: topPad }]}>
+      {/* In-app toast */}
+      {toast && (
+        <Animated.View style={[styles.toast, toast.type === 'error' ? styles.toastError : styles.toastSuccess, { opacity: toastOpacity, top: topPad + 60 }]}>
+          <Feather name={toast.type === 'success' ? 'check-circle' : 'alert-circle'} size={16} color="#fff" />
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </Animated.View>
+      )}
+
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -97,20 +115,8 @@ export default function ProfileEditScreen() {
           <>
             {/* Avatar */}
             <View style={styles.avatarSection}>
-              <View style={[styles.avatar, { backgroundColor: profile.avatarColor }]}>
-                <Text style={styles.avatarText}>{initial}</Text>
-              </View>
-              <Text style={[styles.avatarLabel, { color: colors.textSecondary }]}>아바타 색상</Text>
-              <View style={styles.colorRow}>
-                {AVATAR_COLORS.map(color => (
-                  <TouchableOpacity
-                    key={color}
-                    style={[styles.colorChip, { backgroundColor: color }, profile.avatarColor === color && styles.colorChipSelected]}
-                    onPress={() => update('avatarColor', color)}
-                  >
-                    {profile.avatarColor === color && <Feather name="check" size={14} color="#fff" />}
-                  </TouchableOpacity>
-                ))}
+              <View style={[styles.avatar, { backgroundColor: C.primary }]}>
+                <Image source={silhouette} style={styles.avatarImage} resizeMode="contain" />
               </View>
             </View>
 
@@ -217,18 +223,14 @@ const styles = StyleSheet.create({
   saveBtn: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
   saveBtnText: { fontSize: 15, color: C.primary, fontFamily: 'Inter_700Bold' },
   content: { paddingHorizontal: 16, paddingTop: 20 },
-  avatarSection: { alignItems: 'center', gap: 12, marginBottom: 24 },
-  avatar: { width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 4 },
-  avatarText: { fontSize: 36, fontFamily: 'Inter_700Bold', color: '#fff' },
-  avatarLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' },
-  colorChip: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  colorChipSelected: { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  avatarSection: { alignItems: 'center', marginBottom: 24 },
+  avatar: { width: 90, height: 90, borderRadius: 45, justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 4 },
+  avatarImage: { width: 72, height: 72 },
   adminBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF4FF', borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: `${C.primary}30` },
   adminText: { fontSize: 12, color: C.primary, fontFamily: 'Inter_400Regular', flex: 1 },
   section: { marginBottom: 20 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginHorizontal: 4 },
-  sectionTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', textTransform: 'uppercase', letterSpacing: 1 },
+  sectionTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginHorizontal: 4 },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EEF4FF', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   verifiedBadgeText: { fontSize: 10, color: C.primary, fontFamily: 'Inter_600SemiBold' },
   sectionCard: { borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
@@ -246,4 +248,8 @@ const styles = StyleSheet.create({
   gradeChipTextActive: { color: C.primary, fontFamily: 'Inter_600SemiBold' },
   saveFullBtn: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 4 },
   saveFullBtnText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+  toast: { position: 'absolute', left: 20, right: 20, zIndex: 999, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  toastSuccess: { backgroundColor: '#16A34A' },
+  toastError: { backgroundColor: '#DC2626' },
+  toastText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#fff', flex: 1 },
 });
