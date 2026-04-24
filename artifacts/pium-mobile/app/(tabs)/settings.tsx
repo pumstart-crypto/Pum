@@ -22,7 +22,6 @@ const SECTIONS = [
   {
     title: '계정',
     items: [
-      { icon: 'bell', label: '알림 설정', desc: '푸시 알림 및 리마인더', color: '#2563EB', route: '/notification-settings' },
       { icon: 'shield', label: '개인정보 보호', desc: '데이터 및 보안 설정', color: '#7C3AED', route: '/privacy-settings' },
     ],
   },
@@ -98,7 +97,7 @@ export default function SettingsScreen() {
         <View style={[styles.section]}>
           <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>앱 설정</Text>
           <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
-            <View style={styles.settingRow}>
+            <View style={[styles.settingRow, styles.settingRowBorder, { borderBottomColor: colors.border }]}>
               <View style={[styles.settingIcon, { backgroundColor: '#05906918' }]}>
                 <Feather name="globe" size={18} color="#059669" />
               </View>
@@ -107,6 +106,16 @@ export default function SettingsScreen() {
                 <Text style={[styles.settingDesc, { color: colors.textTertiary }]}>v1.0.0 (최신)</Text>
               </View>
             </View>
+            <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/notification-settings')} activeOpacity={0.7}>
+              <View style={[styles.settingIcon, { backgroundColor: '#2563EB18' }]}>
+                <Feather name="bell" size={18} color="#2563EB" />
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>알림 설정</Text>
+                <Text style={[styles.settingDesc, { color: colors.textTertiary }]}>푸시 알림 및 리마인더</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+            </TouchableOpacity>
           </View>
         </View>
 
