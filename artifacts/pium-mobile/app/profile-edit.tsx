@@ -73,8 +73,7 @@ export default function ProfileEditScreen() {
     setSaving(true);
     try {
       await saveProfileAsync(profile);
-      showToast('프로필이 저장되었습니다.', 'success');
-      setTimeout(() => router.back(), 1800);
+      router.back();
     } catch {
       showToast('저장에 실패했습니다.', 'error');
     } finally {
