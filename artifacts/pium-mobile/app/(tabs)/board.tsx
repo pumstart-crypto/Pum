@@ -369,10 +369,8 @@ export default function BoardScreen() {
         const migrated = saved
           .filter(t => t !== '수업Q&A' && t !== '내 학과' && t !== '전체')
           .map(t => t === '동아리' ? '홍보' : t === '꿀팁' ? '학교 생활' : t);
-        const finalOrder = [
-          ...DEFAULT_ORDER,
-          ...migrated.filter(t => !FIXED_IDS.includes(t)),
-        ];
+        const missingFixed = FIXED_IDS.filter(id => !migrated.includes(id));
+        const finalOrder = [...missingFixed, ...migrated];
         setCommunityOrder(finalOrder);
       } catch {}
     });
