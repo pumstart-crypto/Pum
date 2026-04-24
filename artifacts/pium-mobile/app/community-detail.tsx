@@ -155,7 +155,7 @@ export default function CommunityDetailScreen() {
   const communityColor = C.primary;
   const communityBg = '#EBF3FA';
   const communityIcon = fixed ? fixed.icon : 'school-outline';
-  const defaultWriteCategory = FIXED_IDS.includes(category) ? category : '중고거래';
+  const defaultWriteCategory = category;
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
