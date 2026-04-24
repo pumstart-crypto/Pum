@@ -975,12 +975,25 @@ export default function ReadingRoomsScreen() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshingHeader, setIsRefreshingHeader] = useState(false);
 
+  // 공용 인앱 WebView
+  const [wvVisible, setWvVisible] = useState(false);
+  const [wvUrl, setWvUrl] = useState('');
+  const [wvTitle, setWvTitle] = useState('');
+  const [wvLoading, setWvLoading] = useState(false);
+
+  const openInAppWeb = useCallback((url: string, title: string) => {
+    setWvUrl(url);
+    setWvTitle(title);
+    setWvLoading(true);
+    setWvVisible(true);
+  }, []);
+
   const handleRoomsReady = useCallback((_tabKey: RoomTabKey) => (_rooms: SeatRoom[]) => {
   }, []);
 
   const handleSelectRoom = useCallback((room: SeatRoom) => {
-    WebBrowser.openBrowserAsync(getRoomUrl(room.name));
-  }, []);
+    openInAppWeb(getRoomUrl(room.name), room.name);
+  }, [openInAppWeb]);
 
   const openQR = useCallback(() => {
     WebBrowser.openBrowserAsync(QR_URL);
@@ -1090,15 +1103,55 @@ export default function ReadingRoomsScreen() {
 
           <TouchableOpacity
             style={styles.reservationBtn}
-            onPress={() => WebBrowser.openBrowserAsync(RESERVATION_URL)}
+            onPress={() => openInAppWeb(RESERVATION_URL, '좌석 예약 현황')}
             activeOpacity={0.8}
           >
             <Ionicons name="calendar-outline" size={15} color={C.primary} style={{ marginRight: 6 }} />
             <Text style={styles.reservationBtnText}>내 좌석 예약 현황 보기</Text>
-            <Feather name="external-link" size={12} color={C.primary} style={{ marginLeft: 6, opacity: 0.6 }} />
+            <Feather name="chevron-right" size={13} color={C.primary} style={{ marginLeft: 6, opacity: 0.6 }} />
           </TouchableOpacity>
         </ScrollView>
       )}
+
+      {/* ── 공용 인앱 WebView 모달 ── */}
+      <Modal visible={wvVisible} animationType="slide" onRequestClose={() => setWvVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: isWeb ? 67 : insets.top }}>
+          {/* 헤더 */}
+          <View style={styles.wvHeader}>
+            <TouchableOpacity
+              onPress={() => setWvVisible(false)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={styles.wvCloseBtn}
+            >
+              <Feather name="arrow-left" size={20} color="#374151" />
+            </TouchableOpacity>
+            <Text style={styles.wvTitle} numberOfLines={1}>{wvTitle}</Text>
+            {wvLoading
+              ? <ActivityIndicator size="small" color={C.primary} style={{ width: 36 }} />
+              : <View style={{ width: 36 }} />
+            }
+          </View>
+          {isWeb ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 }}>
+              <Feather name="smartphone" size={36} color="#D1D5DB" />
+              <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
+                이 기능은 모바일 앱에서 이용해 주세요.
+              </Text>
+            </View>
+          ) : (
+            <WebView
+              source={{ uri: wvUrl }}
+              style={{ flex: 1 }}
+              onLoadStart={() => setWvLoading(true)}
+              onLoadEnd={() => setWvLoading(false)}
+              javaScriptEnabled
+              domStorageEnabled
+              sharedCookiesEnabled
+              thirdPartyCookiesEnabled
+            />
+          )}
+        </View>
+      </Modal>
 
       {Toast}
     </View>
@@ -1219,6 +1272,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08, shadowRadius: 6, elevation: 1,
   },
   reservationBtnText: { fontSize: 14, fontWeight: '600', color: C.primary, fontFamily: 'Inter_600SemiBold' },
+
+  // ── 인앱 WebView 헤더 ──
+  wvHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    gap: 8,
+  },
+  wvCloseBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center',
+  },
+  wvTitle: {
+    flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#111827',
+  },
 
   toast: {
     position: 'absolute', left: 16, right: 16,
