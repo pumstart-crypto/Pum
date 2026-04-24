@@ -164,10 +164,6 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>로그아웃</Text>
         </TouchableOpacity>
 
-        {user && (
-          <Text style={[styles.userInfo, { color: colors.textTertiary }]}>{user.username} · {user.studentId}</Text>
-        )}
-
         <View style={{ height: isWeb ? 34 : 100 }} />
       </ScrollView>
     </View>
