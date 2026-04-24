@@ -280,20 +280,11 @@ export default function HomeScreen() {
             ) : incompleteTodos.length === 0 ? (
               <View style={styles.emptyTodo}>
                 <View style={styles.emptyTodoIcon}>
-                  <Feather name="check-circle" size={36} color={colors.textTertiary} />
+                  <Feather name="check-circle" size={36} color={C.primary} />
                 </View>
                 <Text style={[styles.emptyTodoTitle, { color: colors.text }]}>
-                  미완료 할 일이 없어요!
+                  모든 할 일을 완료했습니다.
                 </Text>
-                <Text style={[styles.emptyTodoDesc, { color: colors.textSecondary }]}>
-                  새로운 할 일을 추가해보세요
-                </Text>
-                <TouchableOpacity
-                  style={[styles.emptyTodoBtn, { borderColor: C.primary }]}
-                  onPress={() => router.push('/todos')}
-                >
-                  <Text style={[styles.emptyTodoBtnText, { color: C.primary }]}>할 일 추가하기</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               <>

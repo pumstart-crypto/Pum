@@ -46,17 +46,19 @@ async function pickImages(max: number): Promise<string[]> {
 }
 
 export default function CommunityWriteScreen() {
-  const { category: initCategory, label } = useLocalSearchParams<{ category: string; label: string }>();
+  const { category: initCategory, label, postId, existingTitle, existingContent } =
+    useLocalSearchParams<{ category: string; label: string; postId?: string; existingTitle?: string; existingContent?: string }>();
   const insets = useSafeAreaInsets();
   const topPad = isWeb ? 67 : insets.top;
   const { token } = useAuth();
 
+  const isEditing = !!postId;
   const catList = [initCategory];
 
   const [profile, setProfile] = useState<Profile>({});
   const [category, setCategory] = useState(initCategory);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [title, setTitle] = useState(existingTitle ?? '');
+  const [content, setContent] = useState(existingContent ?? '');
   const [price, setPrice] = useState('');
   const [lostType, setLostType] = useState<'분실물' | '습득물'>('분실물');
   const [images, setImages] = useState<string[]>([]);
@@ -87,28 +89,37 @@ export default function CommunityWriteScreen() {
     if (!token) { Alert.alert('오류', '로그인 후 이용할 수 있습니다.'); return; }
     setSubmitting(true);
     try {
-      const subCategory = isTrade ? price.trim() : isLost ? lostType : '';
-      const author = buildAuthor(profile);
-      const body = {
-        category,
-        subCategory,
-        title: title.trim(),
-        content: content.trim(),
-        author,
-        ...(images.length > 0 ? { images } : {}),
-      };
-      const r = await fetch(`${API}/community`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
+      let r: Response;
+      if (isEditing) {
+        r = await fetch(`${API}/community/${postId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ title: title.trim(), content: content.trim() }),
+        });
+      } else {
+        const subCategory = isTrade ? price.trim() : isLost ? lostType : '';
+        const author = buildAuthor(profile);
+        const body = {
+          category,
+          subCategory,
+          title: title.trim(),
+          content: content.trim(),
+          author,
+          ...(images.length > 0 ? { images } : {}),
+        };
+        r = await fetch(`${API}/community`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        });
+      }
       if (r.ok) {
         router.back();
       } else {
-        Alert.alert('오류', '게시글 작성에 실패했습니다.');
+        Alert.alert('오류', isEditing ? '수정에 실패했습니다.' : '게시글 작성에 실패했습니다.');
       }
     } catch {
-      Alert.alert('오류', '게시글 작성에 실패했습니다.');
+      Alert.alert('오류', isEditing ? '수정에 실패했습니다.' : '게시글 작성에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +136,7 @@ export default function CommunityWriteScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Feather name="x" size={22} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>글 작성</Text>
+          <Text style={styles.headerTitle}>{isEditing ? '글 수정' : '글 작성'}</Text>
           <TouchableOpacity
             style={[styles.submitHeaderBtn, !canSubmit && { opacity: 0.35 }]}
             onPress={handleSubmit}
@@ -133,7 +144,7 @@ export default function CommunityWriteScreen() {
           >
             {submitting
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.submitHeaderBtnText}>게시</Text>
+              : <Text style={styles.submitHeaderBtnText}>{isEditing ? '수정' : '게시'}</Text>
             }
           </TouchableOpacity>
         </View>
