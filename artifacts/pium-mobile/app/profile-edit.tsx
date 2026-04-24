@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Platform, ActivityIndicator, Animated, Image,
+  TextInput, Platform, ActivityIndicator, Animated, Image, Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -32,6 +32,7 @@ export default function ProfileEditScreen() {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   // In-app toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -65,7 +66,10 @@ export default function ProfileEditScreen() {
     });
   }, [user]);
 
-  const handleSave = async () => {
+  const handleSave = () => setConfirmVisible(true);
+
+  const doSave = async () => {
+    setConfirmVisible(false);
     setSaving(true);
     try {
       await saveProfileAsync(profile);
@@ -84,6 +88,24 @@ export default function ProfileEditScreen() {
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }, { paddingTop: topPad }]}>
+      {/* In-app confirm dialog */}
+      <Modal transparent visible={confirmVisible} animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>저장하시겠습니까?</Text>
+            <Text style={[styles.modalSub, { color: colors.textSecondary }]}>변경된 프로필 정보를 저장합니다.</Text>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: colors.border }]} onPress={() => setConfirmVisible(false)}>
+                <Text style={[styles.modalBtnCancelText, { color: colors.textSecondary }]}>아니오</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnConfirm]} onPress={doSave}>
+                <Text style={styles.modalBtnConfirmText}>예</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* In-app toast */}
       {toast && (
         <Animated.View style={[styles.toast, toast.type === 'error' ? styles.toastError : styles.toastSuccess, { opacity: toastOpacity, top: topPad + 60 }]}>
@@ -249,4 +271,14 @@ const styles = StyleSheet.create({
   toastSuccess: { backgroundColor: '#16A34A' },
   toastError: { backgroundColor: '#DC2626' },
   toastText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#fff', flex: 1 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  modalBox: { width: '100%', borderRadius: 20, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+  modalTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', textAlign: 'center', marginBottom: 6 },
+  modalSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 20 },
+  modalBtns: { flexDirection: 'row', gap: 10 },
+  modalBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  modalBtnCancel: { borderWidth: 1.5 },
+  modalBtnCancelText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  modalBtnConfirm: { backgroundColor: C.primary },
+  modalBtnConfirmText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#fff' },
 });
