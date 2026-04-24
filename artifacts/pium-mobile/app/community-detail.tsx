@@ -260,7 +260,6 @@ export default function CommunityDetailScreen() {
   const [showWrite, setShowWrite] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<'latest' | 'popular'>('latest');
 
   useEffect(() => {
     AsyncStorage.getItem('campus_life_profile').then(raw => {
@@ -288,10 +287,7 @@ export default function CommunityDetailScreen() {
     setRefreshing(false);
   }, [fetchPosts]);
 
-  const sorted = [...posts].sort((a, b) => {
-    if (sort === 'popular') return (b.views + (b.commentCount ?? 0)) - (a.views + (a.commentCount ?? 0));
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+  const sorted = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const paged = sorted.slice(0, page * PER_PAGE);
   const hasMore = paged.length < sorted.length;
 
@@ -323,17 +319,6 @@ export default function CommunityDetailScreen() {
         <Text style={styles.detailHeaderTitle}>{label}</Text>
         <View style={{ flex: 1 }} />
         <Text style={styles.postCount}>{posts.length}개</Text>
-      </View>
-
-      {/* Sort bar */}
-      <View style={styles.sortBar}>
-        {(['latest', 'popular'] as const).map(s => (
-          <TouchableOpacity key={s} style={[styles.sortBtn, sort === s && styles.sortBtnActive]} onPress={() => { setSort(s); setPage(1); }}>
-            <Text style={[styles.sortBtnText, sort === s && styles.sortBtnTextActive]}>
-              {s === 'latest' ? '최신순' : '인기순'}
-            </Text>
-          </TouchableOpacity>
-        ))}
       </View>
 
       <ScrollView
@@ -391,12 +376,6 @@ const styles = StyleSheet.create({
   headerIconWrap: { width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   detailHeaderTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
   postCount: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
-
-  sortBar: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  sortBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99, backgroundColor: '#F3F4F6' },
-  sortBtnActive: { backgroundColor: C.primary },
-  sortBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#9CA3AF' },
-  sortBtnTextActive: { color: '#fff' },
 
   feed: { paddingHorizontal: 12, paddingTop: 10 },
   emptyBox: { alignItems: 'center', paddingVertical: 80, gap: 12 },
