@@ -547,14 +547,14 @@ export default function CommunityDetailScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F7FA' },
 
-  detailHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#EEF1FA', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 10 },
+  detailHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#F5F7FA', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 10 },
   backBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'flex-start' },
   headerIconWrap: { width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   detailHeaderTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
   postCount: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 
   // 분실물 탭 바
-  lostTabBar: { flexDirection: 'row', backgroundColor: '#EEF1FA', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 8 },
+  lostTabBar: { flexDirection: 'row', backgroundColor: '#F5F7FA', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', gap: 8 },
   lostTabBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
   lostTabBtnSel: { borderColor: C.primary, backgroundColor: '#EEF4FF' },
   lostTabDot: { width: 7, height: 7, borderRadius: 3.5, borderWidth: 1 },
