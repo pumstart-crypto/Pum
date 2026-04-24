@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.primary },
   scroll: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 24 },
   branding: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
-  logo: { width: 180, height: 180, marginBottom: 4 },
+  logo: { width: 180, height: 180, marginBottom: 2 },
   appSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular' },
   form: { gap: 12, paddingBottom: 8 },
   errorBox: {
