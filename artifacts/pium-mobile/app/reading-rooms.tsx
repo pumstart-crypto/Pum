@@ -1164,14 +1164,25 @@ export default function ReadingRoomsScreen() {
                        1. 헤더 / 푸터 숨기기 (Angular Material Pyxis)
                     ═══════════════════════════════════════════════════ */
                     function hide() {
+                      /* 헤더 숨기기 */
                       var header = document.querySelector('.ikc-header-toolbar');
-                      if (header) {
-                        header.style.setProperty('display', 'none', 'important');
-                        var content = document.querySelector('.mat-sidenav-content, .mat-drawer-content');
-                        if (content) content.style.setProperty('margin-top', '0', 'important');
-                      }
+                      if (header) header.style.setProperty('display', 'none', 'important');
+
+                      /* 푸터 숨기기 */
                       var footer = document.querySelector('.ikc-footer-toolbar');
                       if (footer) footer.style.setProperty('display', 'none', 'important');
+
+                      /* 헤더·푸터 제거 후 남는 여백 및 오버스크롤 제거 */
+                      var content = document.querySelector('.mat-sidenav-content, .mat-drawer-content');
+                      if (content) {
+                        content.style.setProperty('margin-top',    '0', 'important');
+                        content.style.setProperty('margin-bottom', '0', 'important');
+                        content.style.setProperty('padding-top',   '0', 'important');
+                        content.style.setProperty('padding-bottom','0', 'important');
+                      }
+                      /* 바디 오버스크롤 잠금 */
+                      document.body.style.setProperty('overscroll-behavior', 'none', 'important');
+                      document.documentElement.style.setProperty('overscroll-behavior', 'none', 'important');
                     }
                     hide();
                     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
@@ -1218,7 +1229,7 @@ export default function ReadingRoomsScreen() {
 
                     var startDist = null;
                     var startVal  = null;
-                    var SENSITIVITY = 1.5; /* 민감도 조절: 값이 클수록 빠르게 변함 */
+                    var SENSITIVITY = 0.4; /* 민감도 조절: 값이 클수록 빠르게 변함 */
 
                     document.addEventListener('touchstart', function(e) {
                       if (e.touches.length === 2) {
