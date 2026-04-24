@@ -848,7 +848,7 @@ export default function ScheduleScreen() {
         <>
           <View style={[styles.ttHeader, { backgroundColor: colors.background }]}>
             <View>
-              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>시간 관리</Text>
+              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>부산대학교</Text>
               <Text style={[styles.ttTitle, { color: colors.text }]}>{formatSem(currentSem)} <Text style={{ color: C.primary }}>시간표</Text></Text>
             </View>
             <View style={styles.ttHeaderRight}>
@@ -933,7 +933,7 @@ export default function ScheduleScreen() {
         <>
           <View style={styles.gradeHeader}>
             <View>
-              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>시간 관리</Text>
+              <Text style={[styles.envLabel, { color: colors.textSecondary }]}>부산대학교</Text>
               <Text style={[styles.gradeTitle, { color: colors.text }]}>학기별 <Text style={{ color: C.primary }}>성적 관리</Text></Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
