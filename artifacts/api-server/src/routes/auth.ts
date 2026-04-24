@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { randomUUID } from "crypto";
-import { db, usersTable, sessionsTable } from "@workspace/db";
+import { db, usersTable, sessionsTable, communityPostsTable, communityCommentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, signToken, verifyToken, generateOTP } from "../lib/auth";
 import { sendVerificationEmail } from "../lib/email";
@@ -310,6 +310,26 @@ router.post("/auth/logout", async (req, res) => {
     await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
   }
   res.json({ message: "로그아웃 되었습니다." });
+});
+
+// ── 회원 탈퇴 ──────────────────────────────────────────────────
+router.delete("/auth/withdraw", async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "인증이 필요합니다." }); return; }
+  const token = auth.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) { res.status(401).json({ message: "유효하지 않은 토큰입니다." }); return; }
+
+  const userId = payload.userId;
+
+  // cascade가 없는 커뮤니티 데이터 명시적 삭제
+  await db.delete(communityCommentsTable).where(eq(communityCommentsTable.userId, userId));
+  await db.delete(communityPostsTable).where(eq(communityPostsTable.userId, userId));
+
+  // users 레코드 삭제 → sessions/grades/schedule/todos/notifications 모두 cascade 삭제
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+
+  res.json({ message: "회원 탈퇴가 완료되었습니다." });
 });
 
 // ── 복구용 이메일 발송 헬퍼 ──────────────────────────────────
