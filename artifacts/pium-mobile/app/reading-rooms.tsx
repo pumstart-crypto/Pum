@@ -1148,83 +1148,71 @@ export default function ReadingRoomsScreen() {
               domStorageEnabled
               sharedCookiesEnabled
               thirdPartyCookiesEnabled
+              onMessage={(e) => {
+                try {
+                  const d = JSON.parse(e.nativeEvent.data);
+                  if (d.t === 'ERR') console.warn('[WV inject error]', d.m);
+                  else console.log('[WV dbg]', JSON.stringify(d));
+                } catch {}
+              }}
               injectedJavaScript={`
                 (function() {
-                  /* ── 하단 네비게이션 키워드 (5개 중 3개 이상이면 해당 컨테이너 숨김) ── */
-                  var NAV_KEYWORDS = ['MY', '1:1', '홈', '이용증', '전체메뉴'];
-                  /* ── 상단 타이틀 키워드 (텍스트에 포함 시 숨김) ── */
-                  var TITLE_KEYWORDS = ['열람실 예약', '열람존 예약', '스터디룸 예약', '좌석 예약'];
+                  try {
 
-                  function findNavContainer() {
-                    /* 1) 텍스트 기반: NAV_KEYWORDS 중 3개 이상 포함하는 가장 작은 공통 조상 */
-                    var hits = [];
-                    NAV_KEYWORDS.forEach(function(kw) {
-                      document.querySelectorAll('a, button, span, li').forEach(function(el) {
-                        if (el.children.length === 0 && el.textContent.trim() === kw) hits.push(el);
-                      });
-                    });
-                    if (hits.length >= 3) {
-                      /* 공통 조상 찾기: 첫 hit 기준으로 부모를 올라가며 다른 hit들을 포함하는지 확인 */
-                      var anchor = hits[0];
-                      for (var p = anchor.parentElement; p && p !== document.body; p = p.parentElement) {
-                        var inside = hits.filter(function(h) { return p.contains(h); });
-                        if (inside.length >= 3) { return p; }
+                    function hide() {
+                      var els = Array.prototype.slice.call(document.querySelectorAll('*'));
+
+                      /* ── 하단 네비게이션 숨기기 ──────────────────────────────────
+                         '이용증'+'전체메뉴'+'MY' 세 단어가 모두 innerText에 있고
+                         자식이 10개 이하인 가장 작은 컨테이너를 찾아 숨김           */
+                      var NAV = ['이용증', '전체메뉴', 'MY'];
+                      for (var i = 0; i < els.length; i++) {
+                        var el = els[i];
+                        if (el === document.body || el === document.documentElement) continue;
+                        var ch = el.children.length;
+                        if (ch < 2 || ch > 12) continue;
+                        var txt = (el.innerText || '').replace(/\\s+/g, '');
+                        var match = NAV.every(function(k){ return txt.indexOf(k) !== -1; });
+                        if (match) {
+                          el.style.setProperty('display', 'none', 'important');
+                        }
+                      }
+
+                      /* ── 상단 페이지 타이틀 숨기기 ──────────────────────────────
+                         짧은 텍스트(< 35자) 안에 '예약'이 포함된 제목 요소 + 부모  */
+                      var titleSels = 'h1,h2,h3,h4,[class*="tit"],[class*="title"],[class*="header"],[class*="subject"],[class*="page-"]';
+                      var heads = Array.prototype.slice.call(document.querySelectorAll(titleSels));
+                      for (var j = 0; j < heads.length; j++) {
+                        var h = heads[j];
+                        var ht = (h.innerText || '').trim();
+                        if (ht.indexOf('예약') !== -1 && ht.length < 35) {
+                          var par = h.parentElement;
+                          var tgt = (par && par !== document.body && par.children.length === 1) ? par : h;
+                          tgt.style.setProperty('display', 'none', 'important');
+                        }
                       }
                     }
-                    /* 2) 위치 기반: fixed/sticky 이고 화면 하단 20% 이내, 너비 70% 이상인 요소 */
-                    var wh = window.innerHeight, ww = window.innerWidth;
-                    var found = null;
-                    document.querySelectorAll('*').forEach(function(el) {
-                      if (found) return;
-                      var st = window.getComputedStyle(el);
-                      if (st.position !== 'fixed' && st.position !== 'sticky') return;
-                      var r = el.getBoundingClientRect();
-                      if (r.width > ww * 0.7 && r.bottom >= wh * 0.8 && r.height < wh * 0.2) found = el;
-                    });
-                    return found;
-                  }
 
-                  function findTitleBar() {
-                    /* 텍스트 기반: TITLE_KEYWORDS 포함하는 요소 찾기 */
-                    var result = null;
-                    document.querySelectorAll('h1, h2, h3, [class*="tit"], [class*="title"], [class*="header"]').forEach(function(el) {
-                      if (result) return;
-                      var txt = el.textContent || '';
-                      var match = TITLE_KEYWORDS.some(function(kw) { return txt.indexOf(kw) !== -1; });
-                      if (match && txt.length < 40) result = el;
-                    });
-                    if (result) {
-                      /* 부모가 단순 래퍼라면 한 단계 위까지 숨김 */
-                      var p = result.parentElement;
-                      if (p && p.children.length === 1) return p;
-                    }
-                    return result;
-                  }
+                    hide();
+                    new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
+                    for (var i = 1; i <= 20; i++) setTimeout(hide, i * 400);
 
-                  var hidden = [];
-                  function hideAll() {
-                    var nav = findNavContainer();
-                    if (nav && !nav.__piumHidden) {
-                      nav.style.setProperty('display', 'none', 'important');
-                      nav.__piumHidden = true;
-                      hidden.push(nav);
-                    }
-                    var title = findTitleBar();
-                    if (title && !title.__piumHidden) {
-                      title.style.setProperty('display', 'none', 'important');
-                      title.__piumHidden = true;
-                      hidden.push(title);
+                    /* 진단: 2초 후 DOM 상태 리포트 */
+                    setTimeout(function() {
+                      if (window.ReactNativeWebView) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                          t: 'DBG',
+                          els: document.querySelectorAll('*').length,
+                          txt: (document.body ? document.body.innerText : '').slice(0, 120)
+                        }));
+                      }
+                    }, 2000);
+
+                  } catch(e) {
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ t: 'ERR', m: e.message }));
                     }
                   }
-
-                  hideAll();
-
-                  var obs = new MutationObserver(hideAll);
-                  obs.observe(document.documentElement, { childList: true, subtree: true });
-
-                  /* 초기 SPA 렌더링 대비 폴링 (5초) */
-                  var n = 0;
-                  var t = setInterval(function() { hideAll(); if (++n > 10) clearInterval(t); }, 500);
                   true;
                 })();
               `}
