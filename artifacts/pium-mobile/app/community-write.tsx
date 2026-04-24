@@ -11,11 +11,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/contexts/AuthContext';
 import C from '@/constants/colors';
-import { FIXED_IDS } from './(tabs)/board';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
-const WRITE_CATEGORIES = ['중고거래', '홍보', '분실물', '학교 생활'];
 
 interface Profile { department?: string; studentId?: string | number; }
 
@@ -54,11 +52,10 @@ export default function CommunityWriteScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const { token } = useAuth();
 
-  const isDeptBoard = !FIXED_IDS.includes(initCategory);
-  const catList = isDeptBoard ? WRITE_CATEGORIES : [initCategory];
+  const catList = [initCategory];
 
   const [profile, setProfile] = useState<Profile>({});
-  const [category, setCategory] = useState(isDeptBoard ? '중고거래' : initCategory);
+  const [category, setCategory] = useState(initCategory);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [price, setPrice] = useState('');
