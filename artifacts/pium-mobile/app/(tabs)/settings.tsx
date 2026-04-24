@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Switch, Alert, Platform, Image,
+  Alert, Platform, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -38,7 +38,7 @@ const SECTIONS = [
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
-  const { isDark, mode, colors, setMode } = useTheme();
+  const { colors } = useTheme();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
@@ -63,12 +63,6 @@ export default function SettingsScreen() {
         },
       },
     ]);
-  };
-
-  const toggleDark = () => {
-    if (mode === 'system') setMode('dark');
-    else if (mode === 'dark') setMode('light');
-    else setMode('dark');
   };
 
   return (
@@ -100,27 +94,10 @@ export default function SettingsScreen() {
           <Feather name="chevron-right" size={18} color={colors.textTertiary} />
         </TouchableOpacity>
 
-        {/* Dark Mode Toggle */}
+        {/* 앱 설정 */}
         <View style={[styles.section]}>
           <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>앱 설정</Text>
           <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.settingRow, styles.settingRowBorder, { borderBottomColor: colors.border }]}>
-              <View style={[styles.settingIcon, { backgroundColor: '#F59E0B18' }]}>
-                <Feather name={isDark ? 'moon' : 'sun'} size={18} color="#F59E0B" />
-              </View>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>다크 모드</Text>
-                <Text style={[styles.settingDesc, { color: colors.textTertiary }]}>
-                  {mode === 'system' ? '시스템 설정' : isDark ? '다크 모드 켜짐' : '라이트 모드 켜짐'}
-                </Text>
-              </View>
-              <Switch
-                value={isDark}
-                onValueChange={toggleDark}
-                trackColor={{ false: '#E5E7EB', true: `${C.primary}80` }}
-                thumbColor={isDark ? C.primary : '#fff'}
-              />
-            </View>
             <View style={styles.settingRow}>
               <View style={[styles.settingIcon, { backgroundColor: '#05906918' }]}>
                 <Feather name="globe" size={18} color="#059669" />
