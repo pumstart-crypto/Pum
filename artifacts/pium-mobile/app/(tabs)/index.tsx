@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Platform, Linking, ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetSchedules } from '@workspace/api-client-react';
@@ -111,6 +111,13 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const { unreadCount, refreshUnread } = useNotifications();
   const { data: schedules = [], refetch: refetchSchedules } = useGetSchedules();
+
+  // 탭 포커스될 때마다 시간표 최신화
+  useFocusEffect(
+    useCallback(() => {
+      refetchSchedules();
+    }, [refetchSchedules])
+  );
 
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
