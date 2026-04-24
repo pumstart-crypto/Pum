@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Platform, Linking, RefreshControl, ActivityIndicator, Image,
+  Platform, Linking, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -168,13 +168,7 @@ export default function HomeScreen() {
     <View style={[styles.root, { paddingBottom: bottomPad, backgroundColor: colors.background }]}>
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }, scrolled && styles.headerScrolled]}>
-        <View style={styles.logoRow}>
-          <Image
-            source={require('../../assets/images/pium-logo-appstore.png')}
-            style={styles.logoImg}
-            resizeMode="contain"
-          />
-        </View>
+        <View style={{ width: 40 }} />
         <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
           <Feather name="bell" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -189,7 +183,7 @@ export default function HomeScreen() {
       >
         {/* Date */}
         <View style={styles.dateSection}>
-          <Text style={styles.universityLabel}>부산대학교</Text>
+          <Text style={styles.universityLabel}>P:um 피움</Text>
           <View style={styles.dateRow}>
             <Text style={[styles.dateText, { color: colors.text }]}>
               {today.getMonth() + 1}월 {today.getDate()}일{' '}
