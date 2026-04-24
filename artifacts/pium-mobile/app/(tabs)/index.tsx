@@ -175,7 +175,7 @@ export default function HomeScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: 4 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: 2 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
         onScroll={e => setScrolled(e.nativeEvent.contentOffset.y > 4)}
@@ -387,19 +387,19 @@ const styles = StyleSheet.create({
   logoUm: { fontSize: 9, fontFamily: 'Inter_700Bold', color: '#fff', marginTop: 4 },
   bellBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
 
-  dateSection: { marginBottom: 24 },
+  dateSection: { marginBottom: 14 },
   universityLabel: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1, marginBottom: 4 },
   dateRow: { flexDirection: 'row', alignItems: 'baseline' },
   dateText: { fontSize: 34, fontFamily: 'Inter_700Bold', letterSpacing: -0.5 },
   dayText: { fontSize: 34, fontFamily: 'Inter_400Regular', letterSpacing: -0.5 },
 
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 28, marginHorizontal: -2 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16, marginHorizontal: -2 },
   quickItem: { alignItems: 'center', gap: 7, width: '25%', paddingVertical: 10, paddingHorizontal: 6, minHeight: 88 },
   quickIcon: { width: 58, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   quickLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', textAlign: 'center' },
 
-  section: { marginBottom: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  section: { marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
   sectionLink: { fontSize: 14, color: C.primary, fontFamily: 'Inter_600SemiBold' },
 
