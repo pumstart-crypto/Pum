@@ -369,6 +369,7 @@ export default function ScheduleScreen() {
   const [showDirectAdd, setShowDirectAdd] = useState(false);
   const [showAddGrade, setShowAddGrade] = useState(false);
   const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Schedule | null>(null);
 
   // Direct add form
   const [dName, setDName] = useState('');
@@ -492,20 +493,22 @@ export default function ScheduleScreen() {
   };
 
   const deleteSchedule = (s: Schedule) => {
-    Alert.alert('수업 삭제', '이 수업을 모든 요일에서 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => {
-        const toDelete = (schedules as Schedule[]).filter(sc =>
-          sc.subjectName === s.subjectName &&
-          sc.year === s.year &&
-          sc.semester === s.semester
-        );
-        await Promise.all(toDelete.map(sc =>
-          fetch(`${API}/schedule/${sc.id}`, { method: 'DELETE', headers: { ...authHeader } })
-        ));
-        refetch();
-      }},
-    ]);
+    setPendingDelete(s);
+  };
+
+  const confirmDeleteSchedule = async () => {
+    if (!pendingDelete) return;
+    const s = pendingDelete;
+    setPendingDelete(null);
+    const toDelete = (schedules as Schedule[]).filter(sc =>
+      sc.subjectName === s.subjectName &&
+      sc.year === s.year &&
+      sc.semester === s.semester
+    );
+    await Promise.all(toDelete.map(sc =>
+      fetch(`${API}/schedule/${sc.id}`, { method: 'DELETE', headers: { ...authHeader } })
+    ));
+    refetch();
   };
 
   const fetchDepts = useCallback(async (year: number, sem: string) => {
@@ -1362,6 +1365,24 @@ export default function ScheduleScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ── 수업 삭제 확인 Modal ── */}
+      <Modal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>수업 삭제</Text>
+            <Text style={styles.confirmMsg}>이 수업을 모든 요일에서 삭제하시겠습니까?</Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setPendingDelete(null)}>
+                <Text style={styles.confirmCancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmDelete} onPress={confirmDeleteSchedule}>
+                <Text style={styles.confirmDeleteText}>삭제</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── 수업 추가 방식 선택 Modal ── */}
       <Modal visible={showAddMethod} transparent animationType="slide" onRequestClose={() => setShowAddMethod(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddMethod(false)}>
@@ -2047,6 +2068,17 @@ const styles = StyleSheet.create({
   cancelBtn: { alignItems: 'center', paddingVertical: 14 },
   cancelBtn2: { alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: '#F3F4F6' },
   cancelText: { fontSize: 14, color: '#9CA3AF', fontFamily: 'Inter_500Medium' },
+
+  // Delete confirm modal
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  confirmBox: { width: '100%', backgroundColor: '#fff', borderRadius: 20, padding: 28, alignItems: 'center' },
+  confirmTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827', marginBottom: 10 },
+  confirmMsg: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#4B5563', textAlign: 'center', lineHeight: 21, marginBottom: 24 },
+  confirmBtns: { flexDirection: 'row', gap: 12, width: '100%' },
+  confirmCancel: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: '#F3F4F6', alignItems: 'center' },
+  confirmCancelText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  confirmDelete: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: '#FEF2F2', alignItems: 'center' },
+  confirmDeleteText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#EF4444' },
 
   // Header
   envLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
