@@ -1199,9 +1199,17 @@ export default function ReadingRoomsScreen() {
                           /* 화면 상단 25% 안에 위치해야 함 */
                           var hr = h.getBoundingClientRect();
                           if (hr.top < 0 || hr.top > wh * 0.25) continue;
-                          /* 찾았으면 부모가 단순 래퍼(자식 1~2개)면 부모까지 숨김 */
-                          var par = h.parentElement;
-                          var tgt = (par && par !== document.body && par.children.length <= 2) ? par : h;
+                          /* 화살표 포함 타이틀 바 전체를 숨기기 위해 위로 최대 4레벨 탐색.
+                             각 조상의 innerText 합산이 40자 이내인 가장 높은 조상을 숨김. */
+                          var tgt = h;
+                          var up = h.parentElement;
+                          for (var k = 0; k < 4; k++) {
+                            if (!up || up === document.body || up === document.documentElement) break;
+                            var upTxt = (up.innerText || '').replace(/\s+/g, '');
+                            if (upTxt.length > 22) break;
+                            tgt = up;
+                            up = up.parentElement;
+                          }
                           tgt.style.setProperty('display', 'none', 'important');
                           titleHidden = true;
                           break;
