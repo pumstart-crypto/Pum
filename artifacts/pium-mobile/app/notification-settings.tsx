@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Switch, Platform,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Switch, Platform, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/contexts/AuthContext';
 import C from '@/constants/colors';
 
-const NOTIFICATION_SETTINGS = [
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+const SETTINGS_KEY = 'pium_notification_settings';
+
+const DEFAULT_SETTINGS: Record<string, boolean> = {
+  school_notice: true,
+  dept_notice: true,
+  todo_deadline: true,
+  todo_daily: false,
+  class_before: true,
+  community_comment: true,
+  academic_favorite: true,
+};
+
+const NOTIFICATION_ITEMS = [
   {
     section: '학교 공지',
     items: [
@@ -19,7 +33,7 @@ const NOTIFICATION_SETTINGS = [
   {
     section: '할 일',
     items: [
-      { key: 'todo_deadline', label: '할 일 마감 알림', desc: '마감 하루 전 알림' },
+      { key: 'todo_deadline', label: '할 일 마감 알림', desc: '마감 하루 전 오전 9시 알림' },
       { key: 'todo_daily', label: '오늘 할 일 요약', desc: '매일 오전 8시 알림' },
     ],
   },
@@ -38,28 +52,54 @@ const NOTIFICATION_SETTINGS = [
   {
     section: '학사일정',
     items: [
-      { key: 'academic_favorite', label: '즐겨찾기한 학사일정 알림', desc: '즐겨찾기한 일정 하루 전 알림' },
+      { key: 'academic_favorite', label: '즐겨찾기한 학사일정 알림', desc: '즐겨찾기한 일정 하루 전 오전 9시 알림' },
     ],
   },
 ];
 
 export default function NotificationSettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
 
-  const [settings, setSettings] = useState<Record<string, boolean>>({
-    school_notice: true,
-    dept_notice: true,
-    todo_deadline: true,
-    todo_daily: false,
-    class_before: true,
-    community_comment: true,
-    academic_favorite: true,
-  });
+  const [settings, setSettings] = useState<Record<string, boolean>>(DEFAULT_SETTINGS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const toggle = (key: string) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  const authHeader = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SETTINGS_KEY);
+        if (raw) {
+          setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) });
+        }
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  const saveSettings = useCallback(async (newSettings: Record<string, boolean>) => {
+    setSaving(true);
+    try {
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+      if (token) {
+        await fetch(`${API_BASE}/notifications/settings`, {
+          method: 'PUT',
+          headers: authHeader,
+          body: JSON.stringify(newSettings),
+        });
+      }
+    } catch {}
+    finally { setSaving(false); }
+  }, [token]);
+
+  const toggle = async (key: string) => {
+    const next = { ...settings, [key]: !settings[key] };
+    setSettings(next);
+    await saveSettings(next);
   };
 
   return (
@@ -69,7 +109,9 @@ export default function NotificationSettingsScreen() {
           <Feather name="arrow-left" size={22} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>알림 설정</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.savingIndicator}>
+          {saving && <ActivityIndicator size="small" color={C.primary} />}
+        </View>
       </View>
 
       <ScrollView
@@ -77,36 +119,42 @@ export default function NotificationSettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.subtitle}>원하는 알림을 설정하세요</Text>
+        {loading ? (
+          <ActivityIndicator color={C.primary} style={{ marginTop: 60 }} />
+        ) : (
+          <>
+            <Text style={styles.subtitle}>원하는 알림을 설정하세요</Text>
 
-        {NOTIFICATION_SETTINGS.map(section => (
-          <View key={section.section} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.section}</Text>
-            <View style={styles.sectionCard}>
-              {section.items.map((item, idx) => (
-                <View key={item.key} style={[styles.settingRow, idx < section.items.length - 1 && styles.settingRowBorder]}>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingLabel}>{item.label}</Text>
-                    <Text style={styles.settingDesc}>{item.desc}</Text>
-                  </View>
-                  <Switch
-                    value={settings[item.key] || false}
-                    onValueChange={() => toggle(item.key)}
-                    trackColor={{ false: '#D1D5DB', true: `${C.primary}60` }}
-                    thumbColor={settings[item.key] ? C.primary : '#F9FAFB'}
-                  />
+            {NOTIFICATION_ITEMS.map(section => (
+              <View key={section.section} style={styles.section}>
+                <Text style={styles.sectionTitle}>{section.section}</Text>
+                <View style={styles.sectionCard}>
+                  {section.items.map((item, idx) => (
+                    <View key={item.key} style={[styles.settingRow, idx < section.items.length - 1 && styles.settingRowBorder]}>
+                      <View style={styles.settingInfo}>
+                        <Text style={styles.settingLabel}>{item.label}</Text>
+                        <Text style={styles.settingDesc}>{item.desc}</Text>
+                      </View>
+                      <Switch
+                        value={settings[item.key] ?? false}
+                        onValueChange={() => toggle(item.key)}
+                        trackColor={{ false: '#D1D5DB', true: `${C.primary}60` }}
+                        thumbColor={settings[item.key] ? C.primary : '#F9FAFB'}
+                      />
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-          </View>
-        ))}
+              </View>
+            ))}
 
-        <View style={styles.noteBox}>
-          <Feather name="info" size={14} color="#6B7280" />
-          <Text style={styles.noteText}>
-            알림은 기기 설정에서도 관리할 수 있습니다. 기기 알림이 꺼져 있으면 앱 내 설정과 관계없이 알림이 오지 않습니다.
-          </Text>
-        </View>
+            <View style={styles.noteBox}>
+              <Feather name="info" size={14} color="#6B7280" />
+              <Text style={styles.noteText}>
+                기기 알림 권한이 꺼져 있으면 앱 내 설정과 관계없이 알림이 오지 않습니다.
+              </Text>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -117,6 +165,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center' },
+  savingIndicator: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 16 },
   subtitle: { fontSize: 14, color: '#6B7280', fontFamily: 'Inter_400Regular', marginBottom: 20 },
   section: { marginBottom: 20 },

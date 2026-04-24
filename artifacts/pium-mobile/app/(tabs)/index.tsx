@@ -11,6 +11,7 @@ import C from '@/constants/colors';
 import { getNow } from '@/utils/debugTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
@@ -108,6 +109,7 @@ export default function HomeScreen() {
   const { token } = useAuth();
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   const { colors } = useTheme();
+  const { unreadCount, refreshUnread } = useNotifications();
   const { data: schedules = [], refetch: refetchSchedules } = useGetSchedules();
 
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -152,9 +154,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchTodos(), refetchSchedules()]);
+    await Promise.all([fetchTodos(), refetchSchedules(), refreshUnread()]);
     setRefreshing(false);
-  }, [fetchTodos, refetchSchedules]);
+  }, [fetchTodos, refetchSchedules, refreshUnread]);
 
   const toggleTodo = async (id: number, completed: boolean) => {
     setTodos(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
@@ -169,8 +171,13 @@ export default function HomeScreen() {
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.background }, scrolled && styles.headerScrolled]}>
         <Text style={styles.universityLabel}>P:um 피움</Text>
-        <TouchableOpacity onPress={() => router.push('/notifications-inbox')} style={styles.bellBtn}>
+        <TouchableOpacity onPress={() => { router.push('/notifications-inbox'); refreshUnread(); }} style={styles.bellBtn}>
           <Feather name="bell" size={20} color={colors.text} />
+          {unreadCount > 0 && (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -386,6 +393,8 @@ const styles = StyleSheet.create({
   logoP: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#fff' },
   logoUm: { fontSize: 9, fontFamily: 'Inter_700Bold', color: '#fff', marginTop: 4 },
   bellBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  bellBadge: { position: 'absolute', top: 4, right: 4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
+  bellBadgeText: { fontSize: 9, fontFamily: 'Inter_700Bold', color: '#fff' },
 
   dateSection: { marginBottom: 14 },
   universityLabel: { fontSize: 12, fontFamily: 'Inter_700Bold', color: C.primary, letterSpacing: 1, marginBottom: 4 },

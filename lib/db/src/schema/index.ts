@@ -7,3 +7,4 @@ export * from "./grades";
 export * from "./community";
 export * from "./auth";
 export * from "./library";
+export * from "./notifications";
