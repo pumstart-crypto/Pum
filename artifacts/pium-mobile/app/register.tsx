@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Platform, Alert, Modal, FlatList, KeyboardAvoidingView,
+  ScrollView, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -25,7 +25,7 @@ const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 
 type Step = 'account' | 'email' | 'studentid' | 'done';
 const STEPS: Step[] = ['account', 'email', 'studentid', 'done'];
-const STEP_LABELS = ['계정', '이메일', '학생증', '완료'];
+const STEP_LABELS = ['계정', '이메일', '학생정보', '완료'];
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -53,24 +53,15 @@ export default function RegisterScreen() {
   // Student ID step
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [college, setCollege] = useState('');
   const [major, setMajor] = useState('');
   const [imageUri, setImageUri] = useState('');
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [deptLoading, setDeptLoading] = useState(false);
-  const [showDeptPicker, setShowDeptPicker] = useState(false);
-  const [deptSearch, setDeptSearch] = useState('');
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrDone, setOcrDone] = useState(false);
 
   useEffect(() => {
     if (step === 'studentid') {
       Notifications.requestPermissionsAsync().catch(() => {});
-      if (departments.length === 0) {
-        setDeptLoading(true);
-        fetch(`${API}/courses/departments`)
-          .then(r => r.json())
-          .then(data => setDepartments(Array.isArray(data) ? data : []))
-          .catch(() => {})
-          .finally(() => setDeptLoading(false));
-      }
     }
   }, [step]);
 
@@ -147,13 +138,44 @@ export default function RegisterScreen() {
     finally { setLoading(false); }
   };
 
-  const pickImage = async () => {
+  const pickAndOcr = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
+      quality: 0.85,
     });
-    if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+    if (result.canceled || !result.assets[0]) return;
+
+    const uri = result.assets[0].uri;
+    setImageUri(uri);
+    setOcrDone(false);
+    setOcrLoading(true);
+    setName(''); setStudentId(''); setCollege(''); setMajor('');
+    setError('');
+
+    try {
+      const formData = new FormData();
+      const ext = uri.split('.').pop() || 'jpg';
+      formData.append('image', { uri, name: `student_id.${ext}`, type: `image/${ext}` } as any);
+
+      const r = await fetch(`${API}/auth/verify-student-id`, { method: 'POST', body: formData });
+      const data = await r.json();
+
+      if (!r.ok) {
+        setError(data.message || '학생증 인식에 실패했습니다. 다시 시도해주세요.');
+        setImageUri('');
+        return;
+      }
+
+      setName(data.info?.name || '');
+      setStudentId(data.info?.studentId || '');
+      setCollege(data.info?.college || '');
+      setMajor(data.info?.major || '');
+      setOcrDone(true);
+    } catch {
+      setError('학생증 인식 중 오류가 발생했습니다. 다시 시도해주세요.');
+      setImageUri('');
+    } finally {
+      setOcrLoading(false);
     }
   };
 
@@ -167,6 +189,7 @@ export default function RegisterScreen() {
       formData.append('email', fullEmail);
       formData.append('name', name);
       formData.append('studentId', studentId);
+      formData.append('college', college);
       formData.append('major', major);
       if (imageUri) {
         const ext = imageUri.split('.').pop() || 'jpg';
@@ -354,57 +377,85 @@ export default function RegisterScreen() {
         {step === 'studentid' && (
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>학생 정보</Text>
-            <Text style={styles.requiredNote}><Text style={styles.requiredStar}>*</Text> 표시 항목은 필수입니다</Text>
-            <View>
-              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 이름</Text>
-              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor="#9CA3AF" />
-            </View>
-            <View>
-              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 학번</Text>
-              <TextInput style={styles.input} value={studentId} onChangeText={setStudentId}
-                placeholder="201234567" placeholderTextColor="#9CA3AF" keyboardType="number-pad" />
-            </View>
-            <View>
-              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 전공</Text>
-              <TouchableOpacity
-                style={[styles.input, styles.selectBtn]}
-                onPress={() => { setDeptSearch(''); setShowDeptPicker(true); }}
-              >
-                <Text style={[styles.selectBtnText, !major && { color: '#9CA3AF' }]}>
-                  {major || (deptLoading ? '학과 목록 불러오는 중...' : '전공 선택')}
-                </Text>
-                <Feather name="chevron-down" size={16} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-            <View>
-              <Text style={styles.fieldLabel}><Text style={styles.requiredStar}>*</Text> 학생증 사진</Text>
-              <TouchableOpacity
-                style={[styles.imagePickerBtn, imageUri && styles.imagePickerBtnDone]}
-                onPress={pickImage}
-              >
-                <Feather name="camera" size={20} color={imageUri ? C.primary : '#6B7280'} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.imagePickerText, imageUri && { color: C.primary }]}>
-                    {imageUri ? '이미지 선택됨 ✓' : '학생증 사진 첨부 (단과대학 자동 인식)'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-            {(!name || !studentId || !major || !imageUri) && (
-              <View style={styles.validationBox}>
-                <Feather name="alert-circle" size={14} color="#F59E0B" />
-                <Text style={styles.validationText}>
-                  {[!name && '이름', !studentId && '학번', !major && '전공', !imageUri && '학생증 사진'].filter(Boolean).join(', ')}을(를) 입력해주세요
+
+            {/* 학생증 사진 첨부 */}
+            <TouchableOpacity
+              style={[styles.imagePickerBtn, (imageUri && !ocrLoading) && styles.imagePickerBtnDone]}
+              onPress={pickAndOcr}
+              disabled={ocrLoading}
+            >
+              <Feather name="camera" size={20} color={(imageUri && !ocrLoading) ? C.primary : '#6B7280'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.imagePickerText, (imageUri && !ocrLoading) && { color: C.primary }]}>
+                  {ocrLoading
+                    ? '학생증 인식 중...'
+                    : ocrDone
+                      ? '학생증 인식 완료 ✓ (다시 첨부하려면 탭)'
+                      : '학생증 사진 첨부'}
                 </Text>
               </View>
-            )}
-            <TouchableOpacity
-              style={[styles.btn, (!name || !studentId || !major || !imageUri || loading) && styles.btnDisabled]}
-              disabled={!name || !studentId || !major || !imageUri || loading}
-              onPress={handleRegister}
-            >
-              <Text style={styles.btnText}>가입 완료</Text>
+              {ocrLoading && <ActivityIndicator size="small" color={C.primary} />}
             </TouchableOpacity>
+
+            {/* OCR 완료 후 자동 입력된 정보 */}
+            {ocrDone && (
+              <>
+                <View style={styles.noEditNotice}>
+                  <Feather name="lock" size={13} color="#6B7280" />
+                  <Text style={styles.noEditNoticeText}>
+                    아래 정보는 학생증에서 자동 인식된 내용입니다.{'\n'}회원가입 완료 후에는 수정이 불가능합니다.
+                  </Text>
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>이름</Text>
+                  <View style={styles.readonlyField}>
+                    <Text style={[styles.readonlyText, !name && styles.readonlyEmpty]}>
+                      {name || '인식 불가'}
+                    </Text>
+                    <Feather name="lock" size={14} color="#D1D5DB" />
+                  </View>
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>학번</Text>
+                  <View style={styles.readonlyField}>
+                    <Text style={[styles.readonlyText, !studentId && styles.readonlyEmpty]}>
+                      {studentId || '인식 불가'}
+                    </Text>
+                    <Feather name="lock" size={14} color="#D1D5DB" />
+                  </View>
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>단과대학</Text>
+                  <View style={styles.readonlyField}>
+                    <Text style={[styles.readonlyText, !college && styles.readonlyEmpty]}>
+                      {college || '인식 불가'}
+                    </Text>
+                    <Feather name="lock" size={14} color="#D1D5DB" />
+                  </View>
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>전공</Text>
+                  <View style={styles.readonlyField}>
+                    <Text style={[styles.readonlyText, !major && styles.readonlyEmpty]}>
+                      {major || '인식 불가'}
+                    </Text>
+                    <Feather name="lock" size={14} color="#D1D5DB" />
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.btn, loading && styles.btnDisabled]}
+                  disabled={loading}
+                  onPress={handleRegister}
+                >
+                  <Text style={styles.btnText}>가입 완료</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
 
@@ -443,53 +494,6 @@ export default function RegisterScreen() {
         </View>
       </Modal>
 
-      {/* 전공 선택 모달 */}
-      <Modal visible={showDeptPicker} animationType="slide" transparent onRequestClose={() => setShowDeptPicker(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.deptModal, { paddingBottom: insets.bottom + 16 }]}>
-              <View style={styles.deptModalHeader}>
-                <Text style={styles.deptModalTitle}>전공 선택</Text>
-                <TouchableOpacity onPress={() => setShowDeptPicker(false)}>
-                  <Feather name="x" size={22} color="#374151" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.deptSearch}>
-                <Feather name="search" size={16} color="#9CA3AF" />
-                <TextInput
-                  style={styles.deptSearchInput}
-                  value={deptSearch}
-                  onChangeText={setDeptSearch}
-                  placeholder="학과 검색..."
-                  placeholderTextColor="#9CA3AF"
-                  autoFocus
-                />
-              </View>
-              <FlatList
-                data={departments.filter(d => d.includes(deptSearch))}
-                keyExtractor={item => item}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.deptItem, item === major && styles.deptItemActive]}
-                    onPress={() => { setMajor(item); setShowDeptPicker(false); }}
-                  >
-                    <Text style={[styles.deptItemText, item === major && styles.deptItemTextActive]}>{item}</Text>
-                    {item === major && <Feather name="check" size={16} color={C.primary} />}
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <View style={{ alignItems: 'center', paddingTop: 32 }}>
-                    <Text style={{ color: '#9CA3AF', fontSize: 14 }}>
-                      {deptLoading ? '불러오는 중...' : '검색 결과가 없습니다'}
-                    </Text>
-                  </View>
-                }
-              />
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -584,6 +588,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#374151',
     fontFamily: 'Inter_600SemiBold',
+  },
+  noEditNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  noEditNoticeText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Inter_400Regular',
+    flex: 1,
+    lineHeight: 18,
+  },
+  readonlyField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  readonlyText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+    fontFamily: 'Inter_400Regular',
+  },
+  readonlyEmpty: {
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   imagePickerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
