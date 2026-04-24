@@ -14,14 +14,14 @@ import { FIXED_COMMUNITIES, FIXED_IDS, filterPostsByCategory, type Post } from '
 
 const API = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
 const isWeb = Platform.OS === 'web';
-const WRITE_CATEGORIES = ['중고거래', '홍보', '분실물', '꿀팁'];
+const WRITE_CATEGORIES = ['중고거래', '홍보', '분실물', '학교 생활'];
 
 const CAT_BADGE: Record<string, { bg: string; text: string }> = {
-  '중고거래': { bg: '#EDE9FE', text: '#7C3AED' },
-  '홍보':    { bg: '#D1FAE5', text: '#059669' },
-  '분실물':  { bg: '#FEF3C7', text: '#D97706' },
-  '꿀팁':    { bg: '#DBEAFE', text: '#1D4ED8' },
-  '기타':    { bg: '#F3F4F6', text: '#6B7280' },
+  '중고거래':  { bg: '#EBF3FA', text: C.primary },
+  '홍보':     { bg: '#EBF3FA', text: C.primary },
+  '분실물':   { bg: '#EBF3FA', text: C.primary },
+  '학교 생활': { bg: '#EBF3FA', text: C.primary },
+  '기타':     { bg: '#F3F4F6', text: '#6B7280' },
 };
 
 const IDENTITY_STYLE = {
@@ -249,8 +249,8 @@ export default function CommunityDetailScreen() {
 
   const isDeptBoard = !FIXED_IDS.includes(category);
   const fixed = FIXED_COMMUNITIES.find(c => c.id === category);
-  const communityColor = fixed ? fixed.color : '#F59E0B';
-  const communityBg = fixed ? fixed.bg : '#FEF3C7';
+  const communityColor = C.primary;
+  const communityBg = '#EBF3FA';
   const communityIcon = fixed ? fixed.icon : 'school-outline';
   const defaultWriteCategory = FIXED_IDS.includes(category) ? category : '중고거래';
 
@@ -318,7 +318,7 @@ export default function CommunityDetailScreen() {
           <Feather name="arrow-left" size={22} color="#111827" />
         </TouchableOpacity>
         <View style={[styles.headerIconWrap, { backgroundColor: communityBg }]}>
-          <Ionicons name={communityIcon as any} size={16} color={communityColor} />
+          <Ionicons name={communityIcon as any} size={14} color={communityColor} />
         </View>
         <Text style={styles.detailHeaderTitle}>{label}</Text>
         <View style={{ flex: 1 }} />
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
 
   detailHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 10 },
   backBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'flex-start' },
-  headerIconWrap: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  headerIconWrap: { width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   detailHeaderTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#111827' },
   postCount: { fontSize: 12, color: '#9CA3AF', fontFamily: 'Inter_400Regular' },
 

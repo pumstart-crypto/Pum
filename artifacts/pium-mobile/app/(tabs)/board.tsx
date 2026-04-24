@@ -16,10 +16,10 @@ const TAB_ORDER_KEY = 'pium_community_tab_order';
 
 /* ── 커뮤니티 정의 ── */
 export const FIXED_COMMUNITIES = [
-  { id: '중고거래', label: '중고거래', icon: 'swap-horizontal-outline', color: '#7C3AED', bg: '#EDE9FE' },
-  { id: '홍보',    label: '홍보',    icon: 'megaphone-outline',       color: '#059669', bg: '#D1FAE5' },
-  { id: '분실물',  label: '분실물',  icon: 'search-outline',          color: '#D97706', bg: '#FEF3C7' },
-  { id: '꿀팁',    label: '꿀팁',    icon: 'bulb-outline',            color: '#1D4ED8', bg: '#DBEAFE' },
+  { id: '중고거래',  label: '중고거래',  icon: 'swap-horizontal-outline', color: C.primary, bg: '#EBF3FA' },
+  { id: '홍보',     label: '홍보',     icon: 'megaphone-outline',        color: C.primary, bg: '#EBF3FA' },
+  { id: '분실물',   label: '분실물',   icon: 'search-outline',           color: C.primary, bg: '#EBF3FA' },
+  { id: '학교 생활', label: '학교 생활', icon: 'school-outline',           color: C.primary, bg: '#EBF3FA' },
 ] as const;
 export const FIXED_IDS = FIXED_COMMUNITIES.map(c => c.id) as string[];
 const DEFAULT_ORDER = FIXED_IDS as unknown as string[];
@@ -186,7 +186,7 @@ function CommunityCard({
       {/* Card Header */}
       <TouchableOpacity style={styles.cardHeader} onPress={goDetail} activeOpacity={0.7}>
         <View style={[styles.cardIconWrap, { backgroundColor: bg }]}>
-          <Ionicons name={icon as any} size={18} color={color} />
+          <Ionicons name={icon as any} size={14} color={color} />
         </View>
         <Text style={styles.cardTitle}>{label}</Text>
         {isDept && onRemove && (
@@ -246,7 +246,7 @@ export default function BoardScreen() {
         const saved: string[] = JSON.parse(raw);
         const migrated = saved
           .filter(t => t !== '수업Q&A' && t !== '내 학과' && t !== '전체')
-          .map(t => t === '동아리' ? '홍보' : t);
+          .map(t => t === '동아리' ? '홍보' : t === '꿀팁' ? '학교 생활' : t);
         const missingDefaults = DEFAULT_ORDER.filter(d => !migrated.includes(d));
         const order = [...missingDefaults, ...migrated.filter(t => !FIXED_IDS.includes(t) || missingDefaults.includes(t))];
         const finalOrder = [...DEFAULT_ORDER, ...order.filter(t => !FIXED_IDS.includes(t))];
@@ -323,8 +323,8 @@ export default function BoardScreen() {
             const fixed = FIXED_COMMUNITIES.find(c => c.id === id);
             const label = fixed ? fixed.label : id;
             const icon = fixed ? fixed.icon : 'school-outline';
-            const color = fixed ? fixed.color : '#F59E0B';
-            const bg = fixed ? fixed.bg : '#FEF3C7';
+            const color = C.primary;
+            const bg = '#EBF3FA';
             const communityPosts = filterPostsByCategory(posts, id);
             return (
               <CommunityCard
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
-  cardIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  cardIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827' },
   removeBtn: { marginLeft: 4, padding: 2 },
   enterBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, backgroundColor: '#EEF4FF' },
